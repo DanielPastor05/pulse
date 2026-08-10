@@ -4,7 +4,6 @@ import * as React from 'react';
 import Link from 'next/link';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import rehypeHighlight from 'rehype-highlight';
 import rehypeSanitize from 'rehype-sanitize';
 import { Check, Copy } from 'lucide-react';
 
@@ -79,9 +78,51 @@ const components: Components = {
   },
 };
 
+type RehypePlugins = NonNullable<React.ComponentProps<typeof ReactMarkdown>['rehypePlugins']>;
+
 const remarkPlugins = [remarkGfm];
-// Sanitise first, then highlight — the highlighter only ever adds <span>s.
-const rehypePlugins = [rehypeSanitize, rehypeHighlight];
+const sanitiseOnly: RehypePlugins = [rehypeSanitize];
+
+/** Fetched at most once per session, then reused by every message. */
+let highlightPlugin: RehypePlugins[number] | null = null;
+
+/**
+ * `rehype-highlight` drags in highlight.js — around 170 kB that only earns its
+ * place when a message actually contains a fenced code block, and most do not.
+ * Keeping it in the static import put it on the critical path of the chat
+ * route for everyone.
+ *
+ * Until it arrives the block renders unhighlighted: the same code without
+ * colour, rather than a message that is missing.
+ */
+function useHighlightPlugin(content: string): RehypePlugins {
+  const needed = React.useMemo(() => content.includes('```'), [content]);
+  // Both reads are wrapped: a plugin is a function, and bare functions are
+  // treated as lazy initialisers / updaters by `useState`.
+  const [loaded, setLoaded] = React.useState<RehypePlugins[number] | null>(() => highlightPlugin);
+
+  React.useEffect(() => {
+    if (!needed || highlightPlugin) return;
+
+    let cancelled = false;
+    void import('rehype-highlight').then((module) => {
+      highlightPlugin = module.default;
+      // Wrapped in a function: the plugin is itself a function, which
+      // `setState` would otherwise treat as an updater.
+      if (!cancelled) setLoaded(() => module.default);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [needed]);
+
+  return React.useMemo(
+    // Sanitise first, then highlight — the highlighter only ever adds <span>s.
+    () => (needed && loaded ? [rehypeSanitize, loaded] : sanitiseOnly),
+    [needed, loaded],
+  );
+}
 
 export const MessageContent = React.memo(function MessageContent({
   content,
@@ -92,6 +133,7 @@ export const MessageContent = React.memo(function MessageContent({
 }) {
   const source = React.useMemo(() => linkifyMentions(content), [content]);
   const jumbo = React.useMemo(() => isEmojiOnly(content), [content]);
+  const rehypePlugins = useHighlightPlugin(content);
 
   if (jumbo) {
     return <p className={cn('text-[2.5rem] leading-tight', className)}>{content.trim()}</p>;

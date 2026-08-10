@@ -1,3 +1,4 @@
+import bundleAnalyzer from '@next/bundle-analyzer';
 import type { NextConfig } from 'next';
 
 /**
@@ -79,4 +80,5 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/** Opt-in, so ordinary builds are untouched: `ANALYZE=true npm run build`. */
+export default bundleAnalyzer({ enabled: process.env.ANALYZE === 'true' })(nextConfig);
