@@ -334,3 +334,20 @@ create or replace function public.prune_rate_limits() returns void
 language sql security definer set search_path = '' as $$
   delete from public.rate_limits where "windowStart" < now() - interval '1 day';
 $$;
+
+-- Todo lo que vive en `public` lo publica PostgREST en /rest/v1/rpc/<nombre>.
+-- Ninguna de estas dos funciones está pensada para que la llame un cliente, y
+-- ambas son SECURITY DEFINER, así que se les quitan los permisos.
+-- (`rls_auto_enable` es el event trigger que activa RLS en tablas nuevas.)
+revoke execute on function public.prune_rate_limits() from anon, authenticated, public;
+revoke execute on function public.rls_auto_enable() from anon, authenticated, public;
+
+-- Sin esto la tabla de contadores sólo crece: nadie vuelve a leer una fila
+-- cuando su ventana se ha cerrado.
+create extension if not exists pg_cron;
+
+select cron.schedule(
+  'prune-rate-limits',
+  '17 4 * * *',
+  $$select public.prune_rate_limits()$$
+);

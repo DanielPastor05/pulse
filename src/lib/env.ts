@@ -22,8 +22,13 @@ export const publicEnv = {
   get supabaseAnonKey() {
     return required('NEXT_PUBLIC_SUPABASE_ANON_KEY', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
   },
+  /**
+   * No localhost fallback on purpose. Invite links are built from this, so a
+   * missing value in production silently hands out URLs pointing at the
+   * developer's machine — a failure nobody notices until someone clicks one.
+   */
   get appUrl() {
-    return process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+    return required('NEXT_PUBLIC_APP_URL', process.env.NEXT_PUBLIC_APP_URL);
   },
 } as const;
 

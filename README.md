@@ -234,15 +234,52 @@ npm run build       # Production build (runs prisma generate first)
 npm run start       # Serve the production build
 npm run typecheck   # tsc --noEmit
 npm run lint        # ESLint
+npm test            # Unit tests (pure functions, no I/O)
+npm run test:e2e    # End-to-end suites — needs `npm run dev` running
 npm run db:push     # Push the Prisma schema to Postgres
 npm run db:studio   # Browse the database
 ```
 
+`test:e2e` talks to the real dev server and the real Supabase project, because
+what it checks — block enforcement, rate limiting, storage MIME rules,
+notification preferences — only exists once a request has been through
+middleware, the route handler, Prisma and Postgres. It creates throwaway
+accounts and deletes them on the way out.
+
+## Deployment
+
+The app is a stock Next.js 15 App Router build, so any Node host works; Vercel
+needs no configuration file.
+
+Four things break in production if they are missed, and none of them fail
+loudly:
+
+1. **`NEXT_PUBLIC_APP_URL`** must be the deployed origin. Invite links are built
+   from it. It is `required()` precisely so a missing value fails at once
+   instead of quietly minting links to `localhost`.
+2. **Supabase Auth → URL Configuration** needs the production origin in the
+   redirect allow-list, or password recovery and any future OAuth will fail on
+   the way back.
+3. **Outbound email.** Supabase's built-in SMTP is capped at a handful of
+   messages per hour and is not meant for real users. Email confirmation is
+   currently off, so sign-up works without it — but *password recovery does
+   not*. Wire up your own SMTP before relying on that flow.
+4. **`DATABASE_URL` pool size.** `connection_limit=10` with `pool_timeout=20`
+   suits a persistent server. Revisit it if the platform runs many short-lived
+   instances: too high multiplied by many instances exhausts the pooler, too low
+   serialises every request behind one connection.
+
+Every variable in `.env.example` has to exist in the host's environment.
+`SUPABASE_SERVICE_ROLE_KEY` is server-only — it must never be given a
+`NEXT_PUBLIC_` name.
+
 ## Known limits
 
-- **Rate limiting is in-process.** Correct for a single instance; point
-  `server/rate-limit.ts` at Redis before scaling horizontally. The call sites
-  do not change.
+- **Rate limiting is a fixed window, not a token bucket.** Counters live in
+  Postgres (`rate_limits`), so a limit holds across instances, and one statement
+  does the whole read-modify-write. The trade-off is the window boundary: a
+  caller can spend the tail of one window and the head of the next back to back,
+  so the real burst ceiling is 2×the limit.
 - **Search uses trigram `ILIKE`.** Fast into the millions of rows with the
   indexes in `security.sql`; swap for `tsvector` if you need ranking.
 - **Voice notes record to WebM**, which Safari on older iOS does not produce.
