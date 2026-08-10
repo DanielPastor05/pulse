@@ -1,0 +1,506 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   Obsidian Electric
+   Neon cyan and mint over near-black glass. Depth comes from translucency and
+   glow rather than from luminance steps.
+--------------------------------------------------------------------------- */
+
+@theme {
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, 'SFMono-Regular', monospace;
+
+  --radius-control: 0.5rem;
+  --radius-field: 0.75rem;
+  --radius-card: 1rem;
+  --radius-panel: 1.5rem;
+
+  --shadow-raised: 0 8px 32px 0 rgb(0 0 0 / 0.37);
+  --shadow-overlay: 0 20px 50px rgb(0 0 0 / 0.5);
+  --shadow-modal: 0 24px 70px rgb(0 0 0 / 0.65);
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@layer theme {
+  /* Dark is the design. Light is a legible translation of it, not a second
+     personality — the same cyan, darkened until it clears contrast on paper. */
+  :root {
+    color-scheme: light;
+
+    --accent: #067d88;
+    --accent-hover: #04656e;
+    --accent-mint: #0a8f74;
+    --accent-quiet: #e6f7f9;
+    --accent-line: #b3e2e7;
+    --accent-glow: rgb(6 125 136 / 0.25);
+    --on-accent: #ffffff;
+
+    --canvas: #eef1f2;
+    --canvas-fx-1: rgb(6 125 136 / 0.06);
+    --canvas-fx-2: rgb(10 143 116 / 0.05);
+
+    --surface: rgb(255 255 255 / 0.86);
+    --surface-solid: #ffffff;
+    --surface-raised: rgb(255 255 255 / 0.94);
+    --surface-sunken: rgb(12 20 22 / 0.04);
+    --surface-hover: rgb(12 20 22 / 0.06);
+    --surface-active: rgb(6 125 136 / 0.1);
+
+    --hairline: rgb(12 20 22 / 0.1);
+    --hairline-strong: rgb(12 20 22 / 0.18);
+
+    /* text-3 carries timestamps at 11px. #6d797b lands on exactly 4.50 against
+       white — the AA minimum with no margin — so it is nudged one step darker. */
+    --text-1: #101718;
+    --text-2: #4a5658;
+    --text-3: #6a7678;
+
+    --bubble-in: rgb(255 255 255 / 0.9);
+    --bubble-in-text: #101718;
+    --bubble-in-line: rgb(12 20 22 / 0.1);
+
+    --glass-blur: 24px;
+
+    --success: #0a8f74;
+    --warning: #8a6300;
+    --danger: #c02617;
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    --accent: #00f2ff;
+    --accent-hover: #74f5ff;
+    --accent-mint: #15ffd1;
+    --accent-quiet: rgb(0 242 255 / 0.1);
+    --accent-line: rgb(0 242 255 / 0.3);
+    --accent-glow: rgb(0 242 255 / 0.4);
+    /* Black on cyan — 15:1, and it is what makes the accent read as lit. */
+    --on-accent: #000000;
+
+    --canvas: #000000;
+    --canvas-fx-1: rgb(0 242 255 / 0.08);
+    --canvas-fx-2: rgb(21 255 209 / 0.05);
+
+    --surface: rgb(5 5 5 / 0.6);
+    --surface-solid: #121414;
+    --surface-raised: rgb(30 32 32 / 0.7);
+    --surface-sunken: rgb(12 15 15 / 0.6);
+    --surface-hover: rgb(40 42 43 / 0.5);
+    --surface-active: rgb(0 242 255 / 0.12);
+
+    --hairline: rgb(58 73 75 / 0.4);
+    --hairline-strong: rgb(132 148 149 / 0.45);
+
+    --text-1: #e2e2e2;
+    --text-2: #b9cacb;
+    --text-3: #849495;
+
+    --bubble-in: rgb(30 32 32 / 0.45);
+    --bubble-in-text: #e2e2e2;
+    --bubble-in-line: rgb(58 73 75 / 0.35);
+
+    --glass-blur: 24px;
+
+    --success: #15ffd1;
+    --warning: #fed83a;
+    --danger: #ffb4ab;
+  }
+
+  /* Accent variants — each is a neon pigment plus its own mint counterpart. */
+  [data-accent='electric'] { --accent: #067d88; --accent-hover: #04656e; --accent-mint: #0a8f74; --accent-quiet: #e6f7f9; --accent-line: #b3e2e7; --accent-glow: rgb(6 125 136 / 0.25); }
+  [data-accent='magenta']  { --accent: #a3117f; --accent-hover: #8a0e6b; --accent-mint: #b3237a; --accent-quiet: #fbe9f5; --accent-line: #efc0e0; --accent-glow: rgb(163 17 127 / 0.25); }
+  [data-accent='lime']     { --accent: #4a7c02; --accent-hover: #3d6602; --accent-mint: #5e8f0a; --accent-quiet: #eef7e2; --accent-line: #cfe4ac; --accent-glow: rgb(74 124 2 / 0.25); }
+  [data-accent='amber']    { --accent: #8a5a00; --accent-hover: #734a00; --accent-mint: #9c7000; --accent-quiet: #fbf2e0; --accent-line: #edd6a5; --accent-glow: rgb(138 90 0 / 0.25); }
+  [data-accent='violet']   { --accent: #5b34c9; --accent-hover: #4b2aa8; --accent-mint: #7a3fd4; --accent-quiet: #efeafd; --accent-line: #cfc0f5; --accent-glow: rgb(91 52 201 / 0.25); }
+  [data-accent='crimson']  { --accent: #b01236; --accent-hover: #940e2c; --accent-mint: #c4234a; --accent-quiet: #fdeaee; --accent-line: #f4c0cd; --accent-glow: rgb(176 18 54 / 0.25); }
+
+  .dark [data-accent='electric'], .dark[data-accent='electric'] { --accent: #00f2ff; --accent-hover: #74f5ff; --accent-mint: #15ffd1; --accent-quiet: rgb(0 242 255 / 0.1); --accent-line: rgb(0 242 255 / 0.3); --accent-glow: rgb(0 242 255 / 0.4); --on-accent: #000000; --canvas-fx-1: rgb(0 242 255 / 0.08); --canvas-fx-2: rgb(21 255 209 / 0.05); }
+  .dark [data-accent='magenta'],  .dark[data-accent='magenta']  { --accent: #ff3ec8; --accent-hover: #ff77d8; --accent-mint: #ff8adf; --accent-quiet: rgb(255 62 200 / 0.1); --accent-line: rgb(255 62 200 / 0.3); --accent-glow: rgb(255 62 200 / 0.4); --on-accent: #000000; --canvas-fx-1: rgb(255 62 200 / 0.08); --canvas-fx-2: rgb(255 138 223 / 0.05); }
+  .dark [data-accent='lime'],     .dark[data-accent='lime']     { --accent: #b6ff3e; --accent-hover: #caff77; --accent-mint: #6bff9e; --accent-quiet: rgb(182 255 62 / 0.1); --accent-line: rgb(182 255 62 / 0.3); --accent-glow: rgb(182 255 62 / 0.4); --on-accent: #000000; --canvas-fx-1: rgb(182 255 62 / 0.08); --canvas-fx-2: rgb(107 255 158 / 0.05); }
+  .dark [data-accent='amber'],    .dark[data-accent='amber']    { --accent: #ffc63e; --accent-hover: #ffd777; --accent-mint: #ffe173; --accent-quiet: rgb(255 198 62 / 0.1); --accent-line: rgb(255 198 62 / 0.3); --accent-glow: rgb(255 198 62 / 0.4); --on-accent: #000000; --canvas-fx-1: rgb(255 198 62 / 0.08); --canvas-fx-2: rgb(255 225 115 / 0.05); }
+  .dark [data-accent='violet'],   .dark[data-accent='violet']   { --accent: #b48cff; --accent-hover: #c9aaff; --accent-mint: #8ea8ff; --accent-quiet: rgb(180 140 255 / 0.1); --accent-line: rgb(180 140 255 / 0.3); --accent-glow: rgb(180 140 255 / 0.4); --on-accent: #0b0616; --canvas-fx-1: rgb(180 140 255 / 0.08); --canvas-fx-2: rgb(142 168 255 / 0.05); }
+  .dark [data-accent='crimson'],  .dark[data-accent='crimson']  { --accent: #ff5470; --accent-hover: #ff8195; --accent-mint: #ff9db0; --accent-quiet: rgb(255 84 112 / 0.1); --accent-line: rgb(255 84 112 / 0.3); --accent-glow: rgb(255 84 112 / 0.4); --on-accent: #16040a; --canvas-fx-1: rgb(255 84 112 / 0.08); --canvas-fx-2: rgb(255 157 176 / 0.05); }
+}
+
+@layer base {
+  * {
+    border-color: var(--hairline);
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--canvas);
+    /* Two fixed radial washes. `background-attachment: fixed` keeps them
+       anchored to the viewport so scrolling never drags the light source. */
+    background-image:
+      radial-gradient(circle at 15% 50%, var(--canvas-fx-1) 0%, transparent 40%),
+      radial-gradient(circle at 85% 30%, var(--canvas-fx-2) 0%, transparent 50%);
+    background-attachment: fixed;
+    color: var(--text-1);
+    font-family: var(--font-sans);
+    letter-spacing: -0.005em;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+
+  time,
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  .scroll-area {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--accent) 30%, transparent) transparent;
+  }
+  .scroll-area::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  .scroll-area::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  .scroll-area::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Utilities
+--------------------------------------------------------------------------- */
+
+/* The -webkit- prefix must come FIRST: Lightning CSS collapses the pair and
+   keeps the last one it sees, so writing the standard property second silently
+   drops it and leaves Safari-only syntax. */
+@utility panel {
+  background: var(--surface);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-raised);
+}
+
+@utility panel-sunken {
+  background: var(--surface-sunken);
+  border: 1px solid var(--hairline);
+}
+
+/**
+ * Floating surfaces — modals, menus, popovers, toasts, the hover toolbar.
+ * `panel` is 60% opaque, which reads as depth when it sits over the canvas but
+ * turns into a legibility problem the moment it floats over text. This is the
+ * same glass, opaque enough to actually stop the content behind it.
+ */
+@utility surface-overlay {
+  background: color-mix(in srgb, var(--surface-solid) 94%, transparent);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+}
+
+/* Slightly warmer glass with a gradient wash — for cards sitting on panels. */
+@utility glass-card {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--surface-solid) 60%, transparent) 0%,
+    color-mix(in srgb, var(--canvas) 80%, transparent) 100%
+  );
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--hairline);
+}
+
+/* A 1px gradient rim, drawn with a mask so it never fills the element. */
+@utility neon-border {
+  position: relative;
+}
+
+@utility text-muted {
+  color: var(--text-2);
+}
+
+@utility text-faint {
+  color: var(--text-3);
+}
+
+@utility label-caps {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+@utility virtual-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 72px;
+}
+
+@layer utilities {
+  .neon-border::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      45deg,
+      var(--accent),
+      transparent 40%,
+      transparent 60%,
+      var(--accent-mint)
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .glow-text {
+    text-shadow: 0 0 10px var(--accent-glow);
+  }
+
+  .glow-text-mint {
+    text-shadow: 0 0 10px color-mix(in srgb, var(--accent-mint) 40%, transparent);
+  }
+
+  .glow-ring {
+    box-shadow: 0 0 15px var(--accent-glow);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Overlay motion — Radix waits for CSS animations, not transitions.
+--------------------------------------------------------------------------- */
+
+@keyframes overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes overlay-out { from { opacity: 1; } to { opacity: 0; } }
+
+@keyframes modal-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.97); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes modal-out {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to { opacity: 0; transform: translate(-50%, -50%) scale(0.98); }
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes pop-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.98); }
+}
+
+@keyframes drop-in {
+  from { opacity: 0; transform: translate(-50%, -6px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes drop-out {
+  from { opacity: 1; transform: translate(-50%, 0); }
+  to { opacity: 0; transform: translate(-50%, -4px); }
+}
+
+[data-state='open'].anim-overlay { animation: overlay-in 160ms var(--ease-out) both; }
+[data-state='closed'].anim-overlay { animation: overlay-out 120ms var(--ease-out) both; }
+
+[data-state='open'].anim-modal { animation: modal-in 200ms var(--ease-out) both; }
+[data-state='closed'].anim-modal { animation: modal-out 130ms var(--ease-out) both; }
+
+[data-state='open'].anim-drop { animation: drop-in 160ms var(--ease-out) both; }
+[data-state='closed'].anim-drop { animation: drop-out 110ms var(--ease-out) both; }
+
+.anim-pop {
+  transform-origin: var(
+    --radix-dropdown-menu-content-transform-origin,
+    var(
+      --radix-popover-content-transform-origin,
+      var(
+        --radix-context-menu-content-transform-origin,
+        var(--radix-tooltip-content-transform-origin, center)
+      )
+    )
+  );
+}
+
+[data-state='open'].anim-pop,
+[data-state='delayed-open'].anim-pop { animation: pop-in 140ms var(--ease-out) both; }
+[data-state='closed'].anim-pop { animation: pop-out 100ms var(--ease-out) both; }
+
+.anim-pop[data-instant] { animation-duration: 0ms; }
+
+/* ---------------------------------------------------------------------------
+   Skeletons
+--------------------------------------------------------------------------- */
+
+@keyframes sweep {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+.skeleton {
+  background-color: var(--surface-sunken);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--accent) 8%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: sweep 1.4s linear infinite;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   Markdown + code
+--------------------------------------------------------------------------- */
+
+.markdown {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.markdown > * + * { margin-top: 0.5em; }
+.markdown a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.markdown a:hover { text-shadow: 0 0 10px var(--accent-glow); }
+.markdown strong { font-weight: 600; }
+.markdown ul,
+.markdown ol { padding-inline-start: 1.3em; }
+.markdown ul { list-style: disc; }
+.markdown ol { list-style: decimal; }
+.markdown blockquote {
+  border-inline-start: 2px solid var(--accent);
+  padding-inline-start: 0.75em;
+  color: var(--text-2);
+}
+.markdown code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--surface-sunken);
+  border: 1px solid var(--hairline);
+  padding: 0.08em 0.35em;
+  border-radius: 6px;
+}
+
+/* The code block from the reference: near-black, a vertical mint rail, and a
+   header strip carrying the filename. */
+.markdown pre {
+  position: relative;
+  background: color-mix(in srgb, var(--canvas) 80%, #000);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-field);
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  font-size: 0.81rem;
+  line-height: 1.75;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.5);
+}
+.markdown pre::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--accent-mint), transparent);
+  opacity: 0.5;
+}
+.markdown pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+}
+.markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88em;
+}
+.markdown th,
+.markdown td {
+  border: 1px solid var(--hairline);
+  padding: 0.35em 0.6em;
+  text-align: start;
+}
+.markdown hr {
+  border: none;
+  border-top: 1px solid var(--hairline);
+}
+
+/* Syntax palette lifted from the reference: cyan keywords, mint identifiers. */
+.hljs-comment, .hljs-quote { color: var(--text-3); font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-type { color: #067d88; font-style: italic; }
+.hljs-string, .hljs-regexp, .hljs-addition { color: #0a8f74; }
+.hljs-number, .hljs-symbol, .hljs-bullet { color: #8a6300; }
+.hljs-title, .hljs-section, .hljs-name { color: #0a8f74; font-weight: 600; }
+.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable { color: #a3117f; }
+.hljs-built_in, .hljs-class .hljs-title { color: #067d88; }
+.hljs-deletion { color: var(--danger); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
+
+.dark .markdown pre code { color: #cac3d8; }
+.dark .hljs-keyword, .dark .hljs-selector-tag, .dark .hljs-literal, .dark .hljs-type { color: #00f2ff; font-style: italic; }
+.dark .hljs-string, .dark .hljs-regexp, .dark .hljs-addition { color: #15ffd1; }
+.dark .hljs-number, .dark .hljs-symbol, .dark .hljs-bullet { color: #fed83a; }
+.dark .hljs-title, .dark .hljs-section, .dark .hljs-name { color: #15ffd1; font-weight: 700; }
+.dark .hljs-attr, .dark .hljs-attribute, .dark .hljs-variable, .dark .hljs-template-variable { color: #ffb2bc; }
+.dark .hljs-built_in, .dark .hljs-class .hljs-title { color: #00f2ff; }
+
+/* ---------------------------------------------------------------------------
+   Reduced motion. Glow is a static shadow, so it survives; movement does not.
+--------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+[data-reduced-motion='true'] *,
+[data-reduced-motion='true'] *::before,
+[data-reduced-motion='true'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}

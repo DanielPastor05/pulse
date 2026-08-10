@@ -1,0 +1,445 @@
+// Pulse — database schema
+// Postgres (Supabase). Auth lives in Supabase `auth.users`; `User.id` mirrors that uuid.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Presence {
+  ONLINE
+  IDLE
+  DND
+  OFFLINE
+}
+
+enum ThemePreference {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+enum ConversationType {
+  DIRECT
+  GROUP
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MODERATOR
+  MEMBER
+}
+
+enum MessageKind {
+  TEXT
+  SYSTEM
+}
+
+enum AttachmentKind {
+  IMAGE
+  VIDEO
+  AUDIO
+  VOICE
+  DOCUMENT
+}
+
+enum RelationshipStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum NotificationKind {
+  MESSAGE
+  MENTION
+  REACTION
+  FRIEND_REQUEST
+  FRIEND_ACCEPTED
+  GROUP_INVITE
+  JOIN_REQUEST
+  SYSTEM
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id          String  @id @db.Uuid
+  email       String  @unique
+  username    String  @unique
+  displayName String
+  avatarUrl   String?
+  bannerColor String  @default("violet")
+  bio         String?
+  statusText  String?
+
+  presence   Presence @default(OFFLINE)
+  lastSeenAt DateTime @default(now())
+
+  theme         ThemePreference @default(SYSTEM)
+  accent        String          @default("violet")
+  reducedMotion Boolean         @default(false)
+
+  notifyOnMessage    Boolean @default(true)
+  notifyOnMention    Boolean @default(true)
+  notifyOnReaction   Boolean @default(false)
+  notifySounds       Boolean @default(true)
+  notifyDesktopPush  Boolean @default(true)
+
+  onboardedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  memberships       ConversationMember[]
+  messages          Message[]
+  reactions         Reaction[]
+  stars             StarredMessage[]
+  pinnedMessages    Message[]            @relation("MessagePinnedBy")
+  ownedConversations Conversation[]      @relation("ConversationOwner")
+  sentRelationships     Relationship[]   @relation("RelationshipRequester")
+  receivedRelationships Relationship[]   @relation("RelationshipAddressee")
+  blocksMade        Block[]              @relation("BlockAuthor")
+  blocksReceived    Block[]              @relation("BlockTarget")
+  joinRequests      JoinRequest[]
+  notifications     Notification[]       @relation("NotificationOwner")
+  notificationsSent Notification[]       @relation("NotificationActor")
+  invites           Invite[]
+
+  @@index([username])
+  @@index([displayName])
+  // Trigram indexes back the `contains` (ILIKE '%…%') searches. Declared here
+  // as well as in sql/security.sql so `prisma db push` never drops them.
+  @@index([username(ops: raw("gin_trgm_ops"))], type: Gin, map: "users_username_trgm_idx")
+  @@index([displayName(ops: raw("gin_trgm_ops"))], type: Gin, map: "users_display_name_trgm_idx")
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Conversations
+// ---------------------------------------------------------------------------
+
+model Conversation {
+  id          String           @id @default(uuid()) @db.Uuid
+  type        ConversationType
+  name        String?
+  slug        String?          @unique
+  description String?
+  avatarUrl   String?
+  accent      String           @default("violet")
+  isPublic    Boolean          @default(false)
+  requiresApproval Boolean     @default(false)
+
+  ownerId String? @db.Uuid
+  owner   User?   @relation("ConversationOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  members      ConversationMember[]
+  messages     Message[]
+  joinRequests JoinRequest[]
+  invites      Invite[]
+  notifications Notification[]
+
+  @@index([type, isPublic])
+  @@index([lastMessageAt])
+  @@index([ownerId])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "conversations_name_trgm_idx")
+  @@map("conversations")
+}
+
+model ConversationMember {
+  id String @id @default(uuid()) @db.Uuid
+
+  conversationId String       @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role     MemberRole @default(MEMBER)
+  nickname String?
+
+  muted      Boolean @default(false)
+  favorite   Boolean @default(false)
+  archived   Boolean @default(false)
+  draft      String?
+
+  lastReadAt        DateTime?
+  lastReadMessageId String?   @db.Uuid
+
+  joinedAt DateTime @default(now())
+
+  @@unique([conversationId, userId])
+  @@index([userId, archived])
+  @@map("conversation_members")
+}
+
+// ---------------------------------------------------------------------------
+// Messages
+// ---------------------------------------------------------------------------
+
+model Message {
+  id String @id @default(uuid()) @db.Uuid
+
+  conversationId String       @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  authorId String? @db.Uuid
+  author   User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  kind    MessageKind @default(TEXT)
+  content String      @default("")
+
+  replyToId String?  @db.Uuid
+  replyTo   Message? @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   Message[] @relation("MessageReplies")
+
+  forwardedFromId String?  @db.Uuid
+  forwardedFrom   Message? @relation("MessageForwards", fields: [forwardedFromId], references: [id], onDelete: SetNull)
+  forwards        Message[] @relation("MessageForwards")
+
+  editedAt   DateTime?
+  deletedAt  DateTime?
+  pinnedAt   DateTime?
+  pinnedById String?   @db.Uuid
+  pinnedBy   User?     @relation("MessagePinnedBy", fields: [pinnedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  attachments   Attachment[]
+  reactions     Reaction[]
+  stars         StarredMessage[]
+  mentions      Mention[]
+  notifications Notification[]
+
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@index([conversationId, pinnedAt])
+  // Covering indexes for the outgoing foreign keys — without them every
+  // cascade delete degrades into a sequential scan of this table.
+  @@index([authorId])
+  @@index([replyToId])
+  @@index([forwardedFromId])
+  @@index([pinnedById])
+  @@index([content(ops: raw("gin_trgm_ops"))], type: Gin, map: "messages_content_trgm_idx")
+  @@map("messages")
+}
+
+model Attachment {
+  id String @id @default(uuid()) @db.Uuid
+
+  messageId String  @db.Uuid
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  kind     AttachmentKind
+  url      String
+  path     String
+  name     String
+  size     Int
+  mimeType String
+  width    Int?
+  height   Int?
+  duration Int?
+  waveform Float[]        @default([])
+  blurhash String?
+
+  createdAt DateTime @default(now())
+
+  @@index([messageId])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "attachments_name_trgm_idx")
+  @@map("attachments")
+}
+
+model Reaction {
+  id String @id @default(uuid()) @db.Uuid
+
+  messageId String  @db.Uuid
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@index([userId])
+  @@map("reactions")
+}
+
+model StarredMessage {
+  messageId String  @db.Uuid
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([messageId, userId])
+  @@index([userId, createdAt])
+  @@map("starred_messages")
+}
+
+model Mention {
+  id String @id @default(uuid()) @db.Uuid
+
+  messageId String  @db.Uuid
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+
+  @@unique([messageId, userId])
+  @@index([userId])
+  @@map("mentions")
+}
+
+// ---------------------------------------------------------------------------
+// Social graph
+// ---------------------------------------------------------------------------
+
+model Relationship {
+  id String @id @default(uuid()) @db.Uuid
+
+  requesterId String @db.Uuid
+  requester   User   @relation("RelationshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  addresseeId String @db.Uuid
+  addressee   User   @relation("RelationshipAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  status    RelationshipStatus @default(PENDING)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
+  @@map("relationships")
+}
+
+model Block {
+  blockerId String @db.Uuid
+  blocker   User   @relation("BlockAuthor", fields: [blockerId], references: [id], onDelete: Cascade)
+
+  blockedId String @db.Uuid
+  blocked   User   @relation("BlockTarget", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("blocks")
+}
+
+model JoinRequest {
+  id String @id @default(uuid()) @db.Uuid
+
+  conversationId String       @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  message   String?
+  status    JoinRequestStatus @default(PENDING)
+  createdAt DateTime          @default(now())
+
+  @@unique([conversationId, userId])
+  @@index([conversationId, status])
+  @@index([userId])
+  @@map("join_requests")
+}
+
+model Invite {
+  id String @id @default(uuid()) @db.Uuid
+
+  code String @unique
+
+  conversationId String       @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  createdById String @db.Uuid
+  createdBy   User   @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  maxUses   Int?
+  uses      Int       @default(0)
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([conversationId])
+  @@index([createdById])
+  @@map("invites")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id String @id @default(uuid()) @db.Uuid
+
+  userId String @db.Uuid
+  user   User   @relation("NotificationOwner", fields: [userId], references: [id], onDelete: Cascade)
+
+  actorId String? @db.Uuid
+  actor   User?   @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  kind  NotificationKind
+  title String
+  body  String?
+
+  conversationId String?       @db.Uuid
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  messageId String?  @db.Uuid
+  message   Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt(sort: Desc)])
+  @@index([actorId])
+  @@index([conversationId])
+  @@index([messageId])
+  @@map("notifications")
+}
+
+// ---------------------------------------------------------------------------
+// Rate limiting
+// ---------------------------------------------------------------------------
+
+/// Fixed-window counters shared by every app instance. Lives in Postgres so a
+/// limit still holds when the app runs on more than one process — an in-memory
+/// counter resets on each cold start and is per-instance, which on serverless
+/// means effectively no limit at all.
+model RateLimit {
+  key String @id
+
+  /// timestamptz, unlike the rest of the schema: this is the one column that
+  /// gets compared against `now()` from several processes at once, so it must
+  /// not depend on each connection's session timezone.
+  windowStart DateTime @default(now()) @db.Timestamptz(6)
+  count       Int      @default(0)
+
+  @@index([windowStart], map: "rate_limits_windowstart_idx")
+  @@map("rate_limits")
+}
