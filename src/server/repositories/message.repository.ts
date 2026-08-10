@@ -27,7 +27,10 @@ export async function listMessages(
   const rows = await prisma.message.findMany({
     where: { conversationId },
     include: messageInclude(viewerId),
-    orderBy: { createdAt: 'desc' },
+    // `id` breaks ties: `createdAt` is not unique, and a cursor into a
+    // non-total ordering can skip or repeat rows when two messages land in the
+    // same millisecond — easy to hit with a burst of sends.
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: limit + 1,
     ...(options.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}),
   });

@@ -1,9 +1,25 @@
+import { randomUUID } from 'node:crypto';
+
 import type { NotificationKind } from '@prisma/client';
 
 import { prisma } from '@/lib/prisma';
 import { realtimeEvents } from '@/lib/realtime';
-import { broadcastToUsers } from '@/server/broadcast';
+import { broadcastPerUser } from '@/server/broadcast';
 import { notificationInclude, toNotification } from '@/server/repositories/selectors';
+
+/**
+ * Which profile toggle gates each kind.
+ *
+ * Only the three chatty kinds have a switch in Settings. The social ones
+ * (friend requests, group invites, join requests) have no toggle and always
+ * deliver — silently dropping those would lose something the user cannot get
+ * back by scrolling.
+ */
+const PREFERENCE_BY_KIND = {
+  MESSAGE: 'notifyOnMessage',
+  MENTION: 'notifyOnMention',
+  REACTION: 'notifyOnReaction',
+} as const satisfies Partial<Record<NotificationKind, string>>;
 
 export type NotificationInput = {
   userIds: string[];
@@ -17,8 +33,11 @@ export type NotificationInput = {
 
 /**
  * Persists one notification per recipient and pushes it down that recipient's
- * private realtime channel. Muted conversations are filtered here so no call
- * site has to remember to do it.
+ * private realtime channel. Muting and the per-user notification toggles are
+ * both applied here so no call site has to remember to do it.
+ *
+ * Writes go out as one `createMany` and one broadcast rather than a loop: a
+ * mention in a 50-person group was 50 inserts and 50 HTTP requests.
  */
 export async function notify(input: NotificationInput): Promise<void> {
   const recipients = input.actorId
@@ -26,39 +45,53 @@ export async function notify(input: NotificationInput): Promise<void> {
     : input.userIds;
   if (recipients.length === 0) return;
 
-  let allowed = recipients;
+  let allowed = [...new Set(recipients)];
+
   if (input.conversationId) {
     const members = await prisma.conversationMember.findMany({
-      where: { conversationId: input.conversationId, userId: { in: recipients }, muted: false },
+      where: { conversationId: input.conversationId, userId: { in: allowed }, muted: false },
       select: { userId: true },
     });
     allowed = members.map((member) => member.userId);
   }
   if (allowed.length === 0) return;
 
-  const created = await Promise.all(
-    allowed.map((userId) =>
-      prisma.notification.create({
-        data: {
-          userId,
-          kind: input.kind,
-          title: input.title,
-          body: input.body ?? null,
-          actorId: input.actorId ?? null,
-          conversationId: input.conversationId ?? null,
-          messageId: input.messageId ?? null,
-        },
-        include: notificationInclude,
-      }),
-    ),
-  );
+  const preference = PREFERENCE_BY_KIND[input.kind as keyof typeof PREFERENCE_BY_KIND];
+  if (preference) {
+    const opted = await prisma.user.findMany({
+      where: { id: { in: allowed }, [preference]: true },
+      select: { id: true },
+    });
+    allowed = opted.map((user) => user.id);
+    if (allowed.length === 0) return;
+  }
 
-  await Promise.all(
-    created.map((notification) =>
-      broadcastToUsers([notification.userId], realtimeEvents.notification, {
-        notification: toNotification(notification),
-      }),
-    ),
+  // Ids are generated here so the rows can be read back after `createMany`,
+  // which does not return them.
+  const rows = allowed.map((userId) => ({
+    id: randomUUID(),
+    userId,
+    kind: input.kind,
+    title: input.title,
+    body: input.body ?? null,
+    actorId: input.actorId ?? null,
+    conversationId: input.conversationId ?? null,
+    messageId: input.messageId ?? null,
+  }));
+
+  await prisma.notification.createMany({ data: rows });
+
+  const created = await prisma.notification.findMany({
+    where: { id: { in: rows.map((row) => row.id) } },
+    include: notificationInclude,
+  });
+
+  await broadcastPerUser(
+    created.map((notification) => ({
+      userId: notification.userId,
+      payload: { notification: toNotification(notification) },
+    })),
+    realtimeEvents.notification,
   );
 }
 

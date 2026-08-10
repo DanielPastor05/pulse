@@ -53,3 +53,24 @@ export function broadcastToUsers(userIds: string[], event: RealtimeEvent, payloa
   const unique = [...new Set(userIds)];
   return send(unique.map((id) => ({ topic: realtimeChannels.user(id), event, payload })));
 }
+
+/**
+ * Same fan-out, but each recipient gets their own payload — notifications carry
+ * the row that belongs to that user, so they cannot share one.
+ *
+ * Exists so callers do not loop over `broadcastToUsers`: `send` already batches
+ * a whole array into a single HTTP request, and a loop turns one request into
+ * one per recipient.
+ */
+export function broadcastPerUser(
+  entries: Array<{ userId: string; payload: unknown }>,
+  event: RealtimeEvent,
+) {
+  return send(
+    entries.map(({ userId, payload }) => ({
+      topic: realtimeChannels.user(userId),
+      event,
+      payload,
+    })),
+  );
+}

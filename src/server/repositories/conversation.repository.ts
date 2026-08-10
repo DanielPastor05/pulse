@@ -105,7 +105,10 @@ export async function listConversations(
   const memberships = await prisma.conversationMember.findMany({
     where: { userId, archived: filter.archived ?? false },
     include: { conversation: { include: summaryInclude } },
-    orderBy: { conversation: { lastMessageAt: 'desc' } },
+    // No cursor here, so nothing can be dropped — but `lastMessageAt` is null
+    // for conversations nobody has written in yet, and ties would come back in
+    // arbitrary order, making the list reshuffle between renders.
+    orderBy: [{ conversation: { lastMessageAt: 'desc' } }, { conversationId: 'desc' }],
   });
 
   const unread = await unreadCounts(
