@@ -216,6 +216,49 @@ const trasCarrera = await api(`/api/conversations/${idemId}/messages`, { actor: 
 const copias = (trasCarrera.json?.items ?? []).filter((m) => m.content === 'Cuatro a la vez');
 check('copias tras cuatro envios simultaneos', copias.length, 1);
 
+// --- 4c. Previsualizacion de enlaces ---------------------------------------
+// Las funciones puras ya tienen prueba unitaria; esto verifica el camino
+// completo, que es donde un fallo de verdad expondria la red interna.
+console.log('\nEnlaces: el servidor no va a buscar direcciones internas');
+
+async function previewOf(texto) {
+  const enviado = await api(`/api/conversations/${idemId}/messages`, {
+    method: 'POST',
+    actor: mallory,
+    body: { content: texto },
+  });
+  if (enviado.status !== 201) throw new Error(`envio -> ${enviado.status}`);
+  // La resolucion ocurre despues de la respuesta, a proposito.
+  await new Promise((resolve) => setTimeout(resolve, 2_500));
+  const historial = await api(`/api/conversations/${idemId}/messages`, { actor: mallory });
+  const encontrado = (historial.json?.items ?? []).find((m) => m.id === (enviado.json?.id ?? ''));
+  return encontrado?.linkPreview ?? null;
+}
+
+check('previsualiza http://127.0.0.1/admin', await previewOf('mira http://127.0.0.1/admin'), null);
+check(
+  'previsualiza la IP de metadatos de la nube',
+  await previewOf('mira http://169.254.169.254/latest/meta-data/'),
+  null,
+);
+check('previsualiza una IP privada', await previewOf('mira http://192.168.1.1/'), null);
+check('previsualiza ::1', await previewOf('mira http://[::1]:8080/'), null);
+
+// Control positivo. Sin el, cuatro «null» saldrian igual si la funcion entera
+// estuviera rota, y las cuatro comprobaciones de arriba no valdrian nada.
+// example.com es el dominio que IANA reserva justo para esto.
+//
+// Solo tiene sentido contra un servidor con salida a internet: en local el
+// servidor corre en un entorno sin DNS externo, donde un null no distingue
+// «bloqueado» de «no hay red».
+if (APP.includes('localhost')) {
+  console.log('  --    control positivo omitido: el servidor local no resuelve DNS externo');
+} else {
+  const real = await previewOf('mira https://example.com');
+  check('un enlace publico sí produce tarjeta', real !== null, true);
+  check('y trae titulo', typeof real?.title === 'string' && real.title.length > 0, true);
+}
+
 // --- 5. Propiedad de un grupo ----------------------------------------------
 console.log('\nPropiedad: el dueño tiene que poder ceder el grupo y salir');
 

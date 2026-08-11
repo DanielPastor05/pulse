@@ -20,6 +20,7 @@ import { QUICK_REACTIONS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { formatBubbleTime, formatFullTimestamp } from '@/lib/date';
 import { AttachmentGrid } from '@/features/media/components/attachment-grid';
+import { LinkPreviewCard } from '@/features/messages/components/link-preview-card';
 import { MessageContent } from '@/features/messages/components/message-content';
 import { MessageReactions } from '@/features/messages/components/message-reactions';
 import { Avatar } from '@/components/ui/avatar';
@@ -278,6 +279,9 @@ export const MessageBubble = React.memo(function MessageBubble({
                     ) : null}
                     {message.content ? (
                       <MessageContent content={message.content} className="text-[14px]" />
+                    ) : null}
+                    {message.linkPreview ? (
+                      <LinkPreviewCard preview={message.linkPreview} />
                     ) : null}
                   </>
                 )}

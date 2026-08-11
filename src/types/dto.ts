@@ -82,9 +82,19 @@ export type MessageDTO = {
   attachments: AttachmentDTO[];
   reactions: ReactionGroup[];
   starred: boolean;
+  /** Resolved after the message is stored, so it arrives on a later update. */
+  linkPreview: LinkPreviewDTO | null;
   /** Client-only: set on optimistic messages that have not been confirmed. */
   pending?: boolean;
   failed?: boolean;
+};
+
+export type LinkPreviewDTO = {
+  url: string;
+  title: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  siteName: string | null;
 };
 
 export type MemberDTO = {

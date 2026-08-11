@@ -351,3 +351,19 @@ select cron.schedule(
   '17 4 * * *',
   $$select public.prune_rate_limits()$$
 );
+
+-- ---------------------------------------------------------------------------
+-- Previsualización de enlaces
+--
+-- La tabla la crea Prisma (modelo LinkPreview). Aquí sólo va lo que Prisma no
+-- expresa: RLS activado sin ninguna política, igual que en rate_limits, de modo
+-- que PostgREST no la exponga. La app la lee por su propia conexión, que se
+-- salta RLS.
+--
+-- Nota de seguridad: el servidor hace peticiones a URLs que escribe un usuario.
+-- La defensa contra SSRF vive en src/server/link-preview.ts — resolución de DNS
+-- y rechazo de direcciones privadas en cada salto, límite de redirecciones,
+-- tiempo máximo y tope de bytes.
+-- ---------------------------------------------------------------------------
+
+alter table public.link_previews enable row level security;

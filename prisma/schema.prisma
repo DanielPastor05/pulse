@@ -230,6 +230,9 @@ model Message {
   /// the author so two people cannot collide on the same value.
   clientId String? @db.VarChar(64)
 
+  linkPreviewId String?      @db.Uuid
+  linkPreview   LinkPreview? @relation(fields: [linkPreviewId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
 
   attachments   Attachment[]
@@ -250,8 +253,33 @@ model Message {
   @@index([replyToId])
   @@index([forwardedFromId])
   @@index([pinnedById])
+  @@index([linkPreviewId])
   @@index([content(ops: raw("gin_trgm_ops"))], type: Gin, map: "messages_content_trgm_idx")
   @@map("messages")
+}
+
+/// Open Graph metadata for a shared link, cached by URL rather than by message:
+/// the same link pasted ten times is fetched once.
+///
+/// Failures are cached too. Without that, a dead or deliberately slow host
+/// would be re-fetched every time somebody shares it.
+model LinkPreview {
+  id  String @id @default(uuid()) @db.Uuid
+  /// Capped so the unique index stays inside Postgres's btree row limit even
+  /// with multi-byte characters.
+  url String @unique @db.VarChar(512)
+
+  title       String? @db.VarChar(300)
+  description String? @db.VarChar(600)
+  imageUrl    String? @db.VarChar(2048)
+  siteName    String? @db.VarChar(120)
+
+  failed    Boolean  @default(false)
+  fetchedAt DateTime @default(now())
+
+  messages Message[]
+
+  @@map("link_previews")
 }
 
 model Attachment {

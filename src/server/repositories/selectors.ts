@@ -76,6 +76,9 @@ export function messageInclude(viewerId: string) {
     replyTo: { select: messageReferenceSelect },
     forwardedFrom: { select: messageReferenceSelect },
     stars: { where: { userId: viewerId }, select: { userId: true } },
+    linkPreview: {
+      select: { url: true, title: true, description: true, imageUrl: true, siteName: true },
+    },
   } satisfies Prisma.MessageInclude;
 }
 
@@ -136,6 +139,7 @@ export function toMessage(row: MessageRow, viewerId: string): MessageDTO {
     attachments: deleted ? [] : row.attachments.map(toAttachment),
     reactions: deleted ? [] : groupReactions(row.reactions, viewerId),
     starred: row.stars.length > 0,
+    linkPreview: deleted ? null : row.linkPreview,
   };
 }
 

@@ -1,3 +1,4 @@
+import { after } from 'next/server';
 import { Prisma, type User } from '@prisma/client';
 
 import { prisma } from '@/lib/prisma';
@@ -9,6 +10,7 @@ import {
   conversationMemberIds,
   requireMembership,
 } from '@/server/repositories/conversation.repository';
+import { fetchLinkPreview, firstUrl } from '@/server/link-preview';
 import { getMessageOrThrow } from '@/server/repositories/message.repository';
 import { messageInclude, toMessage } from '@/server/repositories/selectors';
 import { can } from '@/lib/permissions';
@@ -211,7 +213,59 @@ export async function sendMessage(
     }),
   ]);
 
+  // Deliberately after the response: resolving a link means waiting on somebody
+  // else's server, and no chat message should be held up by a slow website.
+  // The card arrives moments later over the same channel that carries edits.
+  after(() => attachLinkPreview(created.id, conversationId, content, author.id));
+
   return dto;
+}
+
+/**
+ * Resolves the first link in a message and attaches the card.
+ *
+ * Never throws: this runs detached from the request, so an unreachable or
+ * hostile URL has to end quietly rather than surface anywhere.
+ */
+async function attachLinkPreview(
+  messageId: string,
+  conversationId: string,
+  content: string,
+  authorId: string,
+) {
+  try {
+    const url = firstUrl(content);
+    if (!url) return;
+
+    let preview = await prisma.linkPreview.findUnique({ where: { url } });
+
+    if (!preview) {
+      const data = await fetchLinkPreview(url);
+      // Failures are stored too, so a dead host is not re-fetched every time
+      // somebody shares the same link.
+      preview = await prisma.linkPreview.upsert({
+        where: { url },
+        create: { url, failed: data === null, ...(data ?? {}) },
+        update: {},
+      });
+    }
+
+    if (preview.failed) return;
+
+    await prisma.message.update({
+      where: { id: messageId },
+      data: { linkPreviewId: preview.id },
+    });
+
+    // Rendered from the author's view, like every other `messageUpdated`
+    // broadcast here — receivers keep their own `starred` and `reactions`.
+    const updated = await getMessageOrThrow(messageId, authorId);
+    await broadcastToConversation(conversationId, realtimeEvents.messageUpdated, {
+      message: updated,
+    });
+  } catch (error) {
+    console.error('[link-preview] could not attach', error);
+  }
 }
 
 export async function editMessage(

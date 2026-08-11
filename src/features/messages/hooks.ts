@@ -170,6 +170,8 @@ export function useSendMessage(conversationId: string, me: CurrentUser) {
         })),
         reactions: [],
         starred: false,
+        // Resolved server-side after the send; arrives on a later update.
+        linkPreview: null,
         pending: true,
       };
 
