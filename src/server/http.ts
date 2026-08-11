@@ -23,9 +23,9 @@ export function assertSameOrigin(request: Request) {
   const origin = request.headers.get('origin');
   if (!origin) return; // Same-origin fetches from the app always send one.
 
-  const allowed = new Set([publicEnv.appUrl, new URL(request.url).origin]);
-  const vercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined;
-  if (vercelUrl) allowed.add(vercelUrl);
+  const allowed = new Set([new URL(request.url).origin]);
+  if (publicEnv.appUrl) allowed.add(publicEnv.appUrl);
+  if (process.env.VERCEL_URL) allowed.add(`https://${process.env.VERCEL_URL}`);
 
   if (!allowed.has(origin)) throw errors.forbidden('Cross-origin request rejected.');
 }

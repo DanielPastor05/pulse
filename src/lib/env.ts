@@ -23,12 +23,14 @@ export const publicEnv = {
     return required('NEXT_PUBLIC_SUPABASE_ANON_KEY', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
   },
   /**
-   * No localhost fallback on purpose. Invite links are built from this, so a
-   * missing value in production silently hands out URLs pointing at the
-   * developer's machine — a failure nobody notices until someone clicks one.
+   * Optional. Nothing is built from it any more — invite links derive their
+   * origin from the request — so it is only an extra entry in the CSRF
+   * allow-list, for when the app is reached through a domain the request URL
+   * does not reflect. Demanding it would turn a missing nice-to-have into
+   * every mutation failing.
    */
-  get appUrl() {
-    return required('NEXT_PUBLIC_APP_URL', process.env.NEXT_PUBLIC_APP_URL);
+  get appUrl(): string | undefined {
+    return process.env.NEXT_PUBLIC_APP_URL || undefined;
   },
 } as const;
 

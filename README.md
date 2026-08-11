@@ -254,9 +254,11 @@ needs no configuration file.
 Four things break in production if they are missed, and none of them fail
 loudly:
 
-1. **`NEXT_PUBLIC_APP_URL`** must be the deployed origin. Invite links are built
-   from it. It is `required()` precisely so a missing value fails at once
-   instead of quietly minting links to `localhost`.
+1. **`NEXT_PUBLIC_APP_URL`** is optional and nothing breaks without it. Invite
+   links take their origin from the request, so they follow whatever domain the
+   app is actually served from — including a custom domain, the day it is added.
+   Set it only to add an origin to the CSRF allow-list that the request URL
+   would not reveal.
 2. **Supabase Auth → URL Configuration** needs the production origin in the
    redirect allow-list, or password recovery and any future OAuth will fail on
    the way back.

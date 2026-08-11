@@ -10,7 +10,7 @@
  *    the app-side check runs when the signed URL is issued, but the client
  *    sets Content-Type itself on the upload.
  */
-import { api, check, cleanup, makeUser, onboard, requireServer } from './harness.mjs';
+import { api, APP, check, cleanup, makeUser, onboard, requireServer } from './harness.mjs';
 
 await requireServer();
 
@@ -109,6 +109,24 @@ if (signed.status === 200) {
   });
   check('Storage acepta HTML disfrazado de PNG', put.ok, false);
 }
+
+// --- 4. Enlaces de invitacion ----------------------------------------------
+console.log('\nInvitaciones: el enlace apunta al dominio real');
+
+const invite = await api(`/api/conversations/${ownId}/invites`, {
+  method: 'POST',
+  actor: mallory,
+  body: { maxUses: 1, expiresInHours: 1 },
+});
+check('crear la invitacion', invite.status, 201);
+
+// Salio apuntando a un dominio de configuracion que no era el desplegado, y el
+// enlace daba 404 sin que nada fallara antes.
+const inviteUrl = invite.json?.url ?? '';
+check('el origen del enlace es el del propio servidor', new URL(inviteUrl).origin, APP);
+
+const followed = await fetch(inviteUrl, { redirect: 'manual' });
+check('el enlace no da 404', followed.status === 404, false);
 
 await cleanup();
 console.log('\ncuentas de prueba borradas');
