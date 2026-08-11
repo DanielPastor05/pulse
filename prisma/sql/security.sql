@@ -367,3 +367,14 @@ select cron.schedule(
 -- ---------------------------------------------------------------------------
 
 alter table public.link_previews enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- Denuncias
+--
+-- La tabla la crea Prisma (modelo Report). Igual que rate_limits y
+-- link_previews: RLS activado sin políticas, de forma que PostgREST no la
+-- exponga. Quién puede leerla lo decide can.moderateMessages en el servicio,
+-- no la base de datos, porque depende del rol dentro de esa conversación.
+-- ---------------------------------------------------------------------------
+
+alter table public.reports enable row level security;

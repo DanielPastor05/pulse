@@ -335,5 +335,78 @@ check('el dueño único puede salir de su grupo vacío', leaveSolo.status, 200);
 const gone = await api(`/api/conversations/${soloId}`, { actor: dana });
 check('y el grupo deja de existir', gone.status === 404 || gone.status === 403, true);
 
+// --- 6. Denuncias ----------------------------------------------------------
+console.log('\nDenuncias: cualquiera denuncia, solo quien modera las ve');
+
+const sala = await api('/api/conversations', {
+  method: 'POST',
+  actor: dana,
+  body: { name: 'Sala moderada', accent: 'electric', memberIds: [] },
+});
+const salaId = (sala.json?.conversation ?? sala.json)?.id;
+
+const raso = await makeUser('raso');
+await onboard(raso);
+await api(`/api/conversations/${salaId}/members`, {
+  method: 'POST',
+  actor: dana,
+  body: { userIds: [raso.id] },
+});
+
+const ofensivo = await api(`/api/conversations/${salaId}/messages`, {
+  method: 'POST',
+  actor: dana,
+  body: { content: 'mensaje que alguien denuncia' },
+});
+const ofensivoId = ofensivo.json?.id;
+
+const propio = await api(`/api/messages/${ofensivoId}/report`, {
+  method: 'POST',
+  actor: dana,
+  body: { reason: 'SPAM' },
+});
+check('se puede denunciar el mensaje propio', propio.status === 201, false);
+
+const denuncia = await api(`/api/messages/${ofensivoId}/report`, {
+  method: 'POST',
+  actor: raso,
+  body: { reason: 'HARASSMENT', note: 'me incomoda' },
+});
+check('un miembro raso puede denunciar', denuncia.status, 201);
+
+// Denunciar dos veces no debe apilar entradas para el moderador.
+await api(`/api/messages/${ofensivoId}/report`, {
+  method: 'POST',
+  actor: raso,
+  body: { reason: 'SPAM' },
+});
+
+const comoRaso = await api(`/api/conversations/${salaId}/reports`, { actor: raso });
+check('un miembro raso ve la cola de denuncias', comoRaso.status === 200, false);
+
+const comoMod = await api(`/api/conversations/${salaId}/reports`, { actor: dana });
+check('quien modera sí la ve', comoMod.status, 200);
+check('y hay una sola entrada tras denunciar dos veces', (comoMod.json?.reports ?? []).length, 1);
+
+const abierta = (comoMod.json?.reports ?? [])[0];
+check('conserva el texto denunciado', abierta?.message?.content, 'mensaje que alguien denuncia');
+
+const revisadaPorRaso = await api(`/api/reports/${abierta?.id}`, {
+  method: 'PATCH',
+  actor: raso,
+  body: { status: 'RESOLVED' },
+});
+check('un miembro raso resuelve denuncias', revisadaPorRaso.status === 200, false);
+
+const revisada = await api(`/api/reports/${abierta?.id}`, {
+  method: 'PATCH',
+  actor: dana,
+  body: { status: 'RESOLVED' },
+});
+check('quien modera puede resolverla', revisada.status, 200);
+
+const trasResolver = await api(`/api/conversations/${salaId}/reports`, { actor: dana });
+check('sale de la cola de abiertas', (trasResolver.json?.reports ?? []).length, 0);
+
 await cleanup();
 console.log('\ncuentas de prueba borradas');

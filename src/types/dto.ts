@@ -6,6 +6,8 @@ import type {
   MessageKind,
   NotificationKind,
   Presence,
+  ReportReason,
+  ReportStatus,
   RelationshipStatus,
   ThemePreference,
 } from '@prisma/client';
@@ -87,6 +89,18 @@ export type MessageDTO = {
   /** Client-only: set on optimistic messages that have not been confirmed. */
   pending?: boolean;
   failed?: boolean;
+};
+
+export type ReportDTO = {
+  id: string;
+  reason: ReportReason;
+  note: string | null;
+  status: ReportStatus;
+  createdAt: string;
+  reviewedAt: string | null;
+  reporter: PublicUser;
+  reportedUser: PublicUser | null;
+  message: { id: string; content: string; deleted: boolean } | null;
 };
 
 export type LinkPreviewDTO = {

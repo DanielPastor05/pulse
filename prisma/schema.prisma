@@ -66,6 +66,22 @@ enum JoinRequestStatus {
   REJECTED
 }
 
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  HATE
+  VIOLENCE
+  SEXUAL
+  SELF_HARM
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
 enum NotificationKind {
   MESSAGE
   MENTION
@@ -122,6 +138,9 @@ model User {
   notifications     Notification[]       @relation("NotificationOwner")
   notificationsSent Notification[]       @relation("NotificationActor")
   invites           Invite[]
+  reportsFiled      Report[]             @relation("ReportsFiled")
+  reportsAgainst    Report[]             @relation("ReportsAgainst")
+  reportsReviewed   Report[]             @relation("ReportsReviewed")
 
   @@index([username])
   @@index([displayName])
@@ -159,6 +178,7 @@ model Conversation {
   joinRequests JoinRequest[]
   invites      Invite[]
   notifications Notification[]
+  reports      Report[]
 
   @@index([type, isPublic])
   @@index([lastMessageAt])
@@ -240,6 +260,7 @@ model Message {
   stars         StarredMessage[]
   mentions      Mention[]
   notifications Notification[]
+  reports       Report[]
 
   // Postgres treats NULLs as distinct, so messages sent without a clientId are
   // unaffected by this constraint.
@@ -405,6 +426,51 @@ model JoinRequest {
   @@index([conversationId, status])
   @@index([userId])
   @@map("join_requests")
+}
+
+/// A message flagged for a moderator's attention.
+///
+/// Blocking already existed but it is a private, all-or-nothing tool: it hides
+/// one person from one person and leaves nobody else any the wiser. In a public
+/// community that means a moderator never finds out anything is wrong.
+///
+/// The reported message is kept as a nullable reference: if the author deletes
+/// it, the report survives rather than vanishing along with the evidence.
+model Report {
+  id String @id @default(uuid()) @db.Uuid
+
+  conversationId String       @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  messageId String?  @db.Uuid
+  message   Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  reporterId String @db.Uuid
+  reporter   User   @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  /// Denormalised so the report still says who it was about after an account
+  /// is deleted and the row below goes null.
+  reportedUserId String? @db.Uuid
+  reportedUser   User?   @relation("ReportsAgainst", fields: [reportedUserId], references: [id], onDelete: SetNull)
+
+  reason ReportReason
+  note   String?      @db.VarChar(500)
+
+  status       ReportStatus @default(OPEN)
+  reviewedById String?      @db.Uuid
+  reviewedBy   User?        @relation("ReportsReviewed", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  /// One report per person per message: reporting twice is a slip, not a
+  /// stronger signal.
+  @@unique([messageId, reporterId])
+  @@index([conversationId, status, createdAt(sort: Desc)])
+  @@index([reporterId])
+  @@index([reportedUserId])
+  @@index([reviewedById])
+  @@map("reports")
 }
 
 model Invite {

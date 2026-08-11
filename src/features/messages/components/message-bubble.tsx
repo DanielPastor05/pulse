@@ -6,6 +6,7 @@ import {
   Check,
   CheckCheck,
   CornerUpLeft,
+  Flag,
   Forward,
   MoreHorizontal,
   Pencil,
@@ -50,6 +51,7 @@ export type MessageActions = {
   onOpenEmoji: (message: MessageDTO) => void;
   onJumpTo: (messageId: string) => void;
   onRetry: (message: MessageDTO) => void;
+  onReport: (message: MessageDTO) => void;
 };
 
 type Props = {
@@ -167,6 +169,15 @@ export const MessageBubble = React.memo(function MessageBubble({
           <Pencil />
           Edit
         </MenuItem>
+      ) : null}
+      {!mine ? (
+        <>
+          <MenuSeparator />
+          <MenuItem onSelect={() => actions.onReport(message)}>
+            <Flag />
+            Report
+          </MenuItem>
+        </>
       ) : null}
       {mine || canModerate ? (
         <>
@@ -391,6 +402,12 @@ export const MessageBubble = React.memo(function MessageBubble({
           <Forward />
           Forward
         </ContextMenuItem>
+        {!mine ? (
+          <ContextMenuItem onSelect={() => actions.onReport(message)}>
+            <Flag />
+            Report
+          </ContextMenuItem>
+        ) : null}
         <ContextMenuItem onSelect={() => actions.onStar(message, !message.starred)}>
           <Star />
           {message.starred ? 'Remove star' : 'Star message'}

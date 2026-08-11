@@ -6,6 +6,7 @@ import { useMutation } from '@tanstack/react-query';
 import {
   Check,
   Crown,
+  Flag,
   Hash,
   Link2,
   LogOut,
@@ -28,6 +29,7 @@ import {
   useMemberMutations,
   useUpdateConversation,
 } from '@/features/conversations/hooks';
+import { useReports, useReviewReport } from '@/features/moderation/hooks';
 import { UserPicker } from '@/features/profile/components/user-picker';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -43,13 +45,23 @@ import { Field } from '@/components/ui/field';
 import { Input, Textarea } from '@/components/ui/input';
 import { Badge, Switch } from '@/components/ui/misc';
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from '@/components/ui/menu';
-import type { ConversationDetail, PublicUser } from '@/types/dto';
+import type { ConversationDetail, PublicUser, ReportDTO } from '@/types/dto';
 
 const ROLE_ICON: Record<MemberRole, typeof Crown | null> = {
   OWNER: Crown,
   ADMIN: ShieldCheck,
   MODERATOR: Shield,
   MEMBER: null,
+};
+
+const REPORT_LABEL: Record<ReportDTO['reason'], string> = {
+  SPAM: 'Spam or scam',
+  HARASSMENT: 'Harassment or bullying',
+  HATE: 'Hate speech',
+  VIOLENCE: 'Violence or threats',
+  SEXUAL: 'Sexual content',
+  SELF_HARM: 'Self-harm',
+  OTHER: 'Something else',
 };
 
 const ROLE_LABEL: Record<MemberRole, string> = {
@@ -201,6 +213,69 @@ function JoinRequests({ conversation }: { conversation: ConversationDetail }) {
   );
 }
 
+/** Same shape as JoinRequests: a queue only moderators ever see. */
+function Reports({ conversation }: { conversation: ConversationDetail }) {
+  const enabled = can.moderateMessages(conversation.role);
+  const { data: reports } = useReports(conversation.id, enabled);
+  const review = useReviewReport(conversation.id);
+
+  if (!enabled || !reports || reports.length === 0) return null;
+
+  return (
+    <section className="space-y-2">
+      <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-3)]">
+        Reports
+        <Badge tone="danger">{reports.length}</Badge>
+      </h3>
+      <ul className="space-y-1.5">
+        {reports.map((report) => (
+          <li
+            key={report.id}
+            className="rounded-[var(--radius-card)] bg-[var(--surface-sunken)] p-2.5"
+          >
+            <div className="flex items-center gap-2">
+              <Flag className="size-3.5 shrink-0 text-[var(--danger)]" />
+              <p className="min-w-0 flex-1 truncate text-[12px] font-medium">
+                {REPORT_LABEL[report.reason]}
+              </p>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label="Dismiss report"
+                onClick={() => review.mutate({ reportId: report.id, status: 'DISMISSED' })}
+              >
+                <X />
+              </Button>
+              <Button
+                size="icon-sm"
+                aria-label="Mark resolved"
+                onClick={() => review.mutate({ reportId: report.id, status: 'RESOLVED' })}
+              >
+                <Check />
+              </Button>
+            </div>
+
+            {report.message ? (
+              <p className="mt-1.5 line-clamp-2 rounded bg-[var(--surface)] px-2 py-1 text-[11px] text-[var(--text-2)]">
+                {report.message.deleted ? '(deleted) ' : ''}
+                {report.message.content || '(no text)'}
+              </p>
+            ) : null}
+
+            <p className="mt-1 text-[11px] text-[var(--text-3)]">
+              {report.reportedUser ? `About @${report.reportedUser.username} · ` : ''}
+              reported by @{report.reporter.username}
+            </p>
+            {report.note ? (
+              <p className="mt-0.5 text-[11px] italic text-[var(--text-3)]">“{report.note}”</p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function DetailsPanel({
   conversation,
   meId,
@@ -262,6 +337,7 @@ export function DetailsPanel({
         <>
           {can.createInvite(conversation.role) ? <InviteLink conversationId={conversation.id} /> : null}
           <JoinRequests conversation={conversation} />
+          <Reports conversation={conversation} />
 
           <section className="space-y-2">
             <div className="flex items-center justify-between">

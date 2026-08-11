@@ -28,6 +28,7 @@ import { Composer } from '@/features/messages/components/composer';
 import { ForwardDialog } from '@/features/messages/components/forward-dialog';
 import { MessageList } from '@/features/messages/components/message-list';
 import { ReactionPickerDialog } from '@/features/messages/components/reaction-picker-dialog';
+import { ReportDialog } from '@/features/moderation/components/report-dialog';
 import { TypingIndicator } from '@/features/messages/components/typing-indicator';
 import { playChime } from '@/features/notifications/sound';
 import { can } from '@/lib/permissions';
@@ -48,6 +49,7 @@ export function ConversationView({ conversationId }: { conversationId: string })
   const [highlightId, setHighlightId] = React.useState<string | null>(searchParams.get('m'));
   const [forwardTarget, setForwardTarget] = React.useState<MessageDTO | null>(null);
   const [reactionTarget, setReactionTarget] = React.useState<MessageDTO | null>(null);
+  const [reportTarget, setReportTarget] = React.useState<MessageDTO | null>(null);
 
   const conversationQuery = useConversation(conversationId);
   const messagesQuery = useMessages(conversationId);
@@ -109,6 +111,7 @@ export function ConversationView({ conversationId }: { conversationId: string })
         actions.star.mutate({ id: message.id, starred }),
       onForward: (message: MessageDTO) => setForwardTarget(message),
       onOpenEmoji: (message: MessageDTO) => setReactionTarget(message),
+      onReport: (message: MessageDTO) => setReportTarget(message),
       onJumpTo: jumpTo,
       // A failed message is still the optimistic one, so its id *is* the
       // clientId the server deduplicates on — resending cannot double-post.
@@ -297,6 +300,11 @@ export function ConversationView({ conversationId }: { conversationId: string })
           if (reactionTarget) actions.react.mutate({ id: reactionTarget.id, emoji });
           setReactionTarget(null);
         }}
+      />
+
+      <ReportDialog
+        message={reportTarget}
+        onOpenChange={(open) => !open && setReportTarget(null)}
       />
     </div>
   );
