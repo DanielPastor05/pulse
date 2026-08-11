@@ -263,9 +263,15 @@ loudly:
    redirect allow-list, or password recovery and any future OAuth will fail on
    the way back.
 3. **Outbound email.** Supabase's built-in SMTP is capped at a handful of
-   messages per hour and is not meant for real users. Email confirmation is
-   currently off, so sign-up works without it — but *password recovery does
-   not*. Wire up your own SMTP before relying on that flow.
+   messages per hour and is not meant for real users, so a custom SMTP is
+   configured (Gmail, `smtp.gmail.com:587`, with a Google app password — not the
+   account password). Password recovery depends on it and is verified working.
+   Sign-up does not: email confirmation is off, so accounts are usable
+   immediately.
+
+   Gmail allows around 500 messages a day, which is ample for a beta and the
+   ceiling to watch if this ever grows. Moving to a dedicated provider means
+   verifying a domain first.
 4. **`DATABASE_URL` pool size.** `connection_limit=10` with `pool_timeout=20`
    suits a persistent server. Revisit it if the platform runs many short-lived
    instances: too high multiplied by many instances exhausts the pooler, too low
