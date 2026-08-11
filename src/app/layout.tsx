@@ -31,6 +31,14 @@ export const metadata: Metadata = {
   applicationName: APP_NAME,
   appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: 'black-translucent' },
   formatDetection: { telephone: false },
+  icons: {
+    icon: [
+      { url: '/icons/favicon.png', sizes: '48x48', type: 'image/png' },
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    // iOS ignores the manifest icons for the home screen and looks for this.
+    apple: '/icons/apple-touch-icon.png',
+  },
 };
 
 export const viewport: Viewport = {
