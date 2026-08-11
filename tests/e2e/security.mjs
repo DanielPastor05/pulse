@@ -110,6 +110,40 @@ if (signed.status === 200) {
   check('Storage acepta HTML disfrazado de PNG', put.ok, false);
 }
 
+// El caso legitimo: si esto falla, nadie puede mandar una foto.
+const realPng = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+const forPhoto = await api('/api/uploads', {
+  method: 'POST',
+  actor: mallory,
+  body: { bucket: 'attachments', fileName: 'foto.png', mimeType: 'image/png', size: realPng.length },
+});
+check('la app firma la subida de una foto', forPhoto.status, 200);
+
+if (forPhoto.status === 200) {
+  const uploaded = await fetch(forPhoto.json.signedUrl, {
+    method: 'PUT',
+    headers: {
+      'content-type': 'image/png',
+      authorization: `Bearer ${mallory.session.access_token}`,
+    },
+    body: realPng,
+  });
+  check('Storage acepta un PNG de verdad', uploaded.ok, true);
+
+  // Y tiene que poder verse despues: el bucket es de lectura publica.
+  const fetched = await fetch(forPhoto.json.publicUrl);
+  check('la imagen subida se puede descargar', fetched.status, 200);
+  check(
+    'y se sirve como imagen',
+    (fetched.headers.get('content-type') ?? '').startsWith('image/'),
+    true,
+  );
+}
+
 // --- 4. Enlaces de invitacion ----------------------------------------------
 console.log('\nInvitaciones: el enlace apunta al dominio real');
 
