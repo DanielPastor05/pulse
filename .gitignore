@@ -14,3 +14,7 @@ coverage/
 
 # Registros del servidor de desarrollo
 .devserver.log
+
+# Notas locales con credenciales — nunca al repositorio
+contraseña supabesa.txt
+*.password.txt
