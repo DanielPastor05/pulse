@@ -162,6 +162,60 @@ check('el origen del enlace es el del propio servidor', new URL(inviteUrl).origi
 const followed = await fetch(inviteUrl, { redirect: 'manual' });
 check('el enlace no da 404', followed.status === 404, false);
 
+// --- 4b. Idempotencia del envio --------------------------------------------
+// Es la garantia sobre la que se apoya el boton de reintentar: si se rompiera,
+// reintentar publicaria el mensaje dos veces en vez de una.
+console.log('\nEnvio: reintentar con el mismo clientId no duplica');
+
+const idemConv = await api('/api/conversations', {
+  method: 'POST',
+  actor: mallory,
+  body: { name: 'Sala idempotente', accent: 'electric', memberIds: [] },
+});
+const idemId = (idemConv.json?.conversation ?? idemConv.json)?.id;
+const clientId = `pending-${Date.now()}`;
+const cuerpo = { content: 'Mensaje que se reintenta', clientId };
+
+const primera = await api(`/api/conversations/${idemId}/messages`, {
+  method: 'POST',
+  actor: mallory,
+  body: cuerpo,
+});
+check('el primer envio entra', primera.status, 201);
+
+const reintento = await api(`/api/conversations/${idemId}/messages`, {
+  method: 'POST',
+  actor: mallory,
+  body: cuerpo,
+});
+check('el reintento no da error', reintento.status === 201 || reintento.status === 200, true);
+
+const historial = await api(`/api/conversations/${idemId}/messages`, { actor: mallory });
+const mios = (historial.json?.items ?? []).filter((m) => m.content === 'Mensaje que se reintenta');
+check('cuantas copias hay en el historial', mios.length, 1);
+
+// Y el caso que de verdad ocurre: dos intentos a la vez, que esquivan la
+// consulta previa y chocan contra la restriccion unica.
+const carreraId = `pending-carrera-${Date.now()}`;
+const simultaneos = await Promise.all(
+  Array.from({ length: 4 }, () =>
+    api(`/api/conversations/${idemId}/messages`, {
+      method: 'POST',
+      actor: mallory,
+      body: { content: 'Cuatro a la vez', clientId: carreraId },
+    }),
+  ),
+);
+check(
+  'ninguno de los cuatro simultaneos falla',
+  simultaneos.filter((r) => r.status >= 400).length,
+  0,
+);
+
+const trasCarrera = await api(`/api/conversations/${idemId}/messages`, { actor: mallory });
+const copias = (trasCarrera.json?.items ?? []).filter((m) => m.content === 'Cuatro a la vez');
+check('copias tras cuatro envios simultaneos', copias.length, 1);
+
 // --- 5. Propiedad de un grupo ----------------------------------------------
 console.log('\nPropiedad: el dueño tiene que poder ceder el grupo y salir');
 

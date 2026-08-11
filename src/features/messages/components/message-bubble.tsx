@@ -48,6 +48,7 @@ export type MessageActions = {
   onForward: (message: MessageDTO) => void;
   onOpenEmoji: (message: MessageDTO) => void;
   onJumpTo: (messageId: string) => void;
+  onRetry: (message: MessageDTO) => void;
 };
 
 type Props = {
@@ -67,11 +68,28 @@ type Props = {
  * Only ever rendered inside the sender's own bubble. Read is full strength,
  * delivered is faded — tinting "read" with the accent made it invisible.
  */
-function StatusTicks({ message, read }: { message: MessageDTO; read: boolean }) {
+function StatusTicks({
+  message,
+  read,
+  onRetry,
+}: {
+  message: MessageDTO;
+  read: boolean;
+  onRetry: () => void;
+}) {
   if (message.failed) {
+    // Clickable on purpose: the alternative is retyping the message, and the
+    // send is idempotent by clientId so pressing twice cannot double-post.
     return (
-      <Tooltip content="Not delivered">
-        <AlertCircle className="size-3 text-[var(--danger)]" />
+      <Tooltip content="Not delivered — tap to retry">
+        <button
+          type="button"
+          onClick={onRetry}
+          aria-label="Retry sending this message"
+          className="grid place-items-center rounded-full text-[var(--danger)] transition-transform active:scale-95"
+        >
+          <AlertCircle className="size-3" />
+        </button>
       </Tooltip>
     );
   }
@@ -273,7 +291,13 @@ export const MessageBubble = React.memo(function MessageBubble({
                   {message.pinnedAt ? <Pin className="size-3" /> : null}
                   {message.starred ? <Star className="size-3 fill-current" /> : null}
                   {message.editedAt ? <span>edited</span> : null}
-                  {mine && !deleted ? <StatusTicks message={message} read={readByOthers} /> : null}
+                  {mine && !deleted ? (
+                    <StatusTicks
+                      message={message}
+                      read={readByOthers}
+                      onRetry={() => actions.onRetry(message)}
+                    />
+                  ) : null}
                 </span>
               </div>
 

@@ -224,6 +224,12 @@ model Message {
   pinnedById String?   @db.Uuid
   pinnedBy   User?     @relation("MessagePinnedBy", fields: [pinnedById], references: [id], onDelete: SetNull)
 
+  /// Idempotency key minted by the sender. Retrying a message that may or may
+  /// not have arrived is the whole point of the retry affordance, so the second
+  /// attempt has to resolve to the same row rather than post twice. Scoped to
+  /// the author so two people cannot collide on the same value.
+  clientId String? @db.VarChar(64)
+
   createdAt DateTime @default(now())
 
   attachments   Attachment[]
@@ -231,6 +237,10 @@ model Message {
   stars         StarredMessage[]
   mentions      Mention[]
   notifications Notification[]
+
+  // Postgres treats NULLs as distinct, so messages sent without a clientId are
+  // unaffected by this constraint.
+  @@unique([authorId, clientId])
 
   @@index([conversationId, createdAt(sort: Desc)])
   @@index([conversationId, pinnedAt])

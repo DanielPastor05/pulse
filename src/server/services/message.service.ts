@@ -1,4 +1,4 @@
-import type { User } from '@prisma/client';
+import { Prisma, type User } from '@prisma/client';
 
 import { prisma } from '@/lib/prisma';
 import { realtimeEvents } from '@/lib/realtime';
@@ -86,9 +86,22 @@ export async function sendMessage(
 
   const content = input.content.trim();
 
-  const created = await prisma.$transaction(async (tx) => {
-    const message = await tx.message.create({
-      data: {
+  // Retrying a send whose response never came back must not post twice. The
+  // fast path catches the common case; the unique constraint catches two
+  // attempts racing, which the lookup alone cannot.
+  if (input.clientId) {
+    const already = await prisma.message.findUnique({
+      where: { authorId_clientId: { authorId: author.id, clientId: input.clientId } },
+      select: { id: true },
+    });
+    if (already) return getMessageOrThrow(already.id, author.id);
+  }
+
+  const write = () =>
+    prisma.$transaction(async (tx) => {
+      const message = await tx.message.create({
+        data: {
+          clientId: input.clientId ?? null,
         conversationId,
         authorId: author.id,
         content,
@@ -112,22 +125,43 @@ export async function sendMessage(
               },
             }
           : undefined,
-      },
-      include: messageInclude(author.id),
+        },
+        include: messageInclude(author.id),
+      });
+
+      await tx.conversation.update({
+        where: { id: conversationId },
+        data: { lastMessageAt: message.createdAt },
+      });
+
+      await tx.conversationMember.update({
+        where: { conversationId_userId: { conversationId, userId: author.id } },
+        data: { lastReadAt: message.createdAt, lastReadMessageId: message.id, draft: null },
+      });
+
+      return message;
     });
 
-    await tx.conversation.update({
-      where: { id: conversationId },
-      data: { lastMessageAt: message.createdAt },
-    });
-
-    await tx.conversationMember.update({
-      where: { conversationId_userId: { conversationId, userId: author.id } },
-      data: { lastReadAt: message.createdAt, lastReadMessageId: message.id, draft: null },
-    });
-
-    return message;
-  });
+  let created: Awaited<ReturnType<typeof write>>;
+  try {
+    created = await write();
+  } catch (error) {
+    // Two attempts raced past the lookup above and the constraint caught the
+    // loser. That is the retry doing its job, not a failure: hand back the row
+    // the winner wrote, and skip the side effects it already performed.
+    if (
+      input.clientId &&
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      const winner = await prisma.message.findUnique({
+        where: { authorId_clientId: { authorId: author.id, clientId: input.clientId } },
+        select: { id: true },
+      });
+      if (winner) return getMessageOrThrow(winner.id, author.id);
+    }
+    throw error;
+  }
 
   const dto = toMessage(created, author.id);
   const memberIds = await conversationMemberIds(conversationId);

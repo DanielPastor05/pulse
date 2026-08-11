@@ -110,8 +110,28 @@ export function ConversationView({ conversationId }: { conversationId: string })
       onForward: (message: MessageDTO) => setForwardTarget(message),
       onOpenEmoji: (message: MessageDTO) => setReactionTarget(message),
       onJumpTo: jumpTo,
+      // A failed message is still the optimistic one, so its id *is* the
+      // clientId the server deduplicates on — resending cannot double-post.
+      onRetry: (message: MessageDTO) =>
+        send.mutate({
+          clientId: message.id,
+          content: message.content,
+          replyToId: message.replyTo?.id ?? null,
+          attachments: message.attachments.map((attachment) => ({
+            kind: attachment.kind,
+            url: attachment.url,
+            path: attachment.path,
+            name: attachment.name,
+            size: attachment.size,
+            mimeType: attachment.mimeType,
+            width: attachment.width,
+            height: attachment.height,
+            duration: attachment.duration,
+            waveform: attachment.waveform,
+          })),
+        }),
     }),
-    [conversationId, actions, setReplyTo, setEditing, jumpTo],
+    [conversationId, actions, setReplyTo, setEditing, jumpTo, send],
   );
 
   if (conversationQuery.isLoading) {
