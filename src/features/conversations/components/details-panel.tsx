@@ -210,7 +210,9 @@ export function DetailsPanel({
 }) {
   const [addOpen, setAddOpen] = React.useState(false);
   const [invitees, setInvitees] = React.useState<PublicUser[]>([]);
-  const { addMembers, updateMember, removeMember, leave } = useMemberMutations(conversation.id);
+  const { addMembers, updateMember, removeMember, transferOwnership, leave } = useMemberMutations(
+    conversation.id,
+  );
 
   const blockMutation = useMutation({
     mutationFn: (blocked: boolean) =>
@@ -329,6 +331,27 @@ export function DetailsPanel({
                                     {member.role === role ? <Check className="ml-auto size-3.5" /> : null}
                                   </MenuItem>
                                 ))}
+                                <MenuSeparator />
+                              </>
+                            ) : null}
+                            {conversation.role === 'OWNER' ? (
+                              <>
+                                <MenuItem
+                                  onSelect={() => {
+                                    // One-way and demotes the caller, so it asks
+                                    // rather than firing off a menu click.
+                                    if (
+                                      window.confirm(
+                                        `Make ${member.user.displayName} the owner of this group? You will become an admin.`,
+                                      )
+                                    ) {
+                                      transferOwnership.mutate(member.user.id);
+                                    }
+                                  }}
+                                >
+                                  <Crown />
+                                  Make owner
+                                </MenuItem>
                                 <MenuSeparator />
                               </>
                             ) : null}

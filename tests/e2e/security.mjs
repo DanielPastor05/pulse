@@ -162,5 +162,75 @@ check('el origen del enlace es el del propio servidor', new URL(inviteUrl).origi
 const followed = await fetch(inviteUrl, { redirect: 'manual' });
 check('el enlace no da 404', followed.status === 404, false);
 
+// --- 5. Propiedad de un grupo ----------------------------------------------
+console.log('\nPropiedad: el dueño tiene que poder ceder el grupo y salir');
+
+const owned = await api('/api/conversations', {
+  method: 'POST',
+  actor: alice,
+  body: { name: 'Grupo con dueño', accent: 'electric', memberIds: [] },
+});
+const ownedId = (owned.json?.conversation ?? owned.json)?.id;
+
+// Se necesita un segundo miembro sin bloqueos de por medio.
+const dana = await makeUser('dana');
+await onboard(dana);
+await api(`/api/conversations/${ownedId}/members`, {
+  method: 'POST',
+  actor: alice,
+  body: { userIds: [dana.id] },
+});
+
+// El dueño no puede irse dejando el grupo sin nadie al mando.
+const leaveTooSoon = await api(`/api/conversations/${ownedId}/members/${alice.id}`, {
+  method: 'DELETE',
+  actor: alice,
+});
+check('el dueño sale sin ceder antes', leaveTooSoon.status === 200, false);
+
+// Y un miembro raso no puede autoproclamarse.
+const grab = await api(`/api/conversations/${ownedId}/owner`, {
+  method: 'POST',
+  actor: dana,
+  body: { userId: dana.id },
+});
+check('un miembro se hace dueño por su cuenta', grab.status === 200, false);
+
+const handover = await api(`/api/conversations/${ownedId}/owner`, {
+  method: 'POST',
+  actor: alice,
+  body: { userId: dana.id },
+});
+check('el dueño cede el grupo', handover.status, 200);
+
+const roleOf = (payload, userId) =>
+  (payload?.members ?? []).find((m) => (m.userId ?? m.user?.id) === userId)?.role ?? null;
+const after = handover.json?.conversation ?? handover.json;
+check('Dana pasa a OWNER', roleOf(after, dana.id), 'OWNER');
+check('Alice queda como ADMIN', roleOf(after, alice.id), 'ADMIN');
+
+// Y ahora sí puede salir.
+const leaveNow = await api(`/api/conversations/${ownedId}/members/${alice.id}`, {
+  method: 'DELETE',
+  actor: alice,
+});
+check('la antigua dueña ya puede salir', leaveNow.status, 200);
+
+// Dueño único: salir equivale a borrar el grupo, no a quedarse atrapado.
+const solo = await api('/api/conversations', {
+  method: 'POST',
+  actor: dana,
+  body: { name: 'Grupo de una', accent: 'electric', memberIds: [] },
+});
+const soloId = (solo.json?.conversation ?? solo.json)?.id;
+const leaveSolo = await api(`/api/conversations/${soloId}/members/${dana.id}`, {
+  method: 'DELETE',
+  actor: dana,
+});
+check('el dueño único puede salir de su grupo vacío', leaveSolo.status, 200);
+
+const gone = await api(`/api/conversations/${soloId}`, { actor: dana });
+check('y el grupo deja de existir', gone.status === 404 || gone.status === 403, true);
+
 await cleanup();
 console.log('\ncuentas de prueba borradas');

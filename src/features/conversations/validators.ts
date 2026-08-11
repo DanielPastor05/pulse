@@ -45,6 +45,10 @@ export const addMembersSchema = z.object({
   userIds: z.array(z.string().uuid()).min(1).max(50),
 });
 
+export const transferOwnershipSchema = z.object({
+  userId: z.string().uuid(),
+});
+
 export const createDirectSchema = z.object({
   userId: z.string().uuid(),
 });

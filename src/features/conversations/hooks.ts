@@ -172,6 +172,19 @@ export function useMemberMutations(conversationId: string) {
     onError: (error) => toast.error('Could not remove member', { description: error.message }),
   });
 
+  const transferOwnership = useMutation({
+    mutationFn: (userId: string) =>
+      api<ConversationDetail>(`/conversations/${conversationId}/owner`, {
+        method: 'POST',
+        body: { userId },
+      }),
+    onSuccess: () => {
+      invalidate();
+      toast.success('Ownership transferred');
+    },
+    onError: (error) => toast.error('Could not transfer ownership', { description: error.message }),
+  });
+
   const leave = useMutation({
     mutationFn: (userId: string) =>
       api(`/conversations/${conversationId}/members/${userId}`, { method: 'DELETE' }),
@@ -196,5 +209,5 @@ export function useMemberMutations(conversationId: string) {
     onError: (error) => toast.error('Could not review the request', { description: error.message }),
   });
 
-  return { addMembers, updateMember, removeMember, leave, reviewJoinRequest };
+  return { addMembers, updateMember, removeMember, transferOwnership, leave, reviewJoinRequest };
 }

@@ -245,7 +245,17 @@ export async function removeMember(conversationId: string, actor: User, targetUs
     throw errors.forbidden('You cannot remove someone at or above your level.');
   }
   if (target.role === 'OWNER' && leaving) {
-    throw errors.badRequest('Transfer ownership before leaving the group.');
+    const others = await prisma.conversationMember.count({
+      where: { conversationId, userId: { not: actor.id } },
+    });
+    // Alone in your own group there is nobody to hand it to, so leaving means
+    // deleting it. Telling someone to transfer ownership to no one is a dead
+    // end, and it is how the owner used to get stuck here.
+    if (others === 0) {
+      await deleteConversation(conversationId, actor);
+      return;
+    }
+    throw errors.badRequest('Hand the group over to another member before leaving.');
   }
 
   const memberIds = await conversationMemberIds(conversationId);
@@ -424,6 +434,59 @@ export async function reviewJoinRequest(
       }),
     ]);
   }
+}
+
+/**
+ * Hands a group over to another member.
+ *
+ * Deliberately not part of `updateMember`: that endpoint assigns ranks, and
+ * `OWNER` is excluded from it on purpose. Giving a group away is not a
+ * promotion — it is one action that demotes the person doing it, so it needs to
+ * be asked for explicitly rather than fall out of a role dropdown.
+ *
+ * Without this, `removeMember` told the owner to "transfer ownership before
+ * leaving" and there was no way to do it: whoever created a group could never
+ * leave it.
+ */
+export async function transferOwnership(
+  conversationId: string,
+  actor: User,
+  targetUserId: string,
+): Promise<ConversationDetail> {
+  const membership = await requireMembership(conversationId, actor.id);
+  if (membership.role !== 'OWNER') throw errors.forbidden('Only the owner can hand the group over.');
+  if (targetUserId === actor.id) throw errors.badRequest('You already own this group.');
+
+  const target = await prisma.conversationMember.findUnique({
+    where: { conversationId_userId: { conversationId, userId: targetUserId } },
+    select: { userId: true },
+  });
+  if (!target) throw errors.notFound('That person is not in this conversation.');
+
+  // Both rows move together: a failure between them would leave the group with
+  // two owners or none.
+  await prisma.$transaction([
+    prisma.conversationMember.update({
+      where: { conversationId_userId: { conversationId, userId: actor.id } },
+      data: { role: 'ADMIN' },
+    }),
+    prisma.conversationMember.update({
+      where: { conversationId_userId: { conversationId, userId: targetUserId } },
+      data: { role: 'OWNER' },
+    }),
+  ]);
+
+  const newOwner = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    select: { displayName: true },
+  });
+  await systemMessage(
+    conversationId,
+    `${actor.displayName} made ${newOwner?.displayName ?? 'someone'} the owner.`,
+  );
+
+  await broadcastToConversation(conversationId, realtimeEvents.memberChanged, { conversationId });
+  return getConversationDetail(conversationId, actor.id);
 }
 
 export async function deleteConversation(conversationId: string, user: User) {
