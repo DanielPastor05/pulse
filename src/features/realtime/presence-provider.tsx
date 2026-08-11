@@ -26,14 +26,32 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
   // Idle detection: no input for three minutes, or the tab is hidden.
   React.useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
+    let lastReset = 0;
 
-    const markActive = () => {
+    const markActive = (event?: Event) => {
+      // Moving and scrolling fire continuously; rearming the timer more than
+      // once a second buys nothing.
+      const continuous = event?.type === 'pointermove' || event?.type === 'scroll';
+      const now = Date.now();
+      if (continuous && now - lastReset < 1_000) return;
+      lastReset = now;
+
       clearTimeout(timer);
       setPresence(document.visibilityState === 'hidden' ? 'IDLE' : 'ONLINE');
       timer = setTimeout(() => setPresence('IDLE'), IDLE_AFTER_MS);
     };
 
-    const events = ['pointerdown', 'keydown', 'visibilitychange', 'focus'] as const;
+    // `pointermove` and `scroll` matter as much as clicks here: reading a
+    // conversation is the most common thing to be doing, and without them
+    // someone sitting in front of the screen goes idle after three minutes.
+    const events = [
+      'pointerdown',
+      'pointermove',
+      'keydown',
+      'scroll',
+      'visibilitychange',
+      'focus',
+    ] as const;
     for (const event of events) window.addEventListener(event, markActive, { passive: true });
     markActive();
 
