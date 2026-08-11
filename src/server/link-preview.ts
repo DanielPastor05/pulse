@@ -253,5 +253,15 @@ export function firstUrl(content: string): string | null {
 
   // Trailing punctuation is almost always sentence punctuation, not the URL.
   const url = match[0].replace(/[.,;:!?]+$/, '');
-  return url.length <= MAX_URL_LENGTH ? url : null;
+  if (url.length > MAX_URL_LENGTH) return null;
+
+  // The character class above excludes `]` so markdown links are not swallowed,
+  // which truncates an IPv6 literal like `http://[::1]/` into something
+  // unparseable. Rejecting it here keeps junk out of the cache.
+  try {
+    new URL(url);
+  } catch {
+    return null;
+  }
+  return url;
 }

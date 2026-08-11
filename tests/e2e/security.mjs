@@ -246,17 +246,23 @@ check('previsualiza ::1', await previewOf('mira http://[::1]:8080/'), null);
 
 // Control positivo. Sin el, cuatro «null» saldrian igual si la funcion entera
 // estuviera rota, y las cuatro comprobaciones de arriba no valdrian nada.
-// example.com es el dominio que IANA reserva justo para esto.
 //
-// Solo tiene sentido contra un servidor con salida a internet: en local el
-// servidor corre en un entorno sin DNS externo, donde un null no distingue
-// «bloqueado» de «no hay red».
+// El objetivo es la propia app en lugar de un tercero: es HTML con etiquetas
+// meta de verdad, siempre esta disponible, y ningun sitio ajeno puede volver
+// la prueba intermitente bloqueando al robot o cambiando su portada.
+// Solo corre contra produccion: en local el servidor no resuelve DNS externo,
+// y ahi un null no distingue «bloqueado» de «sin red».
 if (APP.includes('localhost')) {
   console.log('  --    control positivo omitido: el servidor local no resuelve DNS externo');
 } else {
-  const real = await previewOf('mira https://example.com');
+  const real = await previewOf(`mira ${APP}/login`);
   check('un enlace publico sí produce tarjeta', real !== null, true);
   check('y trae titulo', typeof real?.title === 'string' && real.title.length > 0, true);
+  check(
+    'y trae descripcion',
+    typeof real?.description === 'string' && real.description.length > 0,
+    true,
+  );
 }
 
 // --- 5. Propiedad de un grupo ----------------------------------------------

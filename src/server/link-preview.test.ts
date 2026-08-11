@@ -64,6 +64,13 @@ test('firstUrl skips absurdly long URLs rather than truncating them', () => {
   assert.equal(firstUrl(`https://example.com/${'a'.repeat(600)}`), null);
 });
 
+test('firstUrl no devuelve restos inparseables', () => {
+  // El corchete queda fuera de la clase de caracteres para no tragarse los
+  // enlaces de markdown, lo que parte una IPv6 literal por la mitad.
+  assert.equal(firstUrl('mira http://[::1]:8080/'), null);
+  assert.equal(firstUrl('ver [esto](https://ejemplo.test/x)'), 'https://ejemplo.test/x');
+});
+
 test('parseLinkPreviewHtml prefers Open Graph tags', () => {
   const card = parseLinkPreviewHtml(
     `<html><head>
