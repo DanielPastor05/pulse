@@ -10,6 +10,7 @@ import {
   CALL_LIMITS,
   realtimeChannels,
   realtimeEvents,
+  type CallHerePayload,
   type CallMode,
   type CallPresencePayload,
   type CallSignalPayload,
@@ -116,24 +117,50 @@ export function useCall(meId: string) {
         void peerFor(signal.from, currentCallId).accept(signal.data);
       });
 
-      ch.on('broadcast', { event: realtimeEvents.callAccept }, ({ payload }) => {
-        const { callId: id, userId } = payload as CallPresencePayload;
-        if (id !== currentCallId || userId === meId) return;
-
+      /**
+       * Opens the connection to one participant, or waits for their offer.
+       *
+       * Only the lower id offers. Without that rule both ends would offer at
+       * once on every pairing — perfect negotiation would survive it, but it is
+       * cheaper not to collide in the first place.
+       */
+      const connectTo = (otherId: string) => {
         const store = useCallStore.getState();
         const seats = CALL_LIMITS[store.mode];
+
         if (Object.keys(store.remotes).length + 2 > seats) {
-          toast.error(`This call is full (${seats} people)`, {
-            description: 'Everyone sends their own video to everyone else, so it stops holding up.',
+          toast.error(`This call is full — ${seats} people maximum`, {
+            description:
+              'Everyone sends their own camera to everyone else, so it stops holding up beyond that.',
           });
           return;
         }
 
         store.setStatus('active');
-        // Only one side opens the connection, or both offer at once. The peer
-        // with the lower id does it; the other waits for the offer.
-        if (meId < userId) peerFor(userId, currentCallId);
-        else store.upsertRemote({ userId, stream: null, state: 'new' });
+        if (meId < otherId) peerFor(otherId, currentCallId);
+        else store.upsertRemote({ userId: otherId, stream: null, state: 'new' });
+      };
+
+      ch.on('broadcast', { event: realtimeEvents.callAccept }, ({ payload }) => {
+        const { callId: id, userId } = payload as CallPresencePayload;
+        if (id !== currentCallId || userId === meId) return;
+
+        // Announce ourselves back. The channel keeps no history, so somebody
+        // joining third would otherwise never learn that the second person is
+        // here — they accepted before this newcomer was even subscribed.
+        send(realtimeEvents.callHere, {
+          callId: currentCallId,
+          userId: meId,
+          to: userId,
+        } satisfies CallHerePayload);
+
+        connectTo(userId);
+      });
+
+      ch.on('broadcast', { event: realtimeEvents.callHere }, ({ payload }) => {
+        const { callId: id, userId, to } = payload as CallHerePayload;
+        if (id !== currentCallId || to !== meId || userId === meId) return;
+        connectTo(userId);
       });
 
       ch.on('broadcast', { event: realtimeEvents.callLeave }, ({ payload }) => {
@@ -159,7 +186,7 @@ export function useCall(meId: string) {
       channel.current = ch;
       return ch;
     },
-    [meId, peerFor, teardown],
+    [meId, peerFor, send, teardown],
   );
 
   const captureLocal = React.useCallback(async (wanted: CallMode) => {
@@ -268,6 +295,22 @@ export function useCall(meId: string) {
     localStream.current?.getVideoTracks().forEach((track) => (track.enabled = next));
     useCallStore.getState().setCamera(next);
   }, []);
+
+  // Nobody picked up. Without this the caller sits on "Calling…" indefinitely,
+  // holding the microphone open, because a call that is never answered
+  // produces no event at all.
+  React.useEffect(() => {
+    if (status !== 'joining') return;
+
+    const timer = setTimeout(() => {
+      if (Object.keys(useCallStore.getState().remotes).length === 0) {
+        toast.message('No answer');
+        leaveCall();
+      }
+    }, 45_000);
+
+    return () => clearTimeout(timer);
+  }, [status, leaveCall]);
 
   // Leaving the tab open on a dead call is worse than dropping it: the other
   // side keeps seeing a participant who is not there.

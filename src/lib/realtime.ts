@@ -27,6 +27,10 @@ export const realtimeEvents = {
   callReject: 'call.reject',
   callLeave: 'call.leave',
   callSignal: 'call.signal',
+  // Respuesta de quien ya está dentro a quien acaba de entrar. Hace falta
+  // porque el canal no guarda historial: si A llama, B acepta y después entra
+  // C, C nunca vio el «acepto» de B y se quedaría sin conectar con él.
+  callHere: 'call.here',
 } as const;
 
 export type RealtimeEvent = (typeof realtimeEvents)[keyof typeof realtimeEvents];
@@ -74,6 +78,13 @@ export type CallInvitePayload = {
 export type CallPresencePayload = {
   callId: string;
   userId: string;
+};
+
+/** «Yo también estoy», dirigido a quien acaba de entrar. */
+export type CallHerePayload = {
+  callId: string;
+  userId: string;
+  to: string;
 };
 
 /**
