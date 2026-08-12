@@ -11,6 +11,7 @@ import { CommandPalette } from '@/features/search/components/command-palette';
 import { ShortcutsDialog } from '@/components/layout/shortcuts-dialog';
 import { MobileTabBar, TopDock } from '@/components/layout/top-dock';
 import { CallOverlay } from '@/features/calls/components/call-overlay';
+import { useOutboxFlush } from '@/features/messages/use-outbox-flush';
 
 /**
  * The persistent chrome around every signed-in page: ambient background,
@@ -21,6 +22,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { setCommandOpen, setShortcutsOpen, setMobileNavOpen } = useUiStore();
 
   useUserChannel();
+  // Aquí y no en la conversación: lo escrito sin cobertura tiene que salir al
+  // volver la red, se esté mirando ese chat o no.
+  useOutboxFlush();
 
   useKeyboardShortcuts([
     { key: 'k', meta: true, allowInInput: true, handler: () => setCommandOpen(true) },

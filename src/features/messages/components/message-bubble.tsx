@@ -3,6 +3,7 @@
 import * as React from 'react';
 import {
   AlertCircle,
+  CloudOff,
   Check,
   CheckCheck,
   CornerUpLeft,
@@ -93,6 +94,16 @@ function StatusTicks({
         >
           <AlertCircle className="size-3" />
         </button>
+      </Tooltip>
+    );
+  }
+
+  // Distinct from failed: nothing is wrong and there is nothing to press. It
+  // goes out on its own when the connection returns.
+  if (message.queued) {
+    return (
+      <Tooltip content="Waiting for a connection — it will send itself">
+        <CloudOff className="size-3 opacity-60" />
       </Tooltip>
     );
   }

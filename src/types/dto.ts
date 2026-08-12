@@ -89,6 +89,11 @@ export type MessageDTO = {
   /** Client-only: set on optimistic messages that have not been confirmed. */
   pending?: boolean;
   failed?: boolean;
+  /**
+   * Waiting for the connection to come back, which is different from failed:
+   * nothing is wrong and nobody needs to press anything.
+   */
+  queued?: boolean;
 };
 
 export type ReportDTO = {

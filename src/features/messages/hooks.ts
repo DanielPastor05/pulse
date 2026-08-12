@@ -9,7 +9,8 @@ import {
 } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
-import { api } from '@/lib/api-client';
+import { api, ApiError } from '@/lib/api-client';
+import { dequeue, enqueue } from '@/features/messages/outbox';
 import { queryKeys } from '@/lib/query-keys';
 import { randomId } from '@/lib/utils';
 import type { AttachmentInput } from '@/features/messages/validators';
@@ -176,17 +177,44 @@ export function useSendMessage(conversationId: string, me: CurrentUser) {
       };
 
       upsert(optimistic);
+
+      // Queued before the request goes out, not after it fails: the tab can be
+      // closed mid-flight, and an entry that only exists in memory dies with
+      // it. Re-sending a message that did arrive is harmless — the server
+      // deduplicates by clientId.
+      enqueue({
+        clientId: payload.clientId,
+        conversationId,
+        content: payload.content,
+        attachments: payload.attachments,
+        replyToId: payload.replyToId ?? null,
+        queuedAt: Date.now(),
+      });
+
       return { clientId: payload.clientId };
     },
 
     onSuccess: (message, payload) => {
+      dequeue(payload.clientId);
       upsert(message, payload.clientId);
       void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(false) });
     },
 
     onError: (error, payload) => {
-      patch(payload.clientId, (message) => ({ ...message, pending: false, failed: true }));
-      toast.error('Message not sent', { description: error.message });
+      // A rejection is not a network problem. Retrying a message the server
+      // refused — too long, no longer a member — would retry it forever, so it
+      // leaves the queue and is shown as failed.
+      const rejected = error instanceof ApiError && error.status < 500;
+
+      if (rejected) {
+        dequeue(payload.clientId);
+        patch(payload.clientId, (message) => ({ ...message, pending: false, failed: true }));
+        toast.error('Message not sent', { description: error.message });
+        return;
+      }
+
+      // Otherwise it stays queued and goes out when the connection returns.
+      patch(payload.clientId, (message) => ({ ...message, pending: false, queued: true }));
     },
   });
 }
