@@ -33,6 +33,7 @@ import {
 import { AccentPicker } from '@/features/profile/components/accent-picker';
 import { AvatarPicker } from '@/features/profile/components/avatar-picker';
 import { ensureNotificationPermission, playChime } from '@/features/notifications/sound';
+import { disablePush, enablePush } from '@/features/notifications/push';
 import { useSession } from '@/components/providers/session-provider';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -265,11 +266,36 @@ function NotificationsTab() {
         />
         <ToggleRow
           icon={<Monitor />}
-          title="Desktop notifications"
-          description="Show a system notification when the tab is in the background."
+          title="Notifications"
+          description="Reach this device even when Pulse is closed."
           checked={me.notifications.desktopPush}
           onChange={async (value) => {
-            if (value) {
+            if (!value) {
+              await disablePush();
+              update.mutate({ notifyDesktopPush: false });
+              return;
+            }
+
+            const result = await enablePush();
+
+            if (result === 'needs-install') {
+              // Not a permission problem and not fixable in settings: on iOS
+              // Safari exposes no push at all outside the installed app.
+              toast.error('Add Pulse to your home screen first', {
+                description:
+                  'On iPhone, notifications only work once the app is installed. Share → Add to Home Screen.',
+              });
+              return;
+            }
+            if (result === 'denied') {
+              toast.error('Permission denied', {
+                description: 'Allow notifications for this site in your browser settings.',
+              });
+              return;
+            }
+            if (result === 'unsupported' || result === 'error') {
+              // Falls back to the in-page notifications, which still work while
+              // the tab is open.
               const granted = await ensureNotificationPermission();
               if (!granted) {
                 toast.error('Permission denied', {
@@ -277,8 +303,12 @@ function NotificationsTab() {
                 });
                 return;
               }
+              toast.message('Notifications on, but only while Pulse is open', {
+                description: 'This browser cannot deliver them with the app closed.',
+              });
             }
-            update.mutate({ notifyDesktopPush: value });
+
+            update.mutate({ notifyDesktopPush: true });
           }}
         />
       </div>

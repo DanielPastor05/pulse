@@ -5,6 +5,7 @@ import type { NotificationKind } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { realtimeEvents } from '@/lib/realtime';
 import { broadcastPerUser } from '@/server/broadcast';
+import { pushToUsers } from '@/server/push';
 import { notificationInclude, toNotification } from '@/server/repositories/selectors';
 
 /**
@@ -93,6 +94,28 @@ export async function notify(input: NotificationInput): Promise<void> {
     })),
     realtimeEvents.notification,
   );
+
+  // Everything above only lands if the app is open. This is the part that
+  // reaches a closed tab, and it reuses the recipient list already worked out
+  // here rather than deciding all over again who should hear about this.
+  const wantPush = await prisma.user.findMany({
+    where: { id: { in: allowed }, notifyDesktopPush: true },
+    select: { id: true },
+  });
+
+  if (wantPush.length > 0) {
+    await pushToUsers(
+      wantPush.map((user) => user.id),
+      {
+        title: input.title,
+        body: input.body ?? null,
+        url: input.conversationId ? `/chat/${input.conversationId}` : '/chat',
+        // Collapses repeats from the same conversation into one entry rather
+        // than stacking a row per message.
+        tag: input.conversationId ?? input.kind,
+      },
+    );
+  }
 }
 
 export async function unreadNotificationCount(userId: string): Promise<number> {

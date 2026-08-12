@@ -138,6 +138,7 @@ model User {
   notifications     Notification[]       @relation("NotificationOwner")
   notificationsSent Notification[]       @relation("NotificationActor")
   invites           Invite[]
+  pushSubscriptions PushSubscription[]
   reportsFiled      Report[]             @relation("ReportsFiled")
   reportsAgainst    Report[]             @relation("ReportsAgainst")
   reportsReviewed   Report[]             @relation("ReportsReviewed")
@@ -426,6 +427,34 @@ model JoinRequest {
   @@index([conversationId, status])
   @@index([userId])
   @@map("join_requests")
+}
+
+/// One browser's permission to be woken up.
+///
+/// Per device, not per user: somebody signed in on a phone and a laptop has two
+/// of these, and a notification has to reach both. The endpoint is the identity
+/// — the push service mints it, and it is what a delivery is addressed to.
+model PushSubscription {
+  id String @id @default(uuid()) @db.Uuid
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Unique across users on purpose: if a device is handed over to somebody
+  /// else, the row moves rather than delivering one person's messages to
+  /// another's screen.
+  endpoint String @unique @db.VarChar(512)
+  p256dh   String @db.VarChar(200)
+  auth     String @db.VarChar(100)
+
+  /// Rough label for the settings screen ("Chrome on Android").
+  label String? @db.VarChar(120)
+
+  createdAt DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 /// A message flagged for a moderator's attention.

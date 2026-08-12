@@ -32,6 +32,10 @@ export const publicEnv = {
   get appUrl(): string | undefined {
     return process.env.NEXT_PUBLIC_APP_URL || undefined;
   },
+  /** Absent is a valid setup: push is simply off. */
+  get vapidPublicKey(): string | undefined {
+    return process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || undefined;
+  },
 } as const;
 
 export const serverEnv = {
@@ -40,6 +44,13 @@ export const serverEnv = {
   },
   get tenorApiKey() {
     return process.env.TENOR_API_KEY ?? '';
+  },
+  get vapidPrivateKey(): string | undefined {
+    return process.env.VAPID_PRIVATE_KEY || undefined;
+  },
+  /** web-push demands a contact; a mailto is what the spec expects. */
+  get vapidSubject() {
+    return process.env.VAPID_SUBJECT || 'mailto:admin@localhost';
   },
 } as const;
 

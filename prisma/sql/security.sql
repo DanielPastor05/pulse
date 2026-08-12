@@ -378,3 +378,14 @@ alter table public.link_previews enable row level security;
 -- ---------------------------------------------------------------------------
 
 alter table public.reports enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- Suscripciones de push
+--
+-- La tabla la crea Prisma (modelo PushSubscription). Igual que las anteriores:
+-- RLS activado sin políticas, para que PostgREST no la exponga. Contiene las
+-- claves de cifrado de cada dispositivo, así que no debe ser legible por la
+-- API pública bajo ningún concepto.
+-- ---------------------------------------------------------------------------
+
+alter table public.push_subscriptions enable row level security;
