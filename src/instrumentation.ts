@@ -5,6 +5,12 @@ import { scrubEvent } from '@/lib/sentry-scrub';
 /**
  * Server-side error reporting.
  *
+ * Server only, deliberately. Wiring the browser SDK too was measured at
+ * +96 kB of first-load JavaScript on every visit — @sentry/core alone is
+ * ~106 kB parsed — which is a poor trade for a chat app: the errors you cannot
+ * otherwise see are the ones on the server, while a client exception still
+ * shows up in the console and is caught by the `error.tsx` boundaries.
+ *
  * Off unless `NEXT_PUBLIC_SENTRY_DSN` is set, the same way push is off without
  * VAPID keys: a clone of this repo has to run without anyone's account.
  */
