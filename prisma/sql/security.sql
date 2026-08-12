@@ -389,3 +389,19 @@ alter table public.reports enable row level security;
 -- ---------------------------------------------------------------------------
 
 alter table public.push_subscriptions enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- Encuestas
+--
+-- Las tablas las crea Prisma (Poll, PollOption, PollVote). Aquí sólo RLS
+-- activado sin políticas, como el resto: la app las lee por su propia conexión.
+--
+-- Nota: «un voto por encuesta» no se puede expresar como restricción, porque
+-- poll_votes sólo conoce opciones. El índice único cubre «un voto por opción»
+-- —el doble clic— y la regla por encuesta vive en poll.service.ts, dentro de
+-- una transacción.
+-- ---------------------------------------------------------------------------
+
+alter table public.polls enable row level security;
+alter table public.poll_options enable row level security;
+alter table public.poll_votes enable row level security;

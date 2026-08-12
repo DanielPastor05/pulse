@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Camera,
   CornerUpLeft,
+  BarChart3,
   Image as ImageIcon,
   Mic,
   Paperclip,
@@ -23,6 +24,7 @@ import { VoiceRecorder } from '@/features/media/components/voice-recorder';
 import { AttachmentTray, type PendingAttachment } from '@/features/messages/components/attachment-tray';
 import { EmojiPicker } from '@/features/messages/components/emoji-picker';
 import { GifPicker } from '@/features/messages/components/gif-picker';
+import { PollDialog } from '@/features/messages/components/poll-dialog';
 import { MentionSuggestions } from '@/features/messages/components/mention-suggestions';
 import { useComposerStore } from '@/stores/composer-store';
 import { Button } from '@/components/ui/button';
@@ -75,6 +77,7 @@ export function Composer({
   const [recording, setRecording] = React.useState(false);
   const [emojiOpen, setEmojiOpen] = React.useState(false);
   const [gifOpen, setGifOpen] = React.useState(false);
+  const [pollOpen, setPollOpen] = React.useState(false);
   const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
 
   const value = edit ? edit.content : draft;
@@ -387,6 +390,16 @@ export function Composer({
                   <ImageIcon />
                 </Button>
               </GifPicker>
+
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                disabled={disabled}
+                onClick={() => setPollOpen(true)}
+                aria-label="Create a poll"
+              >
+                <BarChart3 />
+              </Button>
             </div>
 
             <div className="relative flex-1">
@@ -489,6 +502,12 @@ export function Composer({
           if (files.length > 0) void addFiles(files);
           event.target.value = '';
         }}
+      />
+
+      <PollDialog
+        conversationId={conversationId}
+        open={pollOpen}
+        onOpenChange={setPollOpen}
       />
     </div>
   );

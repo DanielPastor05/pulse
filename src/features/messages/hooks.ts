@@ -173,6 +173,9 @@ export function useSendMessage(conversationId: string, me: CurrentUser) {
         starred: false,
         // Resolved server-side after the send; arrives on a later update.
         linkPreview: null,
+        // Optimistic messages are always plain text — polls go through their
+        // own endpoint and never render optimistically.
+        poll: null,
         pending: true,
       };
 

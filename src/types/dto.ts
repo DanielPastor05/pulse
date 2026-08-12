@@ -86,6 +86,8 @@ export type MessageDTO = {
   starred: boolean;
   /** Resolved after the message is stored, so it arrives on a later update. */
   linkPreview: LinkPreviewDTO | null;
+  /** Present only on messages of kind POLL. */
+  poll: PollDTO | null;
   /** Client-only: set on optimistic messages that have not been confirmed. */
   pending?: boolean;
   failed?: boolean;
@@ -106,6 +108,21 @@ export type ReportDTO = {
   reporter: PublicUser;
   reportedUser: PublicUser | null;
   message: { id: string; content: string; deleted: boolean } | null;
+};
+
+export type PollDTO = {
+  id: string;
+  question: string;
+  multiple: boolean;
+  closed: boolean;
+  totalVotes: number;
+  options: Array<{
+    id: string;
+    label: string;
+    votes: number;
+    /** Viewer-specific, like `starred` — recomputed per request. */
+    votedByMe: boolean;
+  }>;
 };
 
 export type LinkPreviewDTO = {

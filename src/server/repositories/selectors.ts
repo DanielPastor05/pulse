@@ -79,6 +79,25 @@ export function messageInclude(viewerId: string) {
     linkPreview: {
       select: { url: true, title: true, description: true, imageUrl: true, siteName: true },
     },
+    poll: {
+      select: {
+        id: true,
+        question: true,
+        multiple: true,
+        closedAt: true,
+        options: {
+          orderBy: { position: 'asc' },
+          select: {
+            id: true,
+            label: true,
+            // Counting in the query beats loading every vote row to length it,
+            // and the viewer's own vote is a targeted lookup rather than a scan.
+            _count: { select: { votes: true } },
+            votes: { where: { userId: viewerId }, select: { userId: true } },
+          },
+        },
+      },
+    },
   } satisfies Prisma.MessageInclude;
 }
 
@@ -140,6 +159,22 @@ export function toMessage(row: MessageRow, viewerId: string): MessageDTO {
     reactions: deleted ? [] : groupReactions(row.reactions, viewerId),
     starred: row.stars.length > 0,
     linkPreview: deleted ? null : row.linkPreview,
+    poll:
+      deleted || !row.poll
+        ? null
+        : {
+            id: row.poll.id,
+            question: row.poll.question,
+            multiple: row.poll.multiple,
+            closed: Boolean(row.poll.closedAt),
+            totalVotes: row.poll.options.reduce((sum, option) => sum + option._count.votes, 0),
+            options: row.poll.options.map((option) => ({
+              id: option.id,
+              label: option.label,
+              votes: option._count.votes,
+              votedByMe: option.votes.length > 0,
+            })),
+          },
   };
 }
 

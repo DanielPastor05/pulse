@@ -408,6 +408,60 @@ check('quien modera puede resolverla', revisada.status, 200);
 const trasResolver = await api(`/api/conversations/${salaId}/reports`, { actor: dana });
 check('sale de la cola de abiertas', (trasResolver.json?.reports ?? []).length, 0);
 
+// --- 6b. Encuestas ----------------------------------------------------------
+console.log('\nEncuestas: un voto por encuesta, y cambiar de idea no acumula');
+
+const salaEncuesta = await api('/api/conversations', {
+  method: 'POST',
+  actor: dana,
+  body: { name: 'Dónde cenamos', accent: 'electric', memberIds: [] },
+});
+const encuestaConvId = (salaEncuesta.json?.conversation ?? salaEncuesta.json)?.id;
+
+const invalida = await api(`/api/conversations/${encuestaConvId}/polls`, {
+  method: 'POST',
+  actor: dana,
+  body: { question: 'Con una sola opción', options: ['única'], multiple: false },
+});
+check('acepta una encuesta con una sola opción', invalida.status === 201, false);
+
+const creada = await api(`/api/conversations/${encuestaConvId}/polls`, {
+  method: 'POST',
+  actor: dana,
+  body: { question: '¿Dónde cenamos?', options: ['Pizza', 'Sushi', 'Tacos'], multiple: false },
+});
+check('crear la encuesta', creada.status, 201);
+const encuestaMsgId = creada.json?.id;
+const opciones = creada.json?.poll?.options ?? [];
+check('llega con sus tres opciones', opciones.length, 3);
+
+const votar = (optionId, actor = dana) =>
+  api(`/api/messages/${encuestaMsgId}/poll`, { method: 'POST', actor, body: { optionId } });
+
+let estado = await votar(opciones[0]?.id);
+check('votar la primera', estado.json?.poll?.totalVotes, 1);
+
+// Cambiar de idea en una encuesta de opción única debe mover el voto, no sumar.
+// Es la regla que el índice único no puede expresar: sólo conoce opciones.
+estado = await votar(opciones[1]?.id);
+check('tras cambiar de opción, votos totales', estado.json?.poll?.totalVotes, 1);
+check(
+  'y el voto está en la nueva',
+  (estado.json?.poll?.options ?? []).find((o) => o.id === opciones[1]?.id)?.votes,
+  1,
+);
+
+// Volver a pulsar la propia opción retira el voto.
+estado = await votar(opciones[1]?.id);
+check('volver a pulsar la misma retira el voto', estado.json?.poll?.totalVotes, 0);
+
+const cerrada = await api(`/api/messages/${encuestaMsgId}/poll`, { method: 'PATCH', actor: dana });
+check('el autor puede cerrarla', cerrada.status, 200);
+check('queda marcada como cerrada', cerrada.json?.poll?.closed, true);
+
+const votoTardio = await votar(opciones[0]?.id);
+check('se puede votar una encuesta cerrada', votoTardio.status === 200, false);
+
 // --- 7. Galeria -------------------------------------------------------------
 console.log('\nGaleria: sólo miembros, y la paginación no salta ni repite');
 

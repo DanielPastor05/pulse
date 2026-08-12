@@ -44,6 +44,7 @@ enum MemberRole {
 enum MessageKind {
   TEXT
   SYSTEM
+  POLL
 }
 
 enum AttachmentKind {
@@ -139,6 +140,7 @@ model User {
   notificationsSent Notification[]       @relation("NotificationActor")
   invites           Invite[]
   pushSubscriptions PushSubscription[]
+  pollVotes         PollVote[]
   reportsFiled      Report[]             @relation("ReportsFiled")
   reportsAgainst    Report[]             @relation("ReportsAgainst")
   reportsReviewed   Report[]             @relation("ReportsReviewed")
@@ -262,6 +264,7 @@ model Message {
   mentions      Mention[]
   notifications Notification[]
   reports       Report[]
+  poll          Poll?
 
   // Postgres treats NULLs as distinct, so messages sent without a clientId are
   // unaffected by this constraint.
@@ -427,6 +430,67 @@ model JoinRequest {
   @@index([conversationId, status])
   @@index([userId])
   @@map("join_requests")
+}
+
+/// A poll, hanging off the message that announced it.
+///
+/// Attached to a `Message` with kind `POLL` rather than being its own top-level
+/// thing: a poll *is* a message — it is pinned, replied to, searched and
+/// deleted like any other, and modelling it separately would mean teaching all
+/// of that about a second kind of entity.
+model Poll {
+  id String @id @default(uuid()) @db.Uuid
+
+  messageId String  @unique @db.Uuid
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  question String @db.VarChar(300)
+
+  /// Whether one person may pick several answers.
+  multiple Boolean @default(false)
+  /// Closed polls keep their results but take no more votes.
+  closedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  options PollOption[]
+
+  @@map("polls")
+}
+
+model PollOption {
+  id String @id @default(uuid()) @db.Uuid
+
+  pollId String @db.Uuid
+  poll   Poll   @relation(fields: [pollId], references: [id], onDelete: Cascade)
+
+  label String @db.VarChar(150)
+  /// Keeps the author's order rather than whatever the database returns.
+  position Int
+
+  votes PollVote[]
+
+  @@index([pollId, position])
+  @@map("poll_options")
+}
+
+model PollVote {
+  id String @id @default(uuid()) @db.Uuid
+
+  optionId String     @db.Uuid
+  option   PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  /// Voting twice for the same option is a double click, not two votes. Single
+  /// choice is enforced in the service, which is where "one *per poll*" lives —
+  /// the database can only see options from here.
+  @@unique([optionId, userId])
+  @@index([userId])
+  @@map("poll_votes")
 }
 
 /// One browser's permission to be woken up.

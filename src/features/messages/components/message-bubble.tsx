@@ -24,6 +24,7 @@ import { formatBubbleTime, formatFullTimestamp } from '@/lib/date';
 import { AttachmentGrid } from '@/features/media/components/attachment-grid';
 import { LinkPreviewCard } from '@/features/messages/components/link-preview-card';
 import { MessageContent } from '@/features/messages/components/message-content';
+import { PollCard } from '@/features/messages/components/poll-card';
 import { MessageReactions } from '@/features/messages/components/message-reactions';
 import { Avatar } from '@/components/ui/avatar';
 import {
@@ -299,7 +300,11 @@ export const MessageBubble = React.memo(function MessageBubble({
                         <AttachmentGrid attachments={message.attachments} mine={mine} />
                       </div>
                     ) : null}
-                    {message.content ? (
+                    {message.poll ? (
+                      // The question is stored as the message body too, so the
+                      // card replaces it rather than repeating it underneath.
+                      <PollCard messageId={message.id} poll={message.poll} />
+                    ) : message.content ? (
                       <MessageContent content={message.content} className="text-[14px]" />
                     ) : null}
                     {message.linkPreview ? (
