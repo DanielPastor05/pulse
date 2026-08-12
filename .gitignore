@@ -3,9 +3,6 @@ node_modules/
 out/
 build/
 dist/
-.env
-.env.local
-.env*.local
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store
@@ -18,3 +15,8 @@ coverage/
 # Notas locales con credenciales — nunca al repositorio
 contraseña supabesa.txt
 *.password.txt
+
+# Todo fichero de entorno queda fuera, salvo la plantilla: sin esta excepción
+# quien clone el repositorio se queda sin saber qué variables hacen falta.
+.env*
+!.env.example
