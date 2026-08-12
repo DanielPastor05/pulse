@@ -1,294 +1,248 @@
 # Pulse
 
-A production-ready realtime messaging app — direct messages, group spaces and
-public communities — built with Next.js 15 (App Router), React 19, TypeScript,
-Prisma, Supabase and Tailwind CSS v4.
+[![CI](https://github.com/DanielPastor05/pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/DanielPastor05/pulse/actions/workflows/ci.yml)
+
+A realtime messaging app — direct messages, group spaces and public communities.
+Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
+
+**Live:** https://pulse-blond-two.vercel.app
+
+<!-- SCREENSHOTS -->
+<!--
+  TODO(dani): añade aquí las capturas antes de enseñar el repositorio.
+  Sugerencia de orden y de qué debe verse:
+    docs/screenshots/chat.png      — una conversación con mensajes, reacciones
+                                     y un adjunto. Que NO salga vacía.
+    docs/screenshots/realtime.gif  — dos ventanas lado a lado y un mensaje
+                                     apareciendo en la otra sin recargar.
+                                     Es lo que mejor vende el proyecto.
+    docs/screenshots/discover.png  — comunidades públicas.
+  Y bórrate este comentario.
+-->
 
 ---
 
-## Quick start
+## What this is
 
-The database is **already provisioned** in the Supabase project **AppChat**
-(`etdbnovainhpqzvnndng`, eu-central-1): 13 tables, 41 indexes, RLS enabled and
-verified on every table, both storage buckets, and the account-deletion trigger.
-`.env` already carries the project URL and publishable key.
+A chat app that behaves like one: messages arrive without a refresh, presence and
+typing indicators are live, attachments and voice notes upload straight to object
+storage, and every conversation is protected at the database level rather than by
+the API remembering to check.
 
-```bash
-npm install
-```
+It is deployed, and the guarantees below are verified against the deployed
+instance, not against mocks.
 
-Two secrets still have to be pasted into `.env` by hand — they cannot be read
-through the management API:
+---
 
-1. **`SUPABASE_SERVICE_ROLE_KEY`** → *Project Settings → API Keys → `service_role`*.
-   Without it, server-to-client realtime and file uploads fail.
-2. **The database password** → replace `[YOUR-PASSWORD]` in both `DATABASE_URL`
-   and `DIRECT_URL`. Percent-encode any special characters (`@` → `%40`,
-   `#` → `%23`, `/` → `%2F`). Without it nothing that touches Prisma works,
-   which is the whole app.
+## Engineering notes
 
-Both connection strings go through **Supavisor**, the Supabase pooler, not the
-direct connection. `db.<ref>.supabase.co` only publishes an AAAA record — it is
-IPv6-only unless you buy the IPv4 add-on — so on an IPv4-only network the direct
-connection fails with `P1001: Can't reach database server`. The pooler resolves
-over IPv4 and is what you want in serverless anyway:
+The interesting part of this project is not the feature list. It is a handful of
+problems that were wrong in a way that still looked right, and what was done
+about them. Each of these is a real commit.
 
-- `DATABASE_URL` → transaction mode, port **6543**, with `?pgbouncer=true` — used
-  by the app.
-- `DIRECT_URL` → session mode, port **5432** — used by `prisma db push`, which
-  needs a real session for DDL.
+### Realtime channels were public
 
-Then enable the OAuth providers you want under *Authentication → Providers*,
-and add `http://localhost:3000/auth/callback` to the redirect allow-list
-(*Authentication → URL Configuration*).
+Supabase Realtime channels default to public. The app subscribed to
+`conversation:<uuid>`, so **anyone holding the publishable key — which ships in
+every browser bundle — could subscribe to a conversation id and read the
+messages as they were sent.** The REST API was locked down; the live socket
+beside it was not.
 
-```bash
-npm run dev
-```
+Fixed with private channels plus RLS policies on `realtime.messages`, so the
+database decides who may join a topic. Verified with a six-case authorisation
+matrix: member joins, non-member rejected, in both directions.
 
-Optional: set `TENOR_API_KEY` to switch on the GIF picker. Without it the
-picker renders an explanatory empty state instead of failing.
+### Blocking someone was cosmetic
 
-> `NEXT_PUBLIC_SUPABASE_URL` is read at **build** time by `next.config.ts` to
-> allow-list the storage host for the image optimiser. Changing it means
-> rebuilding.
+The block check ran on direct conversations only. Creating a group and adding
+the person who blocked you defeated it entirely — you were back in a room with
+them.
 
-### Starting from a fresh Supabase project instead
+The fix filters blocks in both directions on group creation *and* on adding
+members, and it excludes people **silently**: an error saying "that person
+blocked you" hands the information straight back to the person being avoided.
 
-```bash
-npx prisma db push
-```
+### A retry button exposed that sending was not idempotent
 
-…then run `prisma/sql/security.sql` in the SQL editor. It is idempotent and
-covers RLS, the helper functions, storage buckets and the deletion trigger.
-Both files are the single source of truth; the schema and the live database are
-verified to match index-for-index.
+Failed messages used to die with a red icon, so a flaky connection meant
+retyping. Adding a retry seemed trivial — the send already carried a `clientId`.
+
+Writing the test first showed the premise was false: `clientId` travelled in the
+realtime broadcast so the sender could reconcile its optimistic bubble, but it
+was **never stored and never checked**. A retry would have posted the message
+twice.
+
+That cannot be fixed on the client — the retry exists precisely for when you do
+not know whether the message arrived. So the key is now persisted with a unique
+index on `(authorId, clientId)`, with a fast-path lookup for the common case and
+constraint-violation handling for the real one: two taps racing each other. Four
+concurrent sends with the same key produce exactly one message.
+
+### Rate limiting lived in process memory
+
+A `Map` in the Node process. Correct on one instance, useless on serverless:
+every cold start resets it and every instance keeps its own count.
+
+Moved to Postgres as a fixed window, one atomic statement doing the whole
+read-modify-write. **The trade-off, stated plainly:** at a window boundary a
+caller can spend the tail of one window and the head of the next, so the real
+burst ceiling is 2×the limit. That is fine for blunting abuse and costs one
+round trip instead of the read-modify-write a token bucket needs.
+
+### Link previews are SSRF by construction
+
+Unfurling a link means the server fetches a URL a user typed. The defence is not
+one check but several, in `src/server/link-preview.ts`:
+
+- the hostname is **resolved** and every resulting address checked — a name can
+  point at `127.0.0.1` and the string tells you nothing;
+- every redirect hop is resolved and checked again, since only the first URL is
+  under your nose;
+- private, loopback, link-local and cloud-metadata ranges are rejected, in IPv4,
+  IPv6, and IPv4-mapped-IPv6 form;
+- the read is capped in time and in bytes.
+
+The end-to-end tests include a **positive control**. Without one, four "no
+preview was created" assertions would pass just as happily if the whole feature
+were dead — which is exactly what happened on the first run.
+
+### Monitoring, measured before adopting
+
+Server-side error reporting, with the browser SDK deliberately left out: wiring
+it was measured at **+96 kB of first-load JavaScript on every visit**
+(`@sentry/core` alone is ~106 kB parsed). Poor trade for a chat app — the errors
+you cannot otherwise see are the server ones.
+
+What reaches Sentry is filtered deny-by-default: message bodies, search terms,
+drafts and file names are redacted, query strings are dropped whole rather than
+filtered key by key, and only the user id survives. Session Replay is off — it
+records the DOM, which here is somebody's private conversation.
 
 ---
 
 ## Architecture
 
-Feature-first. Each domain owns its components, hooks and validators; shared
-primitives live in `components/` and `lib/`; anything that touches the database
-lives under `server/` and never reaches the browser bundle.
+```mermaid
+flowchart LR
+    B["Browser<br/>React 19 · TanStack Query · Zustand"]
 
-```
-prisma/
-  schema.prisma            Postgres schema (13 models)
-  sql/security.sql         RLS policies, storage buckets, trigram indexes
-src/
-  app/
-    (auth)/                Sign in, sign up, password reset
-    (app)/                 Everything behind the auth wall
-      chat/                Conversation list + thread
-      discover/            Public group directory
-      starred/             Personal shortlist
-      settings/            Profile, appearance, notifications, people
-      u/[username]/        Public profiles
-    api/                   35 route handlers — the only way data moves
-    auth/                  OAuth + email callback, sign-out
-    invite/[code]/         Invite landing page
-  components/
-    layout/                App shell, nav rail, aurora backdrop
-    providers/             Query, theme, session, toaster
-    ui/                    Design-system primitives (button, dialog, menu…)
-  features/
-    auth/ conversations/ messages/ media/ notifications/ profile/
-    realtime/ search/      Each with components/, hooks, validators
-  hooks/                   Cross-feature hooks (shortcuts, media query, debounce)
-  lib/                     Prisma + Supabase clients, utils, tokens, permissions
-  server/
-    repositories/          Prisma queries + DTO mapping
-    services/              Business rules (messages, conversations, users…)
-    auth.ts http.ts …      Session, error normalising, rate limiting, broadcast
-  stores/                  Zustand: UI chrome, composer drafts, live presence
-  types/dto.ts             The client/server contract
+    subgraph V["Next.js 15 on Vercel"]
+      MW["Middleware<br/>session refresh · route gating"]
+      RH["Route handlers<br/>Zod · rate limit · same-origin"]
+      SV["Services<br/>authorisation · business rules"]
+    end
+
+    subgraph S["Supabase"]
+      PG[("Postgres<br/>RLS on every table")]
+      AU["Auth"]
+      RT["Realtime<br/>private channels"]
+      ST["Storage<br/>MIME allow-list"]
+    end
+
+    B -->|"fetch /api"| MW
+    MW --> RH
+    RH --> SV
+    SV -->|"Prisma"| PG
+    B <-->|"WebSocket"| RT
+    B -->|"signed upload"| ST
+    B <-->|"cookies"| AU
+    SV -->|"broadcast"| RT
+    RT -.->|"authorises via RLS"| PG
+    AU -.-> PG
+    ST -.->|"storage policies"| PG
 ```
 
-**Data flow.** The browser never queries Postgres directly. It calls
-`/api/*`, which authenticates via the Supabase session cookie, applies
-permission checks, and uses Prisma. Supabase's own client is used for exactly
-three things: authentication, realtime and storage uploads. RLS covers the
-PostgREST surface that Supabase exposes on the same database.
+Two things worth pointing at:
 
-**Realtime.** After a write, the server broadcasts the finished DTO over a
-Supabase Realtime channel (`conversation:<id>` and `user:<id>`). Clients patch
-their TanStack Query cache from that payload — no refetch, and the payload
-matches the REST shape exactly. Typing indicators and presence are
-client-to-client over the same transport.
+**Authorisation lives in the database.** RLS is enabled on all 17 tables, and
+the realtime topics are gated by the same policies. If a route handler forgets a
+check, Postgres still refuses. Membership helpers are `SECURITY DEFINER`
+functions in a `private` schema so PostgREST never exposes them as RPC.
 
----
-
-## What is built
-
-### 1 · Foundation
-
-Strict TypeScript, Tailwind v4 with a token layer (layered surfaces, six accent
-gradients, light/dark), path aliases, security headers, ESLint.
-
-### 2 · Database
-
-13 Prisma models: users, conversations, members, messages, attachments,
-reactions, mentions, stars, relationships, blocks, join requests, invites,
-notifications. Cursor-paginated history, one raw SQL query for unread counts
-across the whole sidebar.
-
-### 3 · Authentication
-
-Email/password, Google and GitHub OAuth, email verification, password reset,
-cookie sessions refreshed in middleware, protected routes, and a three-step
-onboarding flow that claims a handle and sets an avatar and accent.
-
-### 4 · UI foundation
-
-Hand-built primitives on Radix: button, input, field, avatar with presence
-ring, dialog, dropdown and context menus, popover, tooltip, switch, tabs,
-badges, skeletons, empty states. Overlay animation runs on real CSS keyframes
-so Radix waits for exit transitions.
-
-### 5 · Messaging
-
-Realtime send/edit/delete, replies with jump-to-source, forwarding, pinning,
-starring, reactions with optimistic toggling, read receipts, delivery ticks,
-typing indicators, message grouping, sticky date separators, markdown with
-GFM, sanitised HTML, syntax highlighting and copy-to-clipboard code blocks,
-emoji-only jumbo rendering, `@mention` autocomplete, infinite upward scroll
-with scroll-position preservation, and drafts that survive a reload.
-
-### 6 · Media
-
-Direct-to-storage uploads via short-lived signed URLs (bytes never touch the
-app server), drag & drop, clipboard paste, camera capture, image galleries with
-a lightbox, video, documents, and voice notes recorded with a live waveform
-that replays on the bubble.
-
-### 7 · Groups
-
-Create public or private groups, invite links with expiry and use limits, join
-requests with moderation, four roles (owner / admin / moderator / member) whose
-rules live in one isomorphic table used by both the API and the UI, member
-management, and an admin panel inside the details drawer.
-
-### 8 · Notifications
-
-Persistent notification centre, browser notifications, a synthesised chime (no
-audio asset), unread badges, per-kind preferences and per-conversation mute.
-
-### 9 · Search
-
-One endpoint returning people, conversations, messages and files, scoped to
-what you are allowed to see, wired into ⌘K and an in-conversation panel.
-
-### 10 · Polish
-
-Empty, loading, and error states on every surface; skeletons shaped like the
-content they replace; route-level error boundaries; toasts; page transitions;
-a shortcuts dialog.
+**Broadcasts carry enriched DTOs, not raw rows.** The payload pushed over the
+socket is byte-for-byte what the REST endpoint would return, so the client needs
+no second round trip to render a new message.
 
 ---
 
-## Performance
+## Testing
 
-- **Code splitting** — the emoji picker (~200 KB) and GIF picker load on first
-  open, not on page load.
-- **Browser-native windowing** — `content-visibility: auto` with
-  `contain-intrinsic-size` lets the browser skip layout and paint for
-  off-screen messages. It costs one CSS class instead of a virtualiser, and
-  keeps native find-in-page, scroll anchoring and copy-paste working.
-- **Optimistic updates** for sending, reactions, stars and preferences.
-- **Debounced search** (220 ms) with `keepPreviousData` so results never flash.
-- **Memoised** message bubbles and conversation rows; `layout="position"` only,
-  so the springs never animate width.
-- **Cursor pagination** — 40 messages per page.
-
-## Accessibility
-
-WCAG AA targets: full keyboard paths, visible focus rings, labelled controls,
-`aria-live` on the message log and typing indicator, semantic landmarks, and
-reduced motion honoured both from the OS and from the in-app preference.
-
-## Security
-
-- Row Level Security on all 13 tables (default deny, read-only policies),
-  verified by querying as a member, as a signed-in outsider and as `anon`:
-  outsiders and anonymous callers see zero rows.
-- RLS helper functions live in a `private` schema, so PostgREST does not publish
-  them as `SECURITY DEFINER` RPC endpoints. `auth.uid()` is wrapped in a
-  subselect so it is evaluated once per query rather than once per row.
-- Deleting an account in Supabase Auth cascades to the profile via a trigger,
-  so no orphan row keeps holding the username.
-- Zod validation on every request body and query string.
-- Token-bucket rate limiting per user and action.
-- Markdown sanitised with `rehype-sanitize` before highlighting.
-- Origin checks on every mutating route on top of `SameSite=Lax` cookies.
-- Uploads: MIME allow-list, 50 MB cap, paths namespaced by uploader id.
-- Permission checks in services, not just in the UI.
-
----
-
-## Scripts
+94 checks, in two layers.
 
 ```bash
-npm run dev         # Development server
-npm run build       # Production build (runs prisma generate first)
-npm run start       # Serve the production build
-npm run typecheck   # tsc --noEmit
-npm run lint        # ESLint
-npm test            # Unit tests (pure functions, no I/O)
-npm run test:e2e    # End-to-end suites — needs `npm run dev` running
-npm run db:push     # Push the Prisma schema to Postgres
-npm run db:studio   # Browse the database
+npm test          # 25 unit tests — pure logic, no I/O
+npm run test:e2e  # 69 checks against a running server + real Supabase
 ```
 
-`test:e2e` talks to the real dev server and the real Supabase project, because
-what it checks — block enforcement, rate limiting, storage MIME rules,
-notification preferences — only exists once a request has been through
-middleware, the route handler, Prisma and Postgres. It creates throwaway
-accounts and deletes them on the way out.
+The unit tests cover the things where an edge case is the whole point: URL
+protocol validation, the SSRF address rules including the `172.16/12` boundary
+and IPv4-mapped IPv6, Open Graph parsing, and the Sentry scrubbing.
 
-## Deployment
+The end-to-end suites talk to a **real** server, database, auth and object
+storage. That is deliberate: what they check — block enforcement, rate limiting,
+storage MIME rules, realtime authorisation — only exists once a request has been
+through middleware, a route handler, Prisma and Postgres. A mock of any of those
+would be testing the mock. They create throwaway accounts and delete them on the
+way out.
 
-The app is a stock Next.js 15 App Router build, so any Node host works; Vercel
-needs no configuration file.
+```bash
+E2E_APP_URL=https://pulse-blond-two.vercel.app npm run test:e2e
+```
 
-Four things break in production if they are missed, and none of them fail
-loudly:
+**CI runs typecheck, lint, unit tests and build on every push.** The end-to-end
+suites are excluded on purpose: they need a live server and real credentials,
+and they create real accounts — running them on every push would fill the
+production database with test data.
 
-1. **`NEXT_PUBLIC_APP_URL`** is optional and nothing breaks without it. Invite
-   links take their origin from the request, so they follow whatever domain the
-   app is actually served from — including a custom domain, the day it is added.
-   Set it only to add an origin to the CSRF allow-list that the request URL
-   would not reveal.
-2. **Supabase Auth → URL Configuration** needs the production origin in the
-   redirect allow-list, or password recovery and any future OAuth will fail on
-   the way back.
-3. **Outbound email.** Supabase's built-in SMTP is capped at a handful of
-   messages per hour and is not meant for real users, so a custom SMTP is
-   configured (Gmail, `smtp.gmail.com:587`, with a Google app password — not the
-   account password). Password recovery depends on it and is verified working.
-   Sign-up does not: email confirmation is off, so accounts are usable
-   immediately.
+---
 
-   Gmail allows around 500 messages a day, which is ample for a beta and the
-   ceiling to watch if this ever grows. Moving to a dedicated provider means
-   verifying a domain first.
-4. **`DATABASE_URL` pool size.** `connection_limit=10` with `pool_timeout=20`
-   suits a persistent server. Revisit it if the platform runs many short-lived
-   instances: too high multiplied by many instances exhausts the pooler, too low
-   serialises every request behind one connection.
+## Setup
 
-Every variable in `.env.example` has to exist in the host's environment.
-`SUPABASE_SERVICE_ROLE_KEY` is server-only — it must never be given a
-`NEXT_PUBLIC_` name.
+```bash
+npm install
+cp .env.example .env   # then fill it in
+npm run db:push
+npm run dev
+```
+
+`.env.example` documents every variable and which are optional. The short
+version: Supabase URL and keys plus two Postgres connection strings are
+required; Tenor (GIF picker), VAPID (web push) and Sentry (error reporting) are
+optional and the app runs without them.
+
+Both connection strings go through Supavisor, the Supabase pooler. `DATABASE_URL`
+uses transaction mode on port 6543 with `connection_limit=10`; `DIRECT_URL` uses
+session mode on 5432, which `prisma db push` needs because the pooler does not
+support the protocol it speaks.
+
+`prisma/sql/security.sql` is the reproducible source of truth for everything
+Prisma cannot express: RLS policies, the realtime authorisation rules, storage
+buckets and their MIME allow-lists, trigram indexes, and the account-deletion
+trigger.
+
+### Scripts
+
+```bash
+npm run dev         npm run build       npm run start
+npm run typecheck   npm run lint        npm test
+npm run test:e2e    npm run db:push     npm run db:studio
+```
+
+---
 
 ## Known limits
 
-- **Rate limiting is a fixed window, not a token bucket.** Counters live in
-  Postgres (`rate_limits`), so a limit holds across instances, and one statement
-  does the whole read-modify-write. The trade-off is the window boundary: a
-  caller can spend the tail of one window and the head of the next back to back,
-  so the real burst ceiling is 2×the limit.
+Written down rather than glossed over:
+
+- **Rate limiting is a fixed window**, so the real burst ceiling is 2×the limit
+  at a window boundary.
+- **The CSP allows `'unsafe-inline'` for scripts.** Removing it needs
+  per-request nonces, which would opt every static page into dynamic rendering.
+  The directives that cost nothing — `object-src 'none'`, `base-uri`,
+  `frame-ancestors`, `form-action` — are all set.
 - **Search uses trigram `ILIKE`.** Fast into the millions of rows with the
   indexes in `security.sql`; swap for `tsvector` if you need ranking.
-- **Voice notes record to WebM**, which Safari on older iOS does not produce.
-  The recorder falls back to whatever `MediaRecorder` offers.
+- **Outbound email goes through Gmail SMTP**, capped around 500 messages a day.
+  Fine for a beta, and the ceiling to watch first.
+- **Voice notes record to WebM**, which older iOS Safari does not produce; the
+  recorder falls back to whatever `MediaRecorder` offers.
