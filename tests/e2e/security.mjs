@@ -408,5 +408,76 @@ check('quien modera puede resolverla', revisada.status, 200);
 const trasResolver = await api(`/api/conversations/${salaId}/reports`, { actor: dana });
 check('sale de la cola de abiertas', (trasResolver.json?.reports ?? []).length, 0);
 
+// --- 7. Galeria -------------------------------------------------------------
+console.log('\nGaleria: sólo miembros, y la paginación no salta ni repite');
+
+const conAdjuntos = await api('/api/conversations', {
+  method: 'POST',
+  actor: mallory,
+  body: { name: 'Sala con fotos', accent: 'electric', memberIds: [] },
+});
+const galeriaId = (conAdjuntos.json?.conversation ?? conAdjuntos.json)?.id;
+
+// Un PNG real de 1x1, el mismo que usa la prueba de subidas.
+const pngBytes = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+// Suficientes para cruzar la primera página, que es de 40.
+const TOTAL = 45;
+for (let i = 0; i < TOTAL; i++) {
+  const firmada = await api('/api/uploads', {
+    method: 'POST',
+    actor: mallory,
+    body: { bucket: 'attachments', fileName: `foto-${i}.png`, mimeType: 'image/png', size: pngBytes.length },
+  });
+  await fetch(firmada.json.signedUrl, {
+    method: 'PUT',
+    headers: { 'content-type': 'image/png', authorization: `Bearer ${mallory.session.access_token}` },
+    body: pngBytes,
+  });
+  await api(`/api/conversations/${galeriaId}/messages`, {
+    method: 'POST',
+    actor: mallory,
+    body: {
+      content: '',
+      attachments: [
+        {
+          kind: 'IMAGE',
+          url: firmada.json.publicUrl,
+          path: firmada.json.path,
+          name: `foto-${i}.png`,
+          size: pngBytes.length,
+          mimeType: 'image/png',
+        },
+      ],
+    },
+  });
+}
+
+const ajeno = await api(`/api/conversations/${galeriaId}/gallery`, { actor: alice });
+check('alguien de fuera ve la galeria', ajeno.status === 200, false);
+
+// Paginar hasta el final, acumulando ids.
+const vistos = [];
+let cursor;
+for (let page = 0; page < 10; page++) {
+  const url = `/api/conversations/${galeriaId}/gallery?tab=media${cursor ? `&cursor=${cursor}` : ''}`;
+  const respuesta = await api(url, { actor: mallory });
+  if (respuesta.status !== 200) break;
+  vistos.push(...(respuesta.json?.items ?? []).map((item) => item.id));
+  cursor = respuesta.json?.nextCursor ?? null;
+  if (!cursor) break;
+}
+
+check('imagenes recorridas en total', vistos.length, TOTAL);
+check('sin repetidas entre paginas', new Set(vistos).size, TOTAL);
+
+const soloArchivos = await api(`/api/conversations/${galeriaId}/gallery?tab=files`, {
+  actor: mallory,
+});
+check('la pestaña de archivos no mezcla imagenes', (soloArchivos.json?.items ?? []).length, 0);
+
 await cleanup();
 console.log('\ncuentas de prueba borradas');

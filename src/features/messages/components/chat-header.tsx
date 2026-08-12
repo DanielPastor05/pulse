@@ -7,6 +7,7 @@ import {
   Bell,
   BellOff,
   Hash,
+  Images,
   Info,
   LogOut,
   Phone,
@@ -143,6 +144,18 @@ export function ChatHeader({
             className={cn(rightPanel === 'search' && 'bg-[var(--surface-sunken)] text-[var(--text-1)]')}
           >
             <Search />
+          </Button>
+        </Tooltip>
+
+        <Tooltip content="Photos and files">
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            onClick={() => toggleRightPanel('gallery')}
+            aria-label="Shared photos and files"
+            className={cn(rightPanel === 'gallery' && 'bg-[var(--surface-sunken)] text-[var(--text-1)]')}
+          >
+            <Images />
           </Button>
         </Tooltip>
 

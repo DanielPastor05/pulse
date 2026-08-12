@@ -192,6 +192,21 @@ export type JoinRequestDTO = {
   user: PublicUser;
 };
 
+export type GalleryItem = {
+  id: string;
+  kind: AttachmentKind;
+  url: string;
+  name: string;
+  size: number;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+  createdAt: string;
+  /** So tapping an item can jump to where it was sent. */
+  messageId: string;
+  author: { id: string; displayName: string } | null;
+};
+
 export type Paginated<T> = {
   items: T[];
   nextCursor: string | null;

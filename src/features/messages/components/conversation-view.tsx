@@ -29,6 +29,7 @@ import { ForwardDialog } from '@/features/messages/components/forward-dialog';
 import { MessageList } from '@/features/messages/components/message-list';
 import { ReactionPickerDialog } from '@/features/messages/components/reaction-picker-dialog';
 import { ReportDialog } from '@/features/moderation/components/report-dialog';
+import { GalleryPanel } from '@/features/media/components/gallery-panel';
 import { TypingIndicator } from '@/features/messages/components/typing-indicator';
 import { playChime } from '@/features/notifications/sound';
 import { can } from '@/lib/permissions';
@@ -37,7 +38,12 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { MessageSkeleton } from '@/components/ui/skeleton';
 import type { MessageDTO } from '@/types/dto';
 
-const PANEL_TITLES = { details: 'Details', pins: 'Pinned', search: 'Search' } as const;
+const PANEL_TITLES = {
+  details: 'Details',
+  pins: 'Pinned',
+  search: 'Search',
+  gallery: 'Shared',
+} as const;
 
 export function ConversationView({ conversationId }: { conversationId: string }) {
   const me = useSession();
@@ -273,6 +279,9 @@ export function ConversationView({ conversationId }: { conversationId: string })
               ) : null}
               {rightPanel === 'search' ? (
                 <ConversationSearchPanel conversationId={conversationId} onJumpTo={jumpTo} />
+              ) : null}
+              {rightPanel === 'gallery' ? (
+                <GalleryPanel conversationId={conversationId} onJumpTo={jumpTo} />
               ) : null}
               </div>
             </motion.aside>

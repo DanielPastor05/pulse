@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-type RightPanel = 'none' | 'details' | 'pins' | 'search';
+type RightPanel = 'none' | 'details' | 'pins' | 'search' | 'gallery';
 
 type UiState = {
   commandOpen: boolean;
