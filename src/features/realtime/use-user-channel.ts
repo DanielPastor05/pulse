@@ -4,11 +4,14 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { toast } from 'sonner';
+
 import { authorizeRealtime, getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { queryKeys } from '@/lib/query-keys';
-import { realtimeChannels, realtimeEvents } from '@/lib/realtime';
+import { realtimeChannels, realtimeEvents, type CallInvitePayload } from '@/lib/realtime';
 import { playChime, showDesktopNotification } from '@/features/notifications/sound';
 import { useSession } from '@/components/providers/session-provider';
+import { useCallStore } from '@/stores/call-store';
 import type { NotificationDTO } from '@/types/dto';
 
 /**
@@ -72,6 +75,32 @@ export function useUserChannel() {
       })
       .on('broadcast', { event: realtimeEvents.inboxUpdated }, () => {
         void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(false) });
+      })
+      .on('broadcast', { event: realtimeEvents.callInvite }, ({ payload }) => {
+        const invite = payload as CallInvitePayload & { conversationName: string | null };
+        const call = useCallStore.getState();
+
+        // Already busy: let it ring for whoever else is free rather than
+        // hijacking the call in progress.
+        if (call.status !== 'idle') return;
+
+        call.incoming({
+          callId: invite.callId,
+          conversationId: invite.conversationId,
+          conversationName: invite.conversationName,
+          mode: invite.mode,
+          from: invite.from,
+        });
+        if (preferences.current.sounds) playChime('mention');
+      })
+      .on('broadcast', { event: realtimeEvents.callReject }, ({ payload }) => {
+        const { callId } = payload as { callId: string };
+        const call = useCallStore.getState();
+        // Only meaningful while we are the ones ringing them.
+        if (call.callId === callId && call.status === 'joining') {
+          toast.message('No answer');
+          call.reset();
+        }
       });
 
     void authorizeRealtime().then(() => channel.subscribe());

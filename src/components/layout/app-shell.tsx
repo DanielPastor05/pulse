@@ -10,6 +10,7 @@ import { PresenceProvider } from '@/features/realtime/presence-provider';
 import { CommandPalette } from '@/features/search/components/command-palette';
 import { ShortcutsDialog } from '@/components/layout/shortcuts-dialog';
 import { MobileTabBar, TopDock } from '@/components/layout/top-dock';
+import { CallOverlay } from '@/features/calls/components/call-overlay';
 
 /**
  * The persistent chrome around every signed-in page: ambient background,
@@ -43,6 +44,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <MobileTabBar />
       <CommandPalette />
       <ShortcutsDialog />
+      {/* Here rather than inside a conversation: a call has to survive
+          navigating away from the chat it started in, and an incoming one has
+          to appear wherever you happen to be. */}
+      <CallOverlay />
     </PresenceProvider>
   );
 }

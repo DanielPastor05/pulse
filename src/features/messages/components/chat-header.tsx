@@ -9,11 +9,13 @@ import {
   Hash,
   Info,
   LogOut,
+  Phone,
   Pin,
   Search,
   Star,
   StarOff,
   UserRoundPlus,
+  Video,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -21,6 +23,7 @@ import { formatLastSeen } from '@/lib/date';
 import { usePresenceOf } from '@/stores/presence-store';
 import { useUiStore } from '@/stores/ui-store';
 import { useConversationPreferences, useMemberMutations } from '@/features/conversations/hooks';
+import { useCall } from '@/features/calls/use-call';
 import { Avatar, PRESENCE_LABEL } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@/components/ui/menu';
@@ -38,6 +41,9 @@ export function ChatHeader({
 }) {
   const preferences = useConversationPreferences(conversation.id);
   const { leave } = useMemberMutations(conversation.id);
+  const { startCall, status: callStatus } = useCall(meId);
+  // One call at a time: a second one would fight the first for the microphone.
+  const callBusy = callStatus !== 'idle';
   const { rightPanel, toggleRightPanel } = useUiStore();
 
   const peerPresence = usePresenceOf(
@@ -104,6 +110,30 @@ export function ChatHeader({
       </button>
 
       <div className="flex shrink-0 items-center gap-0.5">
+        <Tooltip content="Voice call">
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            disabled={callBusy}
+            onClick={() => void startCall(conversation.id, conversation.name, 'audio')}
+            aria-label="Start a voice call"
+          >
+            <Phone />
+          </Button>
+        </Tooltip>
+
+        <Tooltip content="Video call">
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            disabled={callBusy}
+            onClick={() => void startCall(conversation.id, conversation.name, 'video')}
+            aria-label="Start a video call"
+          >
+            <Video />
+          </Button>
+        </Tooltip>
+
         <Tooltip content="Search in conversation" shortcut="⌘F">
           <Button
             size="icon-sm"

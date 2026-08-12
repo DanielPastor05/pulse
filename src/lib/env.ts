@@ -36,6 +36,20 @@ export const publicEnv = {
   get vapidPublicKey(): string | undefined {
     return process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || undefined;
   },
+  /**
+   * TURN relay for calls. Optional, but its absence is not harmless: without a
+   * relay, calls fail between most mobile networks and many home routers, where
+   * symmetric NAT prevents a direct path. STUN alone only covers the easy cases.
+   */
+  get turnUrl(): string | undefined {
+    return process.env.NEXT_PUBLIC_TURN_URL || undefined;
+  },
+  get turnUsername(): string | undefined {
+    return process.env.NEXT_PUBLIC_TURN_USERNAME || undefined;
+  },
+  get turnCredential(): string | undefined {
+    return process.env.NEXT_PUBLIC_TURN_CREDENTIAL || undefined;
+  },
 } as const;
 
 export const serverEnv = {
