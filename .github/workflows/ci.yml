@@ -37,7 +37,13 @@ jobs:
           node-version: 24
           cache: npm
 
-      - run: npm ci
+      # `npm install`, no `npm ci`. El lockfile se genera en Windows y npm no
+      # registra ahí las dependencias transitivas de los paquetes opcionales de
+      # otras plataformas: @img/sharp-wasm32 declara @emnapi/runtime y su
+      # resolución no llega al lock, así que `npm ci` lo rechaza por
+      # inconsistente. Regenerarlo desde cero y forzar --os=linux no lo arregla.
+      # Se pierde el anclaje exacto de versiones a cambio de que el CI corra.
+      - run: npm install --no-audit --no-fund
 
       - name: Typecheck
         run: npm run typecheck
