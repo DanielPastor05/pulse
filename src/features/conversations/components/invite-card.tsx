@@ -6,6 +6,7 @@ import { Hash, LinkIcon, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api } from '@/lib/api-client';
+import { hardNavigate } from '@/lib/navigate';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -33,8 +34,7 @@ export function InviteCard({
   const accept = useMutation({
     mutationFn: () => api<{ conversationId: string }>(`/invites/${code}`, { method: 'POST' }),
     onSuccess: ({ conversationId }) => {
-      router.replace(`/chat/${conversationId}`);
-      router.refresh();
+      hardNavigate(`/chat/${conversationId}`);
     },
     onError: (error) => toast.error('Could not join', { description: error.message }),
   });

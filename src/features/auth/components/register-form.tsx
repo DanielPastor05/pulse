@@ -2,12 +2,13 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowRight, Mail, MailCheck } from 'lucide-react';
 
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { hardNavigate } from '@/lib/navigate';
 import { signUpSchema, type SignUpInput } from '@/features/auth/validators';
 import { AuthCard } from '@/features/auth/components/auth-card';
 import { AuthDivider, OAuthButtons } from '@/features/auth/components/oauth-buttons';
@@ -18,7 +19,6 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 
 export function RegisterForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get('next') ?? '/onboarding';
   const [sentTo, setSentTo] = React.useState<string | null>(null);
@@ -55,8 +55,7 @@ export function RegisterForm() {
 
     // With email confirmation on, Supabase returns a user but no session.
     if (data.session) {
-      router.replace(next);
-      router.refresh();
+      hardNavigate(next);
       return;
     }
 

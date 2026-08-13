@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -10,6 +9,7 @@ import { toast } from 'sonner';
 
 import { api, ApiError } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
+import { hardNavigate } from '@/lib/navigate';
 import { onboardingSchema, type OnboardingInput } from '@/features/profile/validators';
 import { AccentPicker } from '@/features/profile/components/accent-picker';
 import { AvatarPicker } from '@/features/profile/components/avatar-picker';
@@ -31,7 +31,6 @@ type Props = {
 };
 
 export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvatar }: Props) {
-  const router = useRouter();
   const [step, setStep] = React.useState(0);
   const [direction, setDirection] = React.useState(1);
 
@@ -70,8 +69,7 @@ export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvat
     try {
       await api<CurrentUser>('/me/onboarding', { method: 'POST', body: input });
       toast.success(`Welcome, ${input.displayName}`);
-      router.replace('/chat');
-      router.refresh();
+      hardNavigate('/chat');
     } catch (error) {
       if (error instanceof ApiError && error.code === 'conflict') {
         setError('username', { message: error.message });

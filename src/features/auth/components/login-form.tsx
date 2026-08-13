@@ -2,13 +2,14 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowRight, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { hardNavigate } from '@/lib/navigate';
 import { signInSchema, type SignInInput } from '@/features/auth/validators';
 import { AuthCard } from '@/features/auth/components/auth-card';
 import { AuthDivider, OAuthButtons } from '@/features/auth/components/oauth-buttons';
@@ -19,7 +20,6 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 
 export function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get('next') ?? '/chat';
   const [unconfirmed, setUnconfirmed] = React.useState<string | null>(null);
@@ -55,8 +55,7 @@ export function LoginForm() {
     }
 
     toast.success('Welcome back');
-    router.replace(next);
-    router.refresh();
+    hardNavigate(next);
   });
 
   if (unconfirmed) {

@@ -1,12 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { hardNavigate } from '@/lib/navigate';
 import { resetPasswordSchema, type ResetPasswordInput } from '@/features/auth/validators';
 import { AuthCard } from '@/features/auth/components/auth-card';
 import { PasswordInput, PasswordStrength } from '@/features/auth/components/password-input';
@@ -14,7 +14,6 @@ import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 
 export function ResetPasswordForm() {
-  const router = useRouter();
 
   const {
     register,
@@ -39,8 +38,7 @@ export function ResetPasswordForm() {
     }
 
     toast.success('Password updated');
-    router.replace('/chat');
-    router.refresh();
+    hardNavigate('/chat');
   });
 
   return (
