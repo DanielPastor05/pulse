@@ -84,6 +84,8 @@ export type MessageDTO = {
   attachments: AttachmentDTO[];
   reactions: ReactionGroup[];
   starred: boolean;
+  /** How many replies hang off this one, for the thread affordance. */
+  replyCount: number;
   /** Resolved after the message is stored, so it arrives on a later update. */
   linkPreview: LinkPreviewDTO | null;
   /** Present only on messages of kind POLL. */

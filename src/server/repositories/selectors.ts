@@ -76,6 +76,9 @@ export function messageInclude(viewerId: string) {
     replyTo: { select: messageReferenceSelect },
     forwardedFrom: { select: messageReferenceSelect },
     stars: { where: { userId: viewerId }, select: { userId: true } },
+    // Counted rather than loaded: the main view only needs the number, and the
+    // replies themselves are fetched when the thread is opened.
+    _count: { select: { replies: true } },
     linkPreview: {
       select: { url: true, title: true, description: true, imageUrl: true, siteName: true },
     },
@@ -158,6 +161,7 @@ export function toMessage(row: MessageRow, viewerId: string): MessageDTO {
     attachments: deleted ? [] : row.attachments.map(toAttachment),
     reactions: deleted ? [] : groupReactions(row.reactions, viewerId),
     starred: row.stars.length > 0,
+    replyCount: row._count.replies,
     linkPreview: deleted ? null : row.linkPreview,
     poll:
       deleted || !row.poll

@@ -54,6 +54,7 @@ export type MessageActions = {
   onJumpTo: (messageId: string) => void;
   onRetry: (message: MessageDTO) => void;
   onReport: (message: MessageDTO) => void;
+  onOpenThread: (message: MessageDTO) => void;
 };
 
 type Props = {
@@ -309,6 +310,16 @@ export const MessageBubble = React.memo(function MessageBubble({
                     ) : null}
                     {message.linkPreview ? (
                       <LinkPreviewCard preview={message.linkPreview} />
+                    ) : null}
+                    {message.replyCount > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => actions.onOpenThread(message)}
+                        className="mt-1 text-[11px] font-medium text-[var(--accent)] hover:underline"
+                      >
+                        {message.replyCount}{' '}
+                        {message.replyCount === 1 ? 'reply' : 'replies'}
+                      </button>
                     ) : null}
                   </>
                 )}

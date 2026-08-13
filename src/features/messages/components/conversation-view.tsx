@@ -30,6 +30,7 @@ import { MessageList } from '@/features/messages/components/message-list';
 import { ReactionPickerDialog } from '@/features/messages/components/reaction-picker-dialog';
 import { ReportDialog } from '@/features/moderation/components/report-dialog';
 import { GalleryPanel } from '@/features/media/components/gallery-panel';
+import { ThreadPanel } from '@/features/messages/components/thread-panel';
 import { TypingIndicator } from '@/features/messages/components/typing-indicator';
 import { playChime } from '@/features/notifications/sound';
 import { can } from '@/lib/permissions';
@@ -43,13 +44,14 @@ const PANEL_TITLES = {
   pins: 'Pinned',
   search: 'Search',
   gallery: 'Shared',
+  thread: 'Thread',
 } as const;
 
 export function ConversationView({ conversationId }: { conversationId: string }) {
   const me = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { rightPanel, setRightPanel, toggleRightPanel } = useUiStore();
+  const { rightPanel, setRightPanel, toggleRightPanel, threadRootId, openThread } = useUiStore();
   const { setReplyTo, setEditing } = useComposerStore();
 
   const [highlightId, setHighlightId] = React.useState<string | null>(searchParams.get('m'));
@@ -118,6 +120,7 @@ export function ConversationView({ conversationId }: { conversationId: string })
       onForward: (message: MessageDTO) => setForwardTarget(message),
       onOpenEmoji: (message: MessageDTO) => setReactionTarget(message),
       onReport: (message: MessageDTO) => setReportTarget(message),
+      onOpenThread: (message: MessageDTO) => openThread(message.id),
       onJumpTo: jumpTo,
       // A failed message is still the optimistic one, so its id *is* the
       // clientId the server deduplicates on — resending cannot double-post.
@@ -140,7 +143,7 @@ export function ConversationView({ conversationId }: { conversationId: string })
           })),
         }),
     }),
-    [conversationId, actions, setReplyTo, setEditing, jumpTo, send],
+    [conversationId, actions, setReplyTo, setEditing, jumpTo, send, openThread],
   );
 
   if (conversationQuery.isLoading) {
@@ -282,6 +285,9 @@ export function ConversationView({ conversationId }: { conversationId: string })
               ) : null}
               {rightPanel === 'gallery' ? (
                 <GalleryPanel conversationId={conversationId} onJumpTo={jumpTo} />
+              ) : null}
+              {rightPanel === 'thread' && threadRootId ? (
+                <ThreadPanel rootId={threadRootId} />
               ) : null}
               </div>
             </motion.aside>

@@ -45,6 +45,40 @@ export async function listMessages(
   };
 }
 
+/**
+ * One branch of the conversation: a message and everything replying to it.
+ *
+ * Replies stay visible in the main view as well. Hiding them there is the Slack
+ * model and it suits a busy workspace, but this is a chat where a single reply
+ * is ordinary — burying it behind a counter would make people miss messages.
+ * The panel is for focusing a branch, not for hiding it.
+ *
+ * One level deep on purpose: replies to replies are rare in practice and a tree
+ * costs a recursive query plus a UI nobody asked for.
+ */
+export async function listThread(
+  rootId: string,
+  viewerId: string,
+): Promise<{ root: MessageDTO; replies: MessageDTO[] } | null> {
+  const root = await prisma.message.findUnique({
+    where: { id: rootId },
+    include: messageInclude(viewerId),
+  });
+  if (!root) return null;
+
+  const replies = await prisma.message.findMany({
+    where: { replyToId: rootId },
+    include: messageInclude(viewerId),
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    take: 200,
+  });
+
+  return {
+    root: toMessage(root, viewerId),
+    replies: replies.map((row) => toMessage(row, viewerId)),
+  };
+}
+
 export async function listPinnedMessages(
   conversationId: string,
   viewerId: string,

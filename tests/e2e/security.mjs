@@ -408,6 +408,51 @@ check('quien modera puede resolverla', revisada.status, 200);
 const trasResolver = await api(`/api/conversations/${salaId}/reports`, { actor: dana });
 check('sale de la cola de abiertas', (trasResolver.json?.reports ?? []).length, 0);
 
+// --- 6a. Hilos --------------------------------------------------------------
+console.log('\nHilos: se cuentan las respuestas y no se filtran entre conversaciones');
+
+const salaHilo = await api('/api/conversations', {
+  method: 'POST',
+  actor: dana,
+  body: { name: 'Sala con hilos', accent: 'electric', memberIds: [] },
+});
+const hiloConvId = (salaHilo.json?.conversation ?? salaHilo.json)?.id;
+
+const raiz = await api(`/api/conversations/${hiloConvId}/messages`, {
+  method: 'POST',
+  actor: dana,
+  body: { content: '¿Alguien se apunta el sábado?' },
+});
+const raizId = raiz.json?.id;
+
+for (const texto of ['Yo sí', 'Yo también', 'Depende de la hora']) {
+  await api(`/api/conversations/${hiloConvId}/messages`, {
+    method: 'POST',
+    actor: dana,
+    body: { content: texto, replyToId: raizId },
+  });
+}
+
+const hilo = await api(`/api/messages/${raizId}/thread`, { actor: dana });
+check('cargar el hilo', hilo.status, 200);
+check('trae las tres respuestas', (hilo.json?.replies ?? []).length, 3);
+check('y la raíz correcta', hilo.json?.root?.id, raizId);
+
+const historialHilo = await api(`/api/conversations/${hiloConvId}/messages`, { actor: dana });
+const raizEnLista = (historialHilo.json?.items ?? []).find((m) => m.id === raizId);
+check('el contador aparece en la conversación', raizEnLista?.replyCount, 3);
+
+// Las respuestas siguen visibles en el hilo principal: el panel enfoca una
+// rama, no la esconde.
+check(
+  'las respuestas no desaparecen de la conversación',
+  (historialHilo.json?.items ?? []).filter((m) => m.replyTo?.id === raizId).length,
+  3,
+);
+
+const ajenoHilo = await api(`/api/messages/${raizId}/thread`, { actor: alice });
+check('alguien de fuera puede leer el hilo', ajenoHilo.status === 200, false);
+
 // --- 6b. Encuestas ----------------------------------------------------------
 console.log('\nEncuestas: un voto por encuesta, y cambiar de idea no acumula');
 

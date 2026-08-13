@@ -15,6 +15,11 @@ import { scrubEvent } from '@/lib/sentry-scrub';
  * VAPID keys: a clone of this repo has to run without anyone's account.
  */
 export function register() {
+  // Next calls this for the edge runtime too, which is where the middleware
+  // runs — on every single request. Loading the SDK there cost ~54 kB of
+  // middleware bundle for errors that the Node runtime already reports.
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return;
+
   const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
   if (!dsn) return;
 
