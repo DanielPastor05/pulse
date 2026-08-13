@@ -29,6 +29,11 @@ typing indicators are live, attachments and voice notes upload straight to objec
 storage, and every conversation is protected at the database level rather than by
 the API remembering to check.
 
+Voice and video calls — one to one and in groups — run peer to peer over WebRTC,
+with no media server. Messages written offline queue up and send themselves when
+the connection returns. There are polls, threads, a gallery of everything shared,
+link previews, and push notifications that reach a closed tab.
+
 It is deployed, and the guarantees below are verified against the deployed
 instance, not against mocks.
 
@@ -106,6 +111,33 @@ The end-to-end tests include a **positive control**. Without one, four "no
 preview was created" assertions would pass just as happily if the whole feature
 were dead — which is exactly what happened on the first run.
 
+### Calls, with no signalling server and no media server
+
+Offers, answers and ICE candidates ride the conversation's private Realtime
+channel — the one RLS already restricts to members. There was no reason to build
+a second authorised transport when the app had one.
+
+The part worth knowing about is **perfect negotiation**. If both people press
+call at the same moment, each receives an offer while holding one of its own,
+both throw `InvalidStateError`, and the call dies with nothing in the logs to
+say why. It is rare enough never to happen while developing and common enough to
+happen to real users. The W3C pattern fixes it by making exactly one side yield,
+and the roles are derived from the two user ids because both ends have to reach
+the same answer *without talking to each other* — which is precisely the
+situation during a collision.
+
+Group calls are a **mesh**: every participant holds a connection to every other
+one. That keeps infrastructure at zero, and it has a real ceiling, so it is
+stated rather than discovered — each person uploads their camera N-1 times, so
+four people is 1.5 Mbps up each. Capped at 4 for video and 6 for audio, with the
+reason shown in the UI. Past that the answer is an SFU, which is a media server
+and a different project.
+
+TURN is the one piece that cannot be avoided: without a relay these calls fail
+on most mobile networks, where symmetric NAT blocks a direct path. It is
+configuration, and the UI says so when it is missing, because "it never
+connects" does not point at its own cause.
+
 ### Monitoring, measured before adopting
 
 Server-side error reporting, with the browser SDK deliberately left out: wiring
@@ -167,16 +199,18 @@ no second round trip to render a new message.
 
 ## Testing
 
-94 checks, in two layers.
+121 checks, in two layers.
 
 ```bash
-npm test          # 25 unit tests — pure logic, no I/O
-npm run test:e2e  # 69 checks against a running server + real Supabase
+npm test          # 35 unit tests — pure logic, no I/O
+npm run test:e2e  # 86 checks against a running server + real Supabase
 ```
 
 The unit tests cover the things where an edge case is the whole point: URL
 protocol validation, the SSRF address rules including the `172.16/12` boundary
-and IPv4-mapped IPv6, Open Graph parsing, and the Sentry scrubbing.
+and IPv4-mapped IPv6, Open Graph parsing, the Sentry scrubbing, the offline
+queue against corrupt and full storage, and the invariant that keeps calls
+connecting — that of any two peers, exactly one yields on a collision.
 
 The end-to-end suites talk to a **real** server, database, auth and object
 storage. That is deliberate: what they check — block enforcement, rate limiting,
@@ -234,6 +268,13 @@ npm run test:e2e    npm run db:push     npm run db:studio
 
 Written down rather than glossed over:
 
+- **Group calls are capped at 4 video / 6 audio**, because mesh makes every
+  participant upload their own camera N-1 times. An SFU lifts it; that is a
+  media server and a separate project.
+- **Calls need a TURN relay** to work on mobile networks. Without one they fail
+  where symmetric NAT blocks a direct path, which is most of them.
+- **Threads are one level deep.** Replying to a reply lands in the same thread
+  rather than nesting.
 - **Rate limiting is a fixed window**, so the real burst ceiling is 2×the limit
   at a window boundary.
 - **The CSP allows `'unsafe-inline'` for scripts.** Removing it needs
