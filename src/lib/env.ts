@@ -36,20 +36,6 @@ export const publicEnv = {
   get vapidPublicKey(): string | undefined {
     return process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || undefined;
   },
-  /**
-   * TURN relay for calls. Optional, but its absence is not harmless: without a
-   * relay, calls fail between most mobile networks and many home routers, where
-   * symmetric NAT prevents a direct path. STUN alone only covers the easy cases.
-   */
-  get turnUrl(): string | undefined {
-    return process.env.NEXT_PUBLIC_TURN_URL || undefined;
-  },
-  get turnUsername(): string | undefined {
-    return process.env.NEXT_PUBLIC_TURN_USERNAME || undefined;
-  },
-  get turnCredential(): string | undefined {
-    return process.env.NEXT_PUBLIC_TURN_CREDENTIAL || undefined;
-  },
 } as const;
 
 export const serverEnv = {
@@ -65,6 +51,17 @@ export const serverEnv = {
   /** web-push demands a contact; a mailto is what the spec expects. */
   get vapidSubject() {
     return process.env.VAPID_SUBJECT || 'mailto:admin@localhost';
+  },
+  /**
+   * Cloudflare TURN. Server-only, and it matters that it is: the API token
+   * mints relay credentials against the account's quota, so shipping it to the
+   * browser would hand that quota to anyone who opened devtools.
+   */
+  get turnTokenId(): string | undefined {
+    return process.env.CLOUDFLARE_TURN_TOKEN_ID || undefined;
+  },
+  get turnApiToken(): string | undefined {
+    return process.env.CLOUDFLARE_TURN_API_TOKEN || undefined;
   },
 } as const;
 

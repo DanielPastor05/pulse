@@ -408,6 +408,41 @@ check('quien modera puede resolverla', revisada.status, 200);
 const trasResolver = await api(`/api/conversations/${salaId}/reports`, { actor: dana });
 check('sale de la cola de abiertas', (trasResolver.json?.reports ?? []).length, 0);
 
+// --- 5b. Credenciales TURN --------------------------------------------------
+console.log('\nTURN: se acuñan en el servidor y el token no baja al cliente');
+
+const sinSesion = await fetch(`${APP}/api/calls/ice`);
+check('un anonimo obtiene credenciales', sinSesion.status === 200, false);
+
+const conSesion = await api('/api/calls/ice', { actor: dana });
+check('un usuario con sesion sí', conSesion.status, 200);
+
+const servidores = conSesion.json?.iceServers ?? [];
+check('devuelve servidores ICE', servidores.length > 0, true);
+
+const conTurn = servidores.filter((s) =>
+  (Array.isArray(s.urls) ? s.urls : [s.urls]).some((u) => String(u).startsWith('turn')),
+);
+if (conTurn.length > 0) {
+  check(
+    'las entradas TURN traen usuario y credencial',
+    conTurn.every((s) => Boolean(s.username) && Boolean(s.credential)),
+    true,
+  );
+} else {
+  console.log('  --    sin relay configurado en este entorno; sólo se comprueba el fallback STUN');
+}
+
+// Lo que de verdad protege esta ruta: el token que gasta la cuota se queda
+// dentro. Si algún día alguien "simplifica" devolviendo la respuesta cruda de
+// Cloudflare, esto se pone rojo.
+const cuerpoIce = JSON.stringify(conSesion.json ?? {});
+check(
+  'la respuesta no contiene nada con pinta de token de cuenta',
+  /[a-f0-9]{32,}/i.test(cuerpoIce.replace(/"(username|credential)":"[^"]*"/g, '')),
+  false,
+);
+
 // --- 6a. Hilos --------------------------------------------------------------
 console.log('\nHilos: se cuentan las respuestas y no se filtran entre conversaciones');
 
@@ -523,8 +558,12 @@ const pngBytes = Buffer.from(
   'base64',
 );
 
-// Suficientes para cruzar la primera página, que es de 40.
-const TOTAL = 45;
+// Lo que hay que demostrar es que cruzar el límite de página no salta ni
+// repite, y eso es cierto de cualquier límite. Se piden páginas de 4 en vez de
+// subir 45 imágenes reales para alcanzar las 40 por defecto, que hacía que la
+// suite tardara más de diez minutos contra producción.
+const TOTAL = 9;
+const PAGINA = 4;
 for (let i = 0; i < TOTAL; i++) {
   const firmada = await api('/api/uploads', {
     method: 'POST',
@@ -562,7 +601,7 @@ check('alguien de fuera ve la galeria', ajeno.status === 200, false);
 const vistos = [];
 let cursor;
 for (let page = 0; page < 10; page++) {
-  const url = `/api/conversations/${galeriaId}/gallery?tab=media${cursor ? `&cursor=${cursor}` : ''}`;
+  const url = `/api/conversations/${galeriaId}/gallery?tab=media&limit=${PAGINA}${cursor ? `&cursor=${cursor}` : ''}`;
   const respuesta = await api(url, { actor: mallory });
   if (respuesta.status !== 200) break;
   vistos.push(...(respuesta.json?.items ?? []).map((item) => item.id));

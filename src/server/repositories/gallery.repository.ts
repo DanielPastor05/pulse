@@ -6,7 +6,15 @@ import type { GalleryItem, Paginated } from '@/types/dto';
 /** Media on one tab, everything else on the other — how people actually look. */
 const MEDIA_KINDS: AttachmentKind[] = ['IMAGE', 'VIDEO'];
 
-const PAGE_SIZE = 40;
+const DEFAULT_PAGE_SIZE = 40;
+/**
+ * Capped so a caller cannot ask for the whole conversation in one request.
+ * Small values are allowed on purpose: what a pagination test needs to prove is
+ * that crossing a page boundary neither skips nor repeats, and that is true of
+ * any boundary. Uploading 45 real images to reach a hardcoded 40 made the suite
+ * take longer than ten minutes.
+ */
+const MAX_PAGE_SIZE = 100;
 
 /**
  * Everything shared in a conversation, newest first.
@@ -19,8 +27,10 @@ const PAGE_SIZE = 40;
  */
 export async function listGallery(
   conversationId: string,
-  options: { tab: 'media' | 'files'; cursor?: string | null } = { tab: 'media' },
+  options: { tab: 'media' | 'files'; cursor?: string | null; limit?: number } = { tab: 'media' },
 ): Promise<Paginated<GalleryItem>> {
+  const pageSize = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+
   const rows = await prisma.attachment.findMany({
     where: {
       message: { conversationId, deletedAt: null },
@@ -42,12 +52,12 @@ export async function listGallery(
     // `id` breaks ties on a non-unique timestamp, the same as the message
     // history: without it a cursor can skip or repeat rows.
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    take: PAGE_SIZE + 1,
+    take: pageSize + 1,
     ...(options.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}),
   });
 
-  const hasMore = rows.length > PAGE_SIZE;
-  const page = hasMore ? rows.slice(0, PAGE_SIZE) : rows;
+  const hasMore = rows.length > pageSize;
+  const page = hasMore ? rows.slice(0, pageSize) : rows;
 
   return {
     items: page.map((row) => ({

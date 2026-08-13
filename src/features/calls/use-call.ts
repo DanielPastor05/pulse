@@ -15,7 +15,7 @@ import {
   type CallPresencePayload,
   type CallSignalPayload,
 } from '@/lib/realtime';
-import { hasTurn } from '@/features/calls/ice';
+import { fetchIceConfig, type IceConfig } from '@/features/calls/ice';
 import { Peer, isPolite } from '@/features/calls/peer';
 import { useCallStore } from '@/stores/call-store';
 
@@ -36,6 +36,9 @@ export function useCall(meId: string) {
   const peers = React.useRef(new Map<string, Peer>());
   const channel = React.useRef<RealtimeChannel | null>(null);
   const localStream = React.useRef<MediaStream | null>(null);
+  // Fetched once per call and reused by every peer in the mesh: minting a set
+  // per connection would spend quota for nothing.
+  const ice = React.useRef<IceConfig>({ iceServers: [], relay: false });
 
   const { status, callId, conversationId, mode } = store;
 
@@ -68,6 +71,7 @@ export function useCall(meId: string) {
 
       const peer = new Peer({
         polite: isPolite(meId, otherId),
+        iceServers: ice.current.iceServers,
         send: (data) =>
           send(realtimeEvents.callSignal, {
             callId: currentCallId,
@@ -219,6 +223,10 @@ export function useCall(meId: string) {
         return;
       }
 
+      // Before any peer exists: a connection created without relay servers
+      // cannot be given them afterwards.
+      ice.current = await fetchIceConfig();
+
       await joinSignalling(targetConversationId, newCallId);
 
       // Through the server: a client cannot publish to other people's user
@@ -237,8 +245,8 @@ export function useCall(meId: string) {
         return;
       }
 
-      if (!hasTurn()) {
-        console.warn('[call] no TURN configured — calls will fail on many mobile networks');
+      if (!ice.current.relay) {
+        console.warn('[call] no TURN relay — calls will fail on many mobile networks');
       }
     },
     [captureLocal, joinSignalling, teardown],
@@ -259,6 +267,7 @@ export function useCall(meId: string) {
       return;
     }
 
+    ice.current = await fetchIceConfig();
     await joinSignalling(store.conversationId, store.callId);
     send(realtimeEvents.callAccept, { callId: store.callId, userId: meId } satisfies CallPresencePayload);
     useCallStore.getState().setStatus('active');
@@ -338,5 +347,7 @@ export function useCall(meId: string) {
     leaveCall,
     toggleMic,
     toggleCamera,
+    /** False means no relay: worth saying, because the failure is silent. */
+    hasRelay: ice.current.relay,
   };
 }

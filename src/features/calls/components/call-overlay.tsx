@@ -6,7 +6,6 @@ import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { hasTurn } from '@/features/calls/ice';
 import { useCall } from '@/features/calls/use-call';
 import { useCallStore } from '@/stores/call-store';
 import { useSession } from '@/components/providers/session-provider';
@@ -63,7 +62,7 @@ function IncomingCall() {
 function ActiveCall() {
   const me = useSession();
   const { localStream, remotes, micOn, cameraOn, mode, status } = useCallStore();
-  const { leaveCall, toggleMic, toggleCamera } = useCall(me.id);
+  const { leaveCall, toggleMic, toggleCamera, hasRelay } = useCall(me.id);
 
   const participants = Object.values(remotes);
   // One remote sits large; more than one goes to a grid.
@@ -75,10 +74,10 @@ function ActiveCall() {
         <p className="text-[13px] opacity-80">
           {status === 'joining' ? 'Calling…' : `${participants.length + 1} in call`}
         </p>
-        {!hasTurn() ? (
+        {!hasRelay ? (
           // Worth saying out loud: without a relay this fails on most mobile
           // networks, and the failure looks like "it just never connects".
-          <p className="text-[11px] text-[var(--warning)]">No TURN relay configured</p>
+          <p className="text-[11px] text-[var(--warning)]">No TURN relay</p>
         ) : null}
       </div>
 

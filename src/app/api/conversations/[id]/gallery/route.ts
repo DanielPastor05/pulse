@@ -12,6 +12,8 @@ export const dynamic = 'force-dynamic';
 const querySchema = z.object({
   tab: z.enum(['media', 'files']).default('media'),
   cursor: z.string().uuid().optional(),
+  /** Smaller pages let a test cross a boundary without uploading 45 images. */
+  limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
 export const GET = route<RouteContext<{ id: string }>>(async (request, context) => {
@@ -23,6 +25,6 @@ export const GET = route<RouteContext<{ id: string }>>(async (request, context) 
   // storage, so the list of what exists is the thing worth guarding.
   await requireMembership(id, user.id);
 
-  const { tab, cursor } = parseQuery(request, querySchema);
-  return json(await listGallery(id, { tab, cursor }));
+  const { tab, cursor, limit } = parseQuery(request, querySchema);
+  return json(await listGallery(id, { tab, cursor, limit }));
 });

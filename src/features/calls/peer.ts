@@ -1,6 +1,5 @@
 'use client';
 
-import { iceServers } from '@/features/calls/ice';
 import type { CallSignalPayload } from '@/lib/realtime';
 
 type Signal = CallSignalPayload['data'];
@@ -18,6 +17,8 @@ type PeerOptions = {
    * they press it at the same moment.
    */
   polite: boolean;
+  /** Minted per call by the server, so they arrive rather than being read. */
+  iceServers: RTCIceServer[];
 };
 
 /**
@@ -40,7 +41,7 @@ export class Peer {
 
   constructor(options: PeerOptions) {
     this.options = options;
-    this.connection = new RTCPeerConnection({ iceServers: iceServers() });
+    this.connection = new RTCPeerConnection({ iceServers: options.iceServers });
 
     this.connection.onnegotiationneeded = async () => {
       // Guard so a track added mid-call cannot start a second offer while the

@@ -1,34 +1,36 @@
 'use client';
 
-import { publicEnv } from '@/lib/env';
+import { api } from '@/lib/api-client';
 
 /**
- * ICE servers for the peer connections.
+ * ICE servers for the peer connections, fetched per call.
+ *
+ * They are not configuration on this side any more: Cloudflare issues
+ * short-lived credentials, and the token that mints them stays on the server
+ * because it spends the account's relay quota. The browser asks this app.
  *
  * STUN tells a peer what its public address looks like, which is enough when
  * both ends can be reached directly. TURN relays the media when they cannot —
- * symmetric NAT, most mobile carriers, plenty of home routers. Roughly a fifth
- * of connections need it, and without one those calls simply never connect
- * while everything else looks fine.
- *
- * Google's public STUN is fine as a default: it is a one-shot address lookup,
- * no media flows through it. TURN is not offered publicly by anyone, so it
- * stays configuration.
+ * symmetric NAT, most mobile carriers, plenty of home routers.
  */
-const PUBLIC_STUN = ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'];
 
-export function iceServers(): RTCIceServer[] {
-  const servers: RTCIceServer[] = [{ urls: PUBLIC_STUN }];
+const FALLBACK: RTCIceServer[] = [
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+];
 
-  const { turnUrl, turnUsername, turnCredential } = publicEnv;
-  if (turnUrl && turnUsername && turnCredential) {
-    servers.push({ urls: turnUrl, username: turnUsername, credential: turnCredential });
+export type IceConfig = {
+  iceServers: RTCIceServer[];
+  /** False when no relay is available, which the UI says out loud. */
+  relay: boolean;
+};
+
+export async function fetchIceConfig(): Promise<IceConfig> {
+  try {
+    return await api<IceConfig>('/calls/ice');
+  } catch (error) {
+    // A failure here still leaves a call that works for anyone reachable
+    // directly, which beats refusing to start one.
+    console.error('[call] could not fetch ICE servers', error);
+    return { iceServers: FALLBACK, relay: false };
   }
-
-  return servers;
-}
-
-/** True when a relay is configured; the UI warns when it is not. */
-export function hasTurn(): boolean {
-  return Boolean(publicEnv.turnUrl && publicEnv.turnUsername && publicEnv.turnCredential);
 }
