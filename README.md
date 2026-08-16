@@ -13,6 +13,8 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 | **Row Level Security** | 20 policies, one per table, enforced independently of the API |
 | **Search latency** | 6035 ms → 314 ms p50, measured before and after ([how](#making-search-nineteen-times-faster)) |
 | **Database round trip** | 1230 ms → 16 ms, after moving the functions to the database's region |
+| **Concurrent sending** | 13.5 s → 1.48 s p50 with ten people writing at once ([how](#the-send-response-was-waiting-for-the-fan-out)) |
+| **Realtime delivery** | 2.4 s p95 end to end under that load, 100% delivered |
 | **API surface** | 46 endpoints, 45 of them behind `requireUser`; the exception runs before a profile exists |
 
 ---
@@ -78,6 +80,46 @@ The N+1 was real and worth fixing. It was also 6% of the problem, and would have
 stayed the accepted explanation without a measurement that disagreed.
 
 Reproduce with `npm run bench:search`.
+
+### The send response was waiting for the fan-out
+
+Ten people typing in the same room at once: the `201` took **13.5 s**. The same
+ten senders spread across rooms of one took 1.25 s. Something about a *busy*
+conversation was making sending slow — the exact opposite of what a group chat
+should do.
+
+The number that gave it away was the delivery latency measured beside it. The
+message reached the recipient's channel at **1.8 s** while the sender waited
+until 13.5 s, so the request spent eleven seconds after the broadcast had
+already gone out.
+
+Two plausible explanations were tested and both were wrong:
+
+| hypothesis | test | result |
+| --- | --- | --- |
+| Row lock on the conversation | move `lastMessageAt` out of the transaction | p50 unchanged |
+| Too many queries per send | stop loading nine relations on a fresh message | p50 unchanged |
+
+The third fit the data. Ordered by how many realtime messages a send provokes,
+the latency is almost a straight line:
+
+| realtime messages | p50 |
+| --- | --- |
+| ~20 (room of one) | 1254 ms |
+| ~120 (muted room of eleven) | 7314 ms |
+| ~220 (room of eleven) | 13373 ms |
+
+Telling everyone costs one message per recipient plus the notification ones, and
+the response was waiting for all of them. Group size was being charged to the
+person typing.
+
+The message is already durable before that point, so the fan-out moved to
+`after()`. Only *who gets told* is deferred, and the guarantee is unchanged: if
+it fails, the log says so and the client recovers on refocus — which was already
+true, just no longer paid for in latency.
+
+**13.5 s → 1.48 s p50**, with delivery still at 100% and 2.4 s. Reproduce with
+`npm run bench:load`.
 
 ### Realtime channels were public
 
@@ -328,7 +370,8 @@ trigger.
 ```bash
 npm run dev              npm run build            npm run start
 npm run typecheck        npm run lint             npm test
-npm run test:integration npm run test:e2e         npm run bench:search
+npm run test:integration npm run test:e2e         npm run test:smoke
+npm run bench:search     npm run bench:load
 npm run db:migrate       npm run db:deploy        npm run db:studio
 ```
 
