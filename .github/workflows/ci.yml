@@ -53,13 +53,20 @@ jobs:
           node-version: 24
           cache: npm
 
-      # `npm install`, no `npm ci`. El lockfile se genera en Windows y npm no
-      # registra ahí las dependencias transitivas de los paquetes opcionales de
-      # otras plataformas: @img/sharp-wasm32 declara @emnapi/runtime y su
-      # resolución no llega al lock, así que `npm ci` lo rechaza por
-      # inconsistente. Regenerarlo desde cero y forzar --os=linux no lo arregla.
-      # Se pierde el anclaje exacto de versiones a cambio de que el CI corra.
-      - run: npm install --no-audit --no-fund
+      # `npm ci`, que instala exactamente lo que fija el lockfile y falla si se
+      # ha desincronizado del package.json. Estuvo en `npm install` una
+      # temporada porque el lock generado en Windows no registraba las
+      # dependencias transitivas de paquetes opcionales de otras plataformas
+      # (@emnapi, vía @img/sharp-wasm32) y `ci` lo rechazaba por inconsistente.
+      # Reinstalaciones posteriores lo completaron; si volviera a fallar aquí,
+      # ese es el motivo.
+      - run: npm ci --no-audit --no-fund
+
+      # Sólo alta y crítica rompen la tanda. Un CI que falla por un aviso «low»
+      # de una dependencia transitiva se acaba desactivando, y entonces no
+      # protege de nada.
+      - name: Auditoría de dependencias
+        run: npm audit --audit-level=high
 
       # Aplicar las migraciones aquí es además la prueba de que son ejecutables
       # sobre una base vacía, que es exactamente lo que `db push` nunca

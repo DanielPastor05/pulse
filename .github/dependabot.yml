@@ -1,0 +1,29 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    # Los parches y menores llegan en un solo PR. Uno por dependencia sobre un
+    # árbol de 724 paquetes es ruido que se acaba ignorando, y una lista de
+    # avisos que nadie lee protege menos que no tenerla.
+    groups:
+      menores:
+        patterns: ['*']
+        update-types: [minor, patch]
+    # Las mayores llegan sueltas y a propósito: cada una necesita leer su guía
+    # de migración, y agruparlas esconde cuál rompió qué.
+    labels: [dependencias]
+    commit-message:
+      prefix: 'deps'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels: [dependencias]
+    commit-message:
+      prefix: 'deps'
