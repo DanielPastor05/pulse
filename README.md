@@ -9,7 +9,7 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 | | |
 | --- | --- |
-| **Automated checks** | 147 — 35 unit, 18 integration against a real Postgres in CI, 94 end-to-end against the deployed instance |
+| **Automated checks** | 153 — 35 unit, 18 integration against a real Postgres, 6 browser smoke tests, 94 end-to-end against the deployed instance |
 | **Row Level Security** | 20 policies, one per table, enforced independently of the API |
 | **Search latency** | 6035 ms → 314 ms p50, measured before and after ([how](#making-search-nineteen-times-faster)) |
 | **Database round trip** | 1230 ms → 16 ms, after moving the functions to the database's region |
@@ -233,11 +233,12 @@ no second round trip to render a new message.
 
 ## Testing
 
-147 checks, in three layers.
+153 checks, in four layers.
 
 ```bash
 npm test                  # 35 unit tests — pure logic, no I/O
 npm run test:integration  # 18 tests against a real Postgres
+npm run test:smoke        # 6 browser checks against the production build
 npm run test:e2e          # 94 checks against a running server + real Supabase
 ```
 
@@ -267,8 +268,8 @@ way out.
 E2E_APP_URL=https://pulse-blond-two.vercel.app npm run test:e2e
 ```
 
-**CI runs typecheck, lint, unit tests, integration tests and build on every
-push**, against a throwaway Postgres it starts for the run. Applying the
+**CI runs typecheck, lint, unit tests, integration tests, the production build
+and the browser smoke tests on every push**, against a throwaway Postgres it starts for the run. Applying the
 migrations to that empty database is itself a test: it caught that the baseline
 migration declared five trigram indexes without creating the `pg_trgm`
 extension they need, which had never surfaced because Supabase ships it
