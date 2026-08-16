@@ -59,6 +59,38 @@ test('las migas de consola se redactan, que es donde se cuela el texto', () => {
   assert.equal(out.breadcrumbs?.[1]?.message, '/chat/123');
 });
 
+test('el volcado que Prisma cuelga del mensaje de error no viaja', () => {
+  // Forma real de un PrismaClientValidationError: la primera línea resume y
+  // debajo va el objeto de argumentos entero, con el mensaje dentro.
+  const real = [
+    'Invalid `prisma.message.create()` invocation:',
+    '{',
+    '  data: {',
+    '    conversationId: "abc",',
+    '    content: "te veo a las 8 en casa de mi madre",',
+    '  }',
+    '}',
+  ].join('\n');
+
+  const out = scrub({ exception: { values: [{ type: 'Error', value: real }] } });
+  const salida = out.exception?.values?.[0]?.value ?? '';
+
+  assert.equal(salida.includes('casa de mi madre'), false, 'el texto no puede salir');
+  assert.ok(salida.startsWith('Invalid `prisma.message.create()`'), 'el resumen sí sirve y se queda');
+});
+
+test('un error de una sola línea llega entero, porque es lo útil', () => {
+  const out = scrub({
+    exception: { values: [{ type: 'Error', value: 'Connection terminated unexpectedly' }] },
+  });
+  assert.equal(out.exception?.values?.[0]?.value, 'Connection terminated unexpectedly');
+});
+
+test('un mensaje suelto tambien se recorta', () => {
+  const out = scrub({ message: 'Fallo al enviar\ncontent: "hola guapa"' });
+  assert.equal(String(out.message).includes('hola guapa'), false);
+});
+
 test('una estructura profunda o circular no cuelga el proceso', () => {
   const deep: Record<string, unknown> = { content: 'secreto' };
   let node = deep;

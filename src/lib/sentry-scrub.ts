@@ -68,7 +68,39 @@ function scrubUrl(url: string): string {
   }
 }
 
+/**
+ * Deja la primera línea de un mensaje de error y tira el resto.
+ *
+ * El texto de una excepción es el campo más útil del evento, así que no se
+ * redacta entero. Pero algunos errores llevan dentro los datos que provocaron
+ * el fallo: `PrismaClientValidationError` imprime el objeto de argumentos
+ * completo bajo la primera línea, y en un envío ese objeto contiene el mensaje
+ * que la persona estaba escribiendo.
+ *
+ * La primera línea es el resumen —el tipo de error y qué falló— y es lo que se
+ * necesita para reproducirlo. Lo de abajo es el volcado, y ahí es donde se
+ * esconde el texto.
+ */
+function scrubErrorText(value: string): string {
+  const [first = ''] = value.split('\n');
+  const trimmed = first.trim();
+  const shortened = trimmed.length > 300 ? `${trimmed.slice(0, 300)}…` : trimmed;
+  return value.includes('\n') ? `${shortened} ${REDACTED}` : shortened;
+}
+
 export function scrubEvent(event: ErrorEvent): ErrorEvent | null {
+  // La excepción misma, que hasta ahora no se miraba.
+  if (event.exception?.values) {
+    event.exception.values = event.exception.values.map((value) => ({
+      ...value,
+      value: value.value ? scrubErrorText(value.value) : value.value,
+    }));
+  }
+  if (event.message) {
+    event.message =
+      typeof event.message === 'string' ? scrubErrorText(event.message) : event.message;
+  }
+
   if (event.request) {
     if (event.request.url) event.request.url = scrubUrl(event.request.url);
     delete event.request.cookies;
