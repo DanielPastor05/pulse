@@ -1,13 +1,25 @@
 import { prisma } from '@/lib/prisma';
 import { SEARCH_PAGE_SIZE } from '@/lib/constants';
-import { visibleConversationIds } from '@/server/repositories/message.repository';
 import { messageInclude, publicUserSelect, toMessage, toPublicUser } from '@/server/repositories/selectors';
-import { getSummaryFor } from '@/server/repositories/conversation.repository';
+import { getSummariesFor } from '@/server/repositories/conversation.repository';
 import type { SearchResults } from '@/types/dto';
 
 export type SearchScope = 'all' | 'users' | 'conversations' | 'messages' | 'files';
 
 const EMPTY: SearchResults = { users: [], conversations: [], messages: [], files: [] };
+
+/**
+ * Restricts a search to conversations the viewer belongs to.
+ *
+ * Expressed as a relation filter — Prisma compiles it to a correlated `EXISTS`
+ * — rather than by loading the viewer's conversation ids and passing them as an
+ * `IN` list. Both are correct; only this one has a bounded query size. Somebody
+ * in five hundred groups would otherwise put five hundred UUIDs into the text
+ * of every search they run.
+ */
+const memberOf = (viewerId: string) => ({
+  conversation: { members: { some: { userId: viewerId } } },
+});
 
 /**
  * One query, four result sets. Everything is scoped to conversations the
@@ -22,7 +34,6 @@ export async function globalSearch(
   if (query.length < 2) return EMPTY;
 
   const wants = (target: SearchScope) => scope === 'all' || scope === target;
-  const conversationIds = await visibleConversationIds(viewerId);
 
   const [users, memberships, messages, attachments] = await Promise.all([
     wants('users')
@@ -59,10 +70,10 @@ export async function globalSearch(
         })
       : Promise.resolve([]),
 
-    wants('messages') && conversationIds.length > 0
+    wants('messages')
       ? prisma.message.findMany({
           where: {
-            conversationId: { in: conversationIds },
+            ...memberOf(viewerId),
             deletedAt: null,
             kind: 'TEXT',
             content: { contains: query, mode: 'insensitive' },
@@ -76,11 +87,11 @@ export async function globalSearch(
         })
       : Promise.resolve([]),
 
-    wants('files') && conversationIds.length > 0
+    wants('files')
       ? prisma.attachment.findMany({
           where: {
             name: { contains: query, mode: 'insensitive' },
-            message: { conversationId: { in: conversationIds }, deletedAt: null },
+            message: { ...memberOf(viewerId), deletedAt: null },
           },
           include: {
             message: {
@@ -98,11 +109,10 @@ export async function globalSearch(
       : Promise.resolve([]),
   ]);
 
-  const conversations = (
-    await Promise.all(
-      memberships.map((membership) => getSummaryFor(membership.conversationId, viewerId)),
-    )
-  ).filter((summary): summary is NonNullable<typeof summary> => summary !== null);
+  const conversations = await getSummariesFor(
+    memberships.map((membership) => membership.conversationId),
+    viewerId,
+  );
 
   return {
     users: users.map(toPublicUser),

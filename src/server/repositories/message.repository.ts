@@ -101,12 +101,3 @@ export async function listStarredMessages(viewerId: string): Promise<MessageDTO[
   });
   return rows.map((row) => toMessage(row, viewerId));
 }
-
-/** Conversation ids the viewer can read — the scope for every search query. */
-export async function visibleConversationIds(viewerId: string): Promise<string[]> {
-  const memberships = await prisma.conversationMember.findMany({
-    where: { userId: viewerId },
-    select: { conversationId: true },
-  });
-  return memberships.map((membership) => membership.conversationId);
-}
