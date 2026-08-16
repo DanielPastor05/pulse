@@ -1,0 +1,33 @@
+# Postgres local para desarrollar y para correr las pruebas de integración sin
+# tocar nada remoto.
+#
+#   docker compose up -d
+#   npm run db:deploy
+#   npm run test:integration
+#
+# La aplicación sigue necesitando un proyecto de Supabase para autenticación,
+# realtime y almacenamiento: eso no se puede levantar aquí y el README lo dice.
+# Lo que esto resuelve es lo otro, que es donde vive la lógica que se prueba.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: pulse-postgres
+    environment:
+      POSTGRES_USER: pulse
+      POSTGRES_PASSWORD: pulse
+      POSTGRES_DB: pulse
+    ports:
+      - '5432:5432'
+    volumes:
+      - pulse-data:/var/lib/postgresql/data
+    healthcheck:
+      # Sin esto, `docker compose up -d` devuelve el control antes de que
+      # Postgres acepte conexiones y la primera migración falla por carrera.
+      test: ['CMD-SHELL', 'pg_isready -U pulse -d pulse']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pulse-data:

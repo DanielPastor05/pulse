@@ -1,5 +1,6 @@
 import { publicEnv, serverEnv } from '@/lib/env';
 import { realtimeChannels, type RealtimeEvent } from '@/lib/realtime';
+import { describeError, log } from '@/server/logger';
 
 /**
  * Server → client realtime fan-out.
@@ -34,10 +35,13 @@ async function send(messages: Array<{ topic: string; event: string; payload: unk
     // A silent 4xx here means every client stops receiving live updates while
     // the REST API keeps working — the confusing failure mode worth logging.
     if (!response.ok) {
-      console.error('[realtime] broadcast rejected', response.status, await response.text());
+      log.error('realtime.broadcast_rejected', {
+        status: response.status,
+        body: await response.text(),
+      });
     }
   } catch (error) {
-    console.error('[realtime] broadcast failed', error);
+    log.error('realtime.broadcast_failed', describeError(error));
   }
 }
 

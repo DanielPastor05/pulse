@@ -4,6 +4,7 @@ import { ZodError, type TypeOf, type ZodTypeAny } from 'zod';
 
 import { publicEnv } from '@/lib/env';
 import { AppError, errors } from '@/server/errors';
+import { describeError, log } from '@/server/logger';
 
 export type ApiErrorBody = { error: string; code: string; details?: unknown };
 
@@ -79,7 +80,7 @@ function toErrorResponse(error: unknown): NextResponse<ApiErrorBody> {
     }
   }
 
-  console.error('[api] unhandled error', error);
+  log.error('api.unhandled_error', describeError(error));
   return NextResponse.json(
     { error: 'Something went wrong on our side.', code: 'internal' },
     { status: 500 },

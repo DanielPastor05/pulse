@@ -2,6 +2,7 @@ import webpush from 'web-push';
 
 import { prisma } from '@/lib/prisma';
 import { publicEnv, serverEnv } from '@/lib/env';
+import { describeError, log } from '@/server/logger';
 
 /**
  * Web Push delivery.
@@ -78,7 +79,7 @@ export async function pushToUsers(userIds: string[], payload: PushPayload): Prom
           dead.push(subscription.id);
           return;
         }
-        console.error('[push] delivery failed', status, (error as Error).message);
+        log.error('push.delivery_failed', { status, ...describeError(error) });
       }
     }),
   );
@@ -86,6 +87,6 @@ export async function pushToUsers(userIds: string[], payload: PushPayload): Prom
   if (dead.length > 0) {
     await prisma.pushSubscription
       .deleteMany({ where: { id: { in: dead } } })
-      .catch((error) => console.error('[push] could not prune dead endpoints', error));
+      .catch((error) => log.error('push.prune_failed', describeError(error)));
   }
 }

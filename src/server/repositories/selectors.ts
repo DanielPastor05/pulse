@@ -28,6 +28,32 @@ export const publicUserSelect = {
 
 export type PublicUserRow = Prisma.UserGetPayload<{ select: typeof publicUserSelect }>;
 
+/**
+ * Two missed heartbeats. The client writes one every 60 s, so a gap this long
+ * means the tab is gone rather than a request being slow.
+ */
+const PRESENCE_STALE_AFTER_MS = 2.5 * 60_000;
+
+/**
+ * Presence as it should be read, not as it was last written.
+ *
+ * Nothing marks somebody OFFLINE when their browser dies: sign-out writes it,
+ * and a crash, a closed lid or a lost connection write nothing at all. The
+ * stored value therefore stays ONLINE forever, and anyone loading the page
+ * afterwards sees a green dot for somebody who left hours ago. People already
+ * connected see them go through the realtime channel's `leave` event, which is
+ * why this only ever looked broken to whoever arrived late.
+ *
+ * Deriving it here rather than sweeping the table on a schedule: the timestamp
+ * needed to answer the question is already in the row, and a background job
+ * that has to run to keep data honest is a job that can stop running.
+ */
+function livePresence(row: Pick<PublicUserRow, 'presence' | 'lastSeenAt'>): PublicUser['presence'] {
+  if (row.presence === 'OFFLINE') return 'OFFLINE';
+  const silentFor = Date.now() - row.lastSeenAt.getTime();
+  return silentFor > PRESENCE_STALE_AFTER_MS ? 'OFFLINE' : row.presence;
+}
+
 export function toPublicUser(row: PublicUserRow): PublicUser {
   return {
     id: row.id,
@@ -37,7 +63,7 @@ export function toPublicUser(row: PublicUserRow): PublicUser {
     bannerColor: row.bannerColor,
     bio: row.bio,
     statusText: row.statusText,
-    presence: row.presence,
+    presence: livePresence(row),
     lastSeenAt: row.lastSeenAt.toISOString(),
   };
 }

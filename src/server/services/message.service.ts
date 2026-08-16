@@ -17,6 +17,7 @@ import { can } from '@/lib/permissions';
 import { notify } from '@/server/services/notification.service';
 import type { SendMessageInput } from '@/features/messages/validators';
 import type { MessageDTO } from '@/types/dto';
+import { describeError, log } from '@/server/logger';
 
 const MENTION_PATTERN = /(?:^|[^\w])@([a-z0-9_]{3,24})/g;
 
@@ -264,7 +265,7 @@ async function attachLinkPreview(
       message: updated,
     });
   } catch (error) {
-    console.error('[link-preview] could not attach', error);
+    log.error('link_preview.attach_failed', describeError(error));
   }
 }
 

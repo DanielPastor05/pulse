@@ -18,6 +18,11 @@ const supabaseSocket = `wss://${supabaseHost}`;
 const isDev = process.env.NODE_ENV === 'development';
 
 const nextConfig: NextConfig = {
+  // Sólo al construir la imagen de Docker. `standalone` produce un bundle que
+  // arranca sin node_modules, que es lo que hace la imagen pequeña — pero en
+  // Vercel estorba, porque su propio empaquetado ya hace ese trabajo y las dos
+  // cosas a la vez se pisan.
+  ...(process.env.DOCKER_BUILD === '1' ? { output: 'standalone' as const } : {}),
   reactStrictMode: true,
   poweredByHeader: false,
   images: {

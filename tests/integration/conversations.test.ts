@@ -112,6 +112,43 @@ test('el resumen de un chat directo resuelve al interlocutor, no a ti', async ()
   await prisma.conversation.delete({ where: { id: directa.id } });
 });
 
+test('quien lleva sin dar señales aparece desconectado aunque la fila diga ONLINE', async () => {
+  const ana = await makeUser('ana');
+  const beto = await makeUser('beto');
+  const directa = await prisma.conversation.create({
+    data: {
+      type: 'DIRECT',
+      ownerId: ana.id,
+      members: {
+        create: [
+          { userId: ana.id, role: 'MEMBER' },
+          { userId: beto.id, role: 'MEMBER' },
+        ],
+      },
+    },
+  });
+
+  // El estado que deja un navegador que muere: nadie escribe OFFLINE nunca.
+  await prisma.user.update({
+    where: { id: beto.id },
+    data: { presence: 'ONLINE', lastSeenAt: new Date(Date.now() - 30 * 60_000) },
+  });
+
+  const stale = await resumenDe(directa.id, ana.id);
+  assert.equal(stale.peer?.presence, 'OFFLINE', 'media hora sin latido no es estar en línea');
+
+  // Y con un latido reciente vuelve a contar como conectado.
+  await prisma.user.update({
+    where: { id: beto.id },
+    data: { presence: 'ONLINE', lastSeenAt: new Date() },
+  });
+
+  const fresh = await resumenDe(directa.id, ana.id);
+  assert.equal(fresh.peer?.presence, 'ONLINE');
+
+  await prisma.conversation.delete({ where: { id: directa.id } });
+});
+
 test('un grupo no tiene interlocutor aunque cargue un miembro', async () => {
   const ana = await makeUser('ana');
   const beto = await makeUser('beto');

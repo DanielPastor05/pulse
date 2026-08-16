@@ -1,4 +1,5 @@
 import { serverEnv } from '@/lib/env';
+import { describeError, log } from '@/server/logger';
 
 /**
  * Short-lived TURN credentials from Cloudflare.
@@ -50,7 +51,7 @@ export async function issueIceServers(): Promise<{ iceServers: RTCIceServer[]; r
     });
 
     if (!response.ok) {
-      console.error('[turn] cloudflare refused', response.status, await response.text());
+      log.error('turn.refused', { status: response.status, body: await response.text() });
       return { iceServers: PUBLIC_STUN, relay: false };
     }
 
@@ -68,7 +69,7 @@ export async function issueIceServers(): Promise<{ iceServers: RTCIceServer[]; r
     // The public STUN entries stay as a fallback path, not a replacement.
     return { iceServers: [...list, ...PUBLIC_STUN], relay };
   } catch (error) {
-    console.error('[turn] could not mint credentials', error);
+    log.error('turn.mint_failed', describeError(error));
     return { iceServers: PUBLIC_STUN, relay: false };
   }
 }
