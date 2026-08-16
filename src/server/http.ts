@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { Prisma } from '@prisma/client';
 import { ZodError, type TypeOf, type ZodTypeAny } from 'zod';
 
@@ -80,6 +81,18 @@ function toErrorResponse(error: unknown): NextResponse<ApiErrorBody> {
     }
   }
 
+  // Se reporta aquí y no se deja subir.
+  //
+  // `route()` captura todo para que cada endpoint devuelva la misma forma de
+  // error, y ese acierto tenía un efecto que no se veía: al no relanzar, Next
+  // nunca llama a `onRequestError`, así que **ningún fallo de las rutas de API
+  // llegaba a Sentry** — justo la categoría donde vive casi todo. Lo demás
+  // seguía reportándose, con lo que el panel parecía funcionar.
+  //
+  // Sólo esta rama. Un 400 de validación o un 409 por índice único son
+  // respuestas previstas, no incidencias, y mandarlas ahogaría lo que sí
+  // importa entre ruido.
+  Sentry.captureException(error);
   log.error('api.unhandled_error', describeError(error));
   return NextResponse.json(
     { error: 'Something went wrong on our side.', code: 'internal' },
