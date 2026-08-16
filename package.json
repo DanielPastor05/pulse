@@ -18,9 +18,12 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"src/**/*.test.ts\"",
+    "test:integration": "node --import tsx --test \"tests/integration/*.test.ts\"",
     "test:e2e": "node tests/e2e/security.mjs && node tests/e2e/notifications.mjs && node tests/e2e/realtime.mjs && node tests/e2e/push.mjs",
+    "bench:search": "node tests/bench/search.mjs",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate"
   },
@@ -79,6 +82,7 @@
     "eslint-config-next": "^15.5.4",
     "prisma": "^6.16.2",
     "tailwindcss": "^4.1.13",
+    "tsx": "^4.23.12",
     "typescript": "^5.9.2"
   }
 }

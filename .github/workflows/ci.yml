@@ -16,10 +16,26 @@ jobs:
     name: Typecheck, lint, tests, build
     runs-on: ubuntu-latest
 
+    # Un Postgres desechable por tanda. Existe para que las migraciones se
+    # apliquen de verdad y para que las pruebas de integración ejerciten las
+    # consultas contra un motor real: sin esto el CI pasaba en verde con el
+    # cálculo de no leídos completamente roto, porque nada lo tocaba.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
-      # `postinstall` ejecuta `prisma generate`, y el datasource declara
-      # env("DATABASE_URL") y env("DIRECT_URL"): Prisma exige que existan
-      # aunque no apunten a nada, porque generar el cliente no abre conexión.
       DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
       DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
       # El build no necesita credenciales reales — next.config.ts cae a un host
@@ -45,6 +61,12 @@ jobs:
       # Se pierde el anclaje exacto de versiones a cambio de que el CI corra.
       - run: npm install --no-audit --no-fund
 
+      # Aplicar las migraciones aquí es además la prueba de que son ejecutables
+      # sobre una base vacía, que es exactamente lo que `db push` nunca
+      # garantizaba.
+      - name: Migraciones sobre una base limpia
+        run: npm run db:deploy
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -53,6 +75,9 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      - name: Integration tests
+        run: npm run test:integration
 
       - name: Build
         run: npm run build
