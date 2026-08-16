@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client';
+
 import { prisma } from '@/lib/prisma';
 import { SEARCH_PAGE_SIZE } from '@/lib/constants';
 import { messageInclude, publicUserSelect, toMessage, toPublicUser } from '@/server/repositories/selectors';
@@ -67,21 +69,28 @@ async function rankedMessageIds(
   limit: number,
   cursor: { rank: number; id: string } | null,
 ): Promise<RankedRow[]> {
+  const query = Prisma.sql`to_tsquery('simple', ${tsquery})`;
+  const rank = Prisma.sql`ts_rank(m."searchVector", ${query})`;
+
+  // La condición del cursor se compone aparte en vez de meterse en la consulta
+  // como un interruptor booleano: un `OR` con un parámetro obliga a Postgres a
+  // inferir tipos para una comparación que en la primera página ni se evalúa, y
+  // ahí se rompía — `m."id"` es uuid y el marcador llegaba como texto.
+  const after = cursor
+    ? Prisma.sql`AND (${rank}, m."id"::text) < (${cursor.rank}::real, ${cursor.id})`
+    : Prisma.empty;
+
   return prisma.$queryRaw<RankedRow[]>`
-    SELECT m."id", ts_rank(m."searchVector", to_tsquery('simple', ${tsquery})) AS rank
+    SELECT m."id"::text AS id, ${rank} AS rank
     FROM "messages" m
-    WHERE m."searchVector" @@ to_tsquery('simple', ${tsquery})
+    WHERE m."searchVector" @@ ${query}
       AND m."deletedAt" IS NULL
       AND m."kind" = 'TEXT'
       AND EXISTS (
         SELECT 1 FROM "conversation_members" cm
         WHERE cm."conversationId" = m."conversationId" AND cm."userId" = ${viewerId}::uuid
       )
-      AND (
-        ${cursor === null}::boolean
-        OR (ts_rank(m."searchVector", to_tsquery('simple', ${tsquery})), m."id")
-           < (${cursor?.rank ?? 0}::real, ${cursor?.id ?? ''})
-      )
+      ${after}
     ORDER BY rank DESC, m."id" DESC
     LIMIT ${limit}
   `;
