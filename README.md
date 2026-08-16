@@ -9,7 +9,7 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 | | |
 | --- | --- |
-| **Automated checks** | 165 — 35 unit, 30 integration against a real Postgres, 6 browser smoke tests, 94 end-to-end against the deployed instance |
+| **Automated checks** | 171 — 41 unit, 30 integration against a real Postgres, 6 browser smoke tests, 94 end-to-end against the deployed instance |
 | **Row Level Security** | 20 policies, one per table, enforced independently of the API |
 | **Search latency** | 6035 ms → 314 ms p50, measured before and after ([how](#making-search-nineteen-times-faster)) |
 | **Database round trip** | 1230 ms → 16 ms, after moving the functions to the database's region |
@@ -278,14 +278,20 @@ no second round trip to render a new message.
 
 ## Testing
 
-165 checks, in four layers.
+171 checks, in four layers.
 
 ```bash
-npm test                  # 35 unit tests — pure logic, no I/O
+npm test                  # 41 unit tests — pure logic, no I/O
 npm run test:integration  # 30 tests against a real Postgres
 npm run test:smoke        # 6 browser checks against the production build
 npm run test:e2e          # 94 checks against a running server + real Supabase
 ```
+
+One of them is worth singling out: it boots the real Sentry SDK with a
+transport that captures the envelope instead of sending it, then asserts a
+message body cannot be found anywhere in the bytes that would have left the
+process — with a positive control proving the assertion can fail. Testing the
+scrubbing function alone would have proved it scrubs, not that it is wired in.
 
 The unit tests cover the things where an edge case is the whole point: URL
 protocol validation, the SSRF address rules including the `172.16/12` boundary
