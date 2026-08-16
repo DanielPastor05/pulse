@@ -10,17 +10,8 @@
  * Ana subscribes exactly as the browser does (`private: true`, after
  * `realtime.setAuth()`), Beto sends through the API, and Ana must receive it.
  */
-import { createClient } from '@supabase/supabase-js';
-import { readFileSync } from 'node:fs';
-
-import { api, check, cleanup, makeUser, onboard, requireServer, SUPABASE_URL } from './harness.mjs';
-
-const anonKey = readFileSync('.env', 'utf8')
-  .split('\n')
-  .find((line) => line.startsWith('NEXT_PUBLIC_SUPABASE_ANON_KEY'))
-  .split('=')[1]
-  .trim()
-  .replace(/^["']|["']$/g, '');
+import { api, check, cleanup, makeUser, onboard, requireServer } from './harness.mjs';
+import { clientFor, subscribed, waitFor } from './realtime-helpers.mjs';
 
 await requireServer();
 
@@ -35,37 +26,6 @@ const group = await api('/api/conversations', {
   body: { name: 'Prueba en vivo', accent: 'electric', memberIds: [beto.id] },
 });
 const conversationId = (group.json?.conversation ?? group.json)?.id;
-
-/** A client carrying a real user session, like the browser has. */
-function clientFor(user) {
-  const client = createClient(SUPABASE_URL, anonKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  client.realtime.setAuth(user.session.access_token);
-  return client;
-}
-
-function waitFor(channel, event, ms = 15_000) {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(null), ms);
-    channel.on('broadcast', { event }, ({ payload }) => {
-      clearTimeout(timer);
-      resolve(payload);
-    });
-  });
-}
-
-function subscribed(channel, ms = 15_000) {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve('TIMEOUT'), ms);
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-        clearTimeout(timer);
-        resolve(status);
-      }
-    });
-  });
-}
 
 console.log('\nTiempo real: Ana escucha, Beto escribe');
 
