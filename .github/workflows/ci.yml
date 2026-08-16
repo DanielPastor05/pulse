@@ -53,14 +53,21 @@ jobs:
           node-version: 24
           cache: npm
 
-      # `npm ci`, que instala exactamente lo que fija el lockfile y falla si se
-      # ha desincronizado del package.json. Estuvo en `npm install` una
-      # temporada porque el lock generado en Windows no registraba las
-      # dependencias transitivas de paquetes opcionales de otras plataformas
-      # (@emnapi, vía @img/sharp-wasm32) y `ci` lo rechazaba por inconsistente.
-      # Reinstalaciones posteriores lo completaron; si volviera a fallar aquí,
-      # ese es el motivo.
-      - run: npm ci --no-audit --no-fund
+      # `npm install`, no `npm ci`, y no por comodidad.
+      #
+      # El lockfile se genera en Windows, donde npm no instala los paquetes
+      # opcionales de otras plataformas y por tanto no registra sus
+      # dependencias transitivas: @img/sharp-wasm32 declara @emnapi/runtime y
+      # @emnapi/core, y ninguno llega al lock. Sobre Linux `npm ci` los echa en
+      # falta y se niega a instalar.
+      #
+      # Comprobado dos veces, la última tras regenerar el lock con `npm audit
+      # fix`: vuelve a fallar con esos dos paquetes exactos. Forzar
+      # `--os=linux --cpu=x64` sobre `--package-lock-only` tampoco los añade.
+      # Se pierde el anclaje exacto de versiones a cambio de que el CI corra;
+      # la alternativa real sería generar el lock en Linux, que es un cambio de
+      # entorno de desarrollo, no de configuración.
+      - run: npm install --no-audit --no-fund
 
       # Sólo alta y crítica rompen la tanda. Un CI que falla por un aviso «low»
       # de una dependencia transitiva se acaba desactivando, y entonces no
