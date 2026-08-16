@@ -9,7 +9,7 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 | | |
 | --- | --- |
-| **Automated checks** | 153 — 35 unit, 18 integration against a real Postgres, 6 browser smoke tests, 94 end-to-end against the deployed instance |
+| **Automated checks** | 165 — 35 unit, 30 integration against a real Postgres, 6 browser smoke tests, 94 end-to-end against the deployed instance |
 | **Row Level Security** | 20 policies, one per table, enforced independently of the API |
 | **Search latency** | 6035 ms → 314 ms p50, measured before and after ([how](#making-search-nineteen-times-faster)) |
 | **Database round trip** | 1230 ms → 16 ms, after moving the functions to the database's region |
@@ -29,7 +29,10 @@ the API remembering to check.
 Voice and video calls — one to one and in groups — run peer to peer over WebRTC,
 with no media server. Messages written offline queue up and send themselves when
 the connection returns. There are polls, threads, a gallery of everything shared,
-link previews, and push notifications that reach a closed tab.
+link previews, and push notifications that reach a closed tab. You can download
+everything you have written and close the account for good — and if you own a
+group with people in it, it asks you to hand it over first rather than leaving
+them without an owner.
 
 It is deployed, and the guarantees below are verified against the deployed
 instance, not against mocks.
@@ -275,11 +278,11 @@ no second round trip to render a new message.
 
 ## Testing
 
-153 checks, in four layers.
+165 checks, in four layers.
 
 ```bash
 npm test                  # 35 unit tests — pure logic, no I/O
-npm run test:integration  # 18 tests against a real Postgres
+npm run test:integration  # 30 tests against a real Postgres
 npm run test:smoke        # 6 browser checks against the production build
 npm run test:e2e          # 94 checks against a running server + real Supabase
 ```
@@ -382,7 +385,7 @@ one shape: `{ error, code, details? }`.
 
 | Area | Endpoints |
 | --- | --- |
-| Session & profile | `GET/PATCH /me`, `POST /me/onboarding`, `GET /users/[username]`, `GET /users/search`, `POST /presence` |
+| Session & profile | `GET/PATCH/DELETE /me`, `GET /me/export`, `POST /me/onboarding`, `GET /users/[username]`, `GET /users/search`, `POST /presence` |
 | Conversations | `GET/POST /conversations`, `GET/PATCH/DELETE /conversations/[id]`, `POST /conversations/direct`, `GET /discover` |
 | Membership | `GET/POST /conversations/[id]/members`, `DELETE /conversations/[id]/members/[userId]`, `PATCH /conversations/[id]/owner`, `POST /conversations/[id]/join`, `GET/POST /conversations/[id]/join-requests` |
 | Invites | `POST /conversations/[id]/invites`, `GET/POST /invites/[code]` |
@@ -414,8 +417,9 @@ Written down rather than glossed over:
   per-request nonces, which would opt every static page into dynamic rendering.
   The directives that cost nothing — `object-src 'none'`, `base-uri`,
   `frame-ancestors`, `form-action` — are all set.
-- **Search uses trigram `ILIKE`.** Fast into the millions of rows with the
-  indexes in `security.sql`; swap for `tsvector` if you need ranking.
+- **Search does not normalise accents.** The `simple` text search config is
+  deliberate — the content mixes Spanish and English, and picking one language's
+  stemmer degrades the other — but it means «orion» does not find «Orión».
 - **Outbound email goes through Gmail SMTP**, capped around 500 messages a day.
   Fine for a beta, and the ceiling to watch first.
 - **Voice notes record to WebM**, which older iOS Safari does not produce; the
@@ -427,4 +431,3 @@ Written down rather than glossed over:
 - **There are logs but no metrics.** No latency histograms, no traces, no error
   budget. `/api/health` reports one database round trip and that is the whole of
   the instrumentation.
-- **Search results are not paginated** and rank by recency, not relevance.
