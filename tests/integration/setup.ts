@@ -65,17 +65,27 @@ export async function makeConversation(
  * reproduce it by accident in the suite. The test that *wants* a collision
  * writes its own timestamps.
  */
+/**
+ * Un reloj compartido por toda la tanda, que empieza en el pasado y avanza.
+ *
+ * Compartido y no por llamada: dos llamadas seguidas partiendo de `Date.now()`
+ * se solapan, y el segundo lote acaba antes que el primero. En el pasado porque
+ * marcar como leído usa la hora real, y un mensaje escrito en el futuro seguiría
+ * contando como no leído para siempre.
+ */
+let clock = Date.now() - 60 * 60_000;
+const nextInstant = () => new Date((clock += 1_000));
+
 export async function sendMessages(
   conversationId: string,
   authorId: string,
   contents: string[],
 ) {
-  const base = Date.now();
   const messages = [];
-  for (const [index, content] of contents.entries()) {
+  for (const content of contents) {
     messages.push(
       await prisma.message.create({
-        data: { conversationId, authorId, content, createdAt: new Date(base + index * 1000) },
+        data: { conversationId, authorId, content, createdAt: nextInstant() },
       }),
     );
   }
