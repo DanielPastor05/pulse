@@ -16,8 +16,15 @@ await requireServer();
 
 const alice = await makeUser('alice');
 const mallory = await makeUser('mallory');
+// Section 2 exhausts Mallory's send budget on purpose, and the limiter counts
+// per user. Everything after it that needs to send messages uses this third
+// account instead of racing the window — which is what happened when the app
+// got faster: the suite started reaching section 4 while Mallory was still
+// rate limited, and four unrelated guarantees reported failure.
+const sender = await makeUser('sender');
 await onboard(alice);
 await onboard(mallory);
+await onboard(sender);
 
 // --- 1. Bloqueo -------------------------------------------------------------
 console.log('\nBloqueo: Alice bloquea a Mallory');
@@ -169,7 +176,7 @@ console.log('\nEnvio: reintentar con el mismo clientId no duplica');
 
 const idemConv = await api('/api/conversations', {
   method: 'POST',
-  actor: mallory,
+  actor: sender,
   body: { name: 'Sala idempotente', accent: 'electric', memberIds: [] },
 });
 const idemId = (idemConv.json?.conversation ?? idemConv.json)?.id;
@@ -178,19 +185,19 @@ const cuerpo = { content: 'Mensaje que se reintenta', clientId };
 
 const primera = await api(`/api/conversations/${idemId}/messages`, {
   method: 'POST',
-  actor: mallory,
+  actor: sender,
   body: cuerpo,
 });
 check('el primer envio entra', primera.status, 201);
 
 const reintento = await api(`/api/conversations/${idemId}/messages`, {
   method: 'POST',
-  actor: mallory,
+  actor: sender,
   body: cuerpo,
 });
 check('el reintento no da error', reintento.status === 201 || reintento.status === 200, true);
 
-const historial = await api(`/api/conversations/${idemId}/messages`, { actor: mallory });
+const historial = await api(`/api/conversations/${idemId}/messages`, { actor: sender });
 const mios = (historial.json?.items ?? []).filter((m) => m.content === 'Mensaje que se reintenta');
 check('cuantas copias hay en el historial', mios.length, 1);
 
@@ -201,7 +208,7 @@ const simultaneos = await Promise.all(
   Array.from({ length: 4 }, () =>
     api(`/api/conversations/${idemId}/messages`, {
       method: 'POST',
-      actor: mallory,
+      actor: sender,
       body: { content: 'Cuatro a la vez', clientId: carreraId },
     }),
   ),
@@ -212,7 +219,7 @@ check(
   0,
 );
 
-const trasCarrera = await api(`/api/conversations/${idemId}/messages`, { actor: mallory });
+const trasCarrera = await api(`/api/conversations/${idemId}/messages`, { actor: sender });
 const copias = (trasCarrera.json?.items ?? []).filter((m) => m.content === 'Cuatro a la vez');
 check('copias tras cuatro envios simultaneos', copias.length, 1);
 
@@ -224,13 +231,13 @@ console.log('\nEnlaces: el servidor no va a buscar direcciones internas');
 async function previewOf(texto) {
   const enviado = await api(`/api/conversations/${idemId}/messages`, {
     method: 'POST',
-    actor: mallory,
+    actor: sender,
     body: { content: texto },
   });
   if (enviado.status !== 201) throw new Error(`envio -> ${enviado.status}`);
   // La resolucion ocurre despues de la respuesta, a proposito.
   await new Promise((resolve) => setTimeout(resolve, 2_500));
-  const historial = await api(`/api/conversations/${idemId}/messages`, { actor: mallory });
+  const historial = await api(`/api/conversations/${idemId}/messages`, { actor: sender });
   const encontrado = (historial.json?.items ?? []).find((m) => m.id === (enviado.json?.id ?? ''));
   return encontrado?.linkPreview ?? null;
 }
