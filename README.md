@@ -9,7 +9,7 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 | | |
 | --- | --- |
-| **Automated checks** | 171 — 41 unit, 30 integration against a real Postgres, 6 browser smoke tests, 94 end-to-end against the deployed instance |
+| **Automated checks** | 176 — 41 unit, 35 integration against a real Postgres, 6 browser smoke tests, 94 end-to-end against the deployed instance |
 | **Row Level Security** | 20 policies, one per table, enforced independently of the API |
 | **Search latency** | 6035 ms → 314 ms p50, measured before and after ([how](#making-search-nineteen-times-faster)) |
 | **Database round trip** | 1230 ms → 16 ms, after moving the functions to the database's region |
@@ -123,6 +123,27 @@ true, just no longer paid for in latency.
 
 **13.5 s → 1.48 s p50**, with delivery still at 100% and 2.4 s. Reproduce with
 `npm run bench:load`.
+
+### A race the schema had already admitted to
+
+`PollVote` carried a comment explaining that "one vote per *poll*" lived in the
+service, because the votes table only knew about options. That was true, and it
+was not enough: read-then-write inside a transaction guarantees nothing under
+`read committed`. Two taps on different options of a single-answer poll both
+read the same state, both delete, both insert — and the poll silently counts two
+answers where one belongs. No error anywhere.
+
+Message sending had the identical problem and it was closed with a unique index.
+The pattern was solved in one place and left open in the other.
+
+The table *can* know the poll: `singleChoicePollId` is written only when the poll
+takes one answer, and a unique index on `(userId, singleChoicePollId)` does the
+rest. Multiple-answer polls leave it null, and Postgres treats two nulls as
+distinct, so the same constraint does not touch them.
+
+Losing the race retries once, so the most recent tap wins instead of a double
+click returning an error. Verified against production: both requests answer 200,
+and the poll ends with exactly one vote.
 
 ### Realtime channels were public
 
@@ -278,11 +299,11 @@ no second round trip to render a new message.
 
 ## Testing
 
-171 checks, in four layers.
+176 checks, in four layers.
 
 ```bash
 npm test                  # 41 unit tests — pure logic, no I/O
-npm run test:integration  # 30 tests against a real Postgres
+npm run test:integration  # 35 tests against a real Postgres
 npm run test:smoke        # 6 browser checks against the production build
 npm run test:e2e          # 94 checks against a running server + real Supabase
 ```
