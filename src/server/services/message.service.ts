@@ -201,39 +201,58 @@ export async function sendMessage(
 
   const preview = previewOf({ content, attachmentCount: input.attachments.length });
 
-  await Promise.all([
-    // Una sola sentencia, y con guarda de monotonía: si dos envíos terminan
-    // desordenados, el más viejo no puede hacer retroceder la marca. `updateMany`
-    // y no `update` porque la condición forma parte del `where`, así que la fila
-    // ni siquiera se toca cuando ya está por delante.
-    prisma.conversation.updateMany({
-      where: { id: conversationId, lastMessageAt: { lt: created.createdAt } },
-      data: { lastMessageAt: created.createdAt },
-    }),
-    broadcastToConversation(conversationId, realtimeEvents.messageCreated, {
-      message: dto,
-      clientId: input.clientId ?? null,
-    }),
-    broadcastToUsers(memberIds, realtimeEvents.inboxUpdated, { conversationId }),
-    notify({
-      userIds: mentionedIds,
-      kind: 'MENTION',
-      title: `${author.displayName} mentioned you`,
-      body: preview,
-      actorId: author.id,
-      conversationId,
-      messageId: created.id,
-    }),
-    notify({
-      userIds: memberIds.filter((id) => !mentionedIds.includes(id)),
-      kind: 'MESSAGE',
-      title: author.displayName,
-      body: preview,
-      actorId: author.id,
-      conversationId,
-      messageId: created.id,
-    }),
-  ]);
+  // Una sola sentencia, y con guarda de monotonía: si dos envíos terminan
+  // desordenados, el más viejo no puede hacer retroceder la marca. `updateMany`
+  // y no `update` porque la condición forma parte del `where`, así que la fila
+  // ni siquiera se toca cuando ya está por delante.
+  await prisma.conversation.updateMany({
+    where: { id: conversationId, lastMessageAt: { lt: created.createdAt } },
+    data: { lastMessageAt: created.createdAt },
+  });
+
+  /**
+   * El reparto no bloquea la respuesta.
+   *
+   * Avisar a los demás cuesta un mensaje de realtime por destinatario, más los
+   * de notificación: en un grupo de once eran más de veinte por cada envío.
+   * Esperarlos convertía el tamaño del grupo en latencia de quien escribe, y se
+   * midió: diez emisores simultáneos en la misma sala tardaban 13,4 s en recibir
+   * el 201, mientras el mensaje ya había llegado al destinatario a los 1,8 s.
+   * Es decir, la petición pasaba once segundos esperando trabajo que al emisor
+   * no le sirve de nada.
+   *
+   * El mensaje está a salvo en la base de datos antes de llegar aquí, así que
+   * lo único que se pospone es a quién se le cuenta. Si el reparto falla, el
+   * registro lo dice y el cliente se recupera al reenfocar la pestaña — que es
+   * exactamente la garantía que ya teníamos, ahora sin pagarla en latencia.
+   */
+  after(async () => {
+    await Promise.all([
+      broadcastToConversation(conversationId, realtimeEvents.messageCreated, {
+        message: dto,
+        clientId: input.clientId ?? null,
+      }),
+      broadcastToUsers(memberIds, realtimeEvents.inboxUpdated, { conversationId }),
+      notify({
+        userIds: mentionedIds,
+        kind: 'MENTION',
+        title: `${author.displayName} mentioned you`,
+        body: preview,
+        actorId: author.id,
+        conversationId,
+        messageId: created.id,
+      }),
+      notify({
+        userIds: memberIds.filter((id) => !mentionedIds.includes(id)),
+        kind: 'MESSAGE',
+        title: author.displayName,
+        body: preview,
+        actorId: author.id,
+        conversationId,
+        messageId: created.id,
+      }),
+    ]);
+  });
 
   // Deliberately after the response: resolving a link means waiting on somebody
   // else's server, and no chat message should be held up by a slow website.
