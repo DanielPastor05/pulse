@@ -490,10 +490,21 @@ model PollVote {
 
   createdAt DateTime @default(now())
 
-  /// Voting twice for the same option is a double click, not two votes. Single
-  /// choice is enforced in the service, which is where "one *per poll*" lives —
-  /// the database can only see options from here.
+  /// La encuesta a la que pertenece este voto, **sólo si admite una respuesta**.
+  ///
+  /// Existe para que «un voto por encuesta» sea una restricción y no una regla
+  /// de la aplicación. Antes vivía en el servicio, que leía y luego escribía: dos
+  /// toques simultáneos en opciones distintas se intercalaban y dejaban dos votos
+  /// en una pregunta de respuesta única.
+  ///
+  /// Es null cuando la encuesta admite varias, y Postgres considera distintos
+  /// dos NULL en un índice único — así que la misma restricción no estorba a las
+  /// de opción múltiple, que sí deben poder acumular votos.
+  singleChoicePollId String? @db.Uuid
+
+  /// Votar dos veces la misma opción es un doble clic, no dos votos.
   @@unique([optionId, userId])
+  @@unique([userId, singleChoicePollId])
   @@index([userId])
   @@map("poll_votes")
 }

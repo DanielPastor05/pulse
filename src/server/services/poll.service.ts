@@ -1,4 +1,4 @@
-import type { User } from '@prisma/client';
+import { Prisma, type User } from '@prisma/client';
 
 import { prisma } from '@/lib/prisma';
 import { realtimeEvents } from '@/lib/realtime';
@@ -72,12 +72,22 @@ export async function createPoll(
 }
 
 /**
- * Casts or withdraws a vote.
+ * Emite o retira un voto.
  *
- * Single-choice is enforced here rather than by a constraint because the
- * database cannot express "one vote per *poll*" — the votes table only knows
- * about options. Doing it in one transaction is what stops two quick taps
- * leaving somebody with two answers to a single-choice question.
+ * «Un voto por encuesta» lo garantiza una restricción, no este código.
+ *
+ * Antes se hacía sólo aquí, con el argumento de que la tabla de votos sólo
+ * conoce opciones y no encuestas. Era cierto y aun así insuficiente: leer y
+ * después escribir dentro de una transacción no impide nada en `read
+ * committed`, porque dos toques simultáneos en opciones distintas leen ambos el
+ * mismo estado, ambos borran y ambos insertan. El resultado eran dos respuestas
+ * a una pregunta de respuesta única, sin ningún error a la vista.
+ *
+ * La tabla sí puede conocer la encuesta: `singleChoicePollId` la guarda cuando
+ * —y sólo cuando— admite una respuesta, y el índice único sobre
+ * `(userId, singleChoicePollId)` hace el resto. Es el mismo movimiento que
+ * arregló el envío duplicado de mensajes: la invariante baja a donde no se
+ * puede saltar.
  */
 export async function votePoll(
   messageId: string,
@@ -102,27 +112,54 @@ export async function votePoll(
     throw errors.badRequest('That option is not part of this poll.');
   }
 
-  await prisma.$transaction(async (tx) => {
-    const existing = await tx.pollVote.findUnique({
-      where: { optionId_userId: { optionId, userId: user.id } },
-      select: { id: true },
+  const write = () =>
+    prisma.$transaction(async (tx) => {
+      const existing = await tx.pollVote.findUnique({
+        where: { optionId_userId: { optionId, userId: user.id } },
+        select: { id: true },
+      });
+
+      // Tapping your own answer again takes it back, which is what people expect
+      // and the only way to undo a vote.
+      if (existing) {
+        await tx.pollVote.delete({ where: { id: existing.id } });
+        return;
+      }
+
+      if (!poll.multiple) {
+        await tx.pollVote.deleteMany({
+          where: { userId: user.id, option: { pollId: poll.id } },
+        });
+      }
+
+      await tx.pollVote.create({
+        data: {
+          optionId,
+          userId: user.id,
+          // Sólo se rellena en las de respuesta única: es lo que activa la
+          // restricción `(userId, singleChoicePollId)`. En las múltiples queda
+          // null, y Postgres no considera iguales dos null.
+          singleChoicePollId: poll.multiple ? null : poll.id,
+        },
+      });
     });
 
-    // Tapping your own answer again takes it back, which is what people expect
-    // and the only way to undo a vote.
-    if (existing) {
-      await tx.pollVote.delete({ where: { id: existing.id } });
-      return;
+  try {
+    await write();
+  } catch (error) {
+    // Dos toques a la vez en opciones distintas. La restricción hizo justo su
+    // trabajo — impedir el segundo voto — y quien perdió la carrera es el toque
+    // más reciente, que es el que la persona quiere que valga.
+    //
+    // Reintentar una vez basta: al repetir, el voto del ganador ya existe, el
+    // `deleteMany` se lo lleva y esta vez el insert entra. No hay bucle porque
+    // sólo dos escrituras compiten, y la segunda ya no encuentra conflicto.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      await write();
+    } else {
+      throw error;
     }
-
-    if (!poll.multiple) {
-      await tx.pollVote.deleteMany({
-        where: { userId: user.id, option: { pollId: poll.id } },
-      });
-    }
-
-    await tx.pollVote.create({ data: { optionId, userId: user.id } });
-  });
+  }
 
   const dto = await getMessageOrThrow(messageId, user.id);
   await broadcastToConversation(poll.message.conversationId, realtimeEvents.messageUpdated, {
