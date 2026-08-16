@@ -8,6 +8,9 @@ const PUBLIC_PREFIXES = [
   '/reset-password',
   '/auth',
   '/invite',
+  // Whatever polls this — orchestrator, uptime monitor, load balancer — has no
+  // session, and a health check that needs one cannot report that auth is down.
+  '/api/health',
 ];
 
 const AUTH_ONLY_PAGES = ['/login', '/register', '/forgot-password'];

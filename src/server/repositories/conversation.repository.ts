@@ -11,24 +11,43 @@ import {
 } from '@/server/repositories/selectors';
 import type { ConversationDetail, ConversationSummary } from '@/types/dto';
 
-const summaryInclude = {
-  members: { include: { user: { select: publicUserSelect } } },
-  _count: { select: { members: true } },
-  messages: {
-    where: { deletedAt: null },
-    orderBy: { createdAt: 'desc' as const },
-    take: 1,
-    select: {
-      id: true,
-      content: true,
-      createdAt: true,
-      author: { select: { displayName: true } },
-      _count: { select: { attachments: true } },
+/**
+ * Everything a conversation summary needs, and nothing else.
+ *
+ * `members` is deliberately one row, not all of them. The only thing a summary
+ * does with members is resolve the other person in a direct chat — the member
+ * count comes from `_count`. Including the whole list meant that rendering the
+ * sidebar for somebody in a five-hundred-person group loaded five hundred user
+ * rows to display one name.
+ *
+ * Hence the parameter: the row we want is the first member who is not the
+ * viewer, which cannot be expressed without knowing who is looking.
+ */
+const summaryInclude = (viewerId: string) =>
+  ({
+    members: {
+      where: { userId: { not: viewerId } },
+      take: 1,
+      include: { user: { select: publicUserSelect } },
     },
-  },
-} satisfies Prisma.ConversationInclude;
+    _count: { select: { members: true } },
+    messages: {
+      where: { deletedAt: null },
+      orderBy: { createdAt: 'desc' as const },
+      take: 1,
+      select: {
+        id: true,
+        content: true,
+        createdAt: true,
+        author: { select: { displayName: true } },
+        _count: { select: { attachments: true } },
+      },
+    },
+  }) satisfies Prisma.ConversationInclude;
 
-type ConversationRow = Prisma.ConversationGetPayload<{ include: typeof summaryInclude }>;
+type ConversationRow = Prisma.ConversationGetPayload<{
+  include: ReturnType<typeof summaryInclude>;
+}>;
 
 /** Unread counts for many conversations in one round trip. */
 async function unreadCounts(userId: string, conversationIds: string[]) {
@@ -51,9 +70,10 @@ async function unreadCounts(userId: string, conversationIds: string[]) {
   return new Map(rows.map((row) => [row.conversationId, Number(row.count)]));
 }
 
-function resolvePeer(conversation: ConversationRow, viewerId: string): PublicUserRow | null {
+/** `members` is already filtered to the one row that is not the viewer. */
+function resolvePeer(conversation: ConversationRow): PublicUserRow | null {
   if (conversation.type !== 'DIRECT') return null;
-  return conversation.members.find((member) => member.userId !== viewerId)?.user ?? null;
+  return conversation.members[0]?.user ?? null;
 }
 
 export function toSummary(
@@ -65,7 +85,7 @@ export function toSummary(
   viewerId: string,
   unread: number,
 ): ConversationSummary {
-  const peer = resolvePeer(conversation, viewerId);
+  const peer = resolvePeer(conversation);
   const lastMessage = conversation.messages[0] ?? null;
 
   return {
@@ -104,7 +124,7 @@ export async function listConversations(
 ): Promise<ConversationSummary[]> {
   const memberships = await prisma.conversationMember.findMany({
     where: { userId, archived: filter.archived ?? false },
-    include: { conversation: { include: summaryInclude } },
+    include: { conversation: { include: summaryInclude(userId) } },
     // No cursor here, so nothing can be dropped — but `lastMessageAt` is null
     // for conversations nobody has written in yet, and ties would come back in
     // arbitrary order, making the list reshuffle between renders.
@@ -149,7 +169,7 @@ export async function getConversationDetail(
 
   const conversation = await prisma.conversation.findUnique({
     where: { id: conversationId },
-    include: { ...summaryInclude, joinRequests: { where: { status: 'PENDING' }, select: { id: true } } },
+    include: { ...summaryInclude(userId), joinRequests: { where: { status: 'PENDING' }, select: { id: true } } },
   });
   if (!conversation) throw errors.notFound('Conversation not found.');
 
@@ -204,7 +224,7 @@ export async function getSummariesFor(
 
   const memberships = await prisma.conversationMember.findMany({
     where: { userId, conversationId: { in: conversationIds } },
-    include: { conversation: { include: summaryInclude } },
+    include: { conversation: { include: summaryInclude(userId) } },
   });
 
   const unread = await unreadCounts(
