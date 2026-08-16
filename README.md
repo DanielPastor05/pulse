@@ -7,18 +7,13 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 **Live:** https://pulse-blond-two.vercel.app
 
-<!-- SCREENSHOTS -->
-<!--
-  TODO(dani): añade aquí las capturas antes de enseñar el repositorio.
-  Sugerencia de orden y de qué debe verse:
-    docs/screenshots/chat.png      — una conversación con mensajes, reacciones
-                                     y un adjunto. Que NO salga vacía.
-    docs/screenshots/realtime.gif  — dos ventanas lado a lado y un mensaje
-                                     apareciendo en la otra sin recargar.
-                                     Es lo que mejor vende el proyecto.
-    docs/screenshots/discover.png  — comunidades públicas.
-  Y bórrate este comentario.
--->
+| | |
+| --- | --- |
+| **Automated checks** | 147 — 35 unit, 18 integration against a real Postgres in CI, 94 end-to-end against the deployed instance |
+| **Row Level Security** | 20 policies, one per table, enforced independently of the API |
+| **Search latency** | 6035 ms → 314 ms p50, measured before and after ([how](#making-search-nineteen-times-faster)) |
+| **Database round trip** | 1230 ms → 16 ms, after moving the functions to the database's region |
+| **API surface** | 46 endpoints, 45 of them behind `requireUser`; the exception runs before a profile exists |
 
 ---
 
@@ -44,6 +39,45 @@ instance, not against mocks.
 The interesting part of this project is not the feature list. It is a handful of
 problems that were wrong in a way that still looked right, and what was done
 about them. Each of these is a real commit.
+
+### Making search nineteen times faster
+
+Search took **6035 ms** at p50 for an account in twenty conversations. The
+obvious culprit was an N+1: the endpoint resolved each matching conversation
+with a helper that issues two queries, so a page of twenty results meant forty
+sequential round trips. Batching them into two queries — the same aggregate the
+conversation list already used — brought it to **4869 ms**.
+
+A 19% win for removing 95% of the queries is not a win, it is a hint that the
+diagnosis was wrong. So the next step was to stop guessing and measure the parts
+separately, by benchmarking each search scope on its own:
+
+| scope | p50 | of which network |
+| --- | --- | --- |
+| `users` | 1816 ms | 130 ms |
+| `files` | 1737 ms | 130 ms |
+| `messages` | 2940 ms | 130 ms |
+| `conversations` | 3687 ms | 130 ms |
+
+Every branch was slow, including the ones doing almost nothing. That pattern —
+uniform slowness proportional to query *count* rather than query *cost* — points
+at latency per round trip, not at any single query. A `/api/health` endpoint
+reporting the time of a bare `select 1` confirmed it: **1230 ms**, from region
+`iad1`.
+
+The functions were running in Washington. The database is in Frankfurt. Vercel
+defaults new projects to `iad1` and nothing had ever changed it, so every query
+in the application had been crossing the Atlantic, and any request issuing ten
+of them paid a second in travel alone.
+
+The fix is three lines of `vercel.json`. The bare `select 1` went from 1230 ms
+to **16 ms**, and search to **314 ms** p50 — of which 130 ms is the benchmark
+machine's own distance to the edge.
+
+The N+1 was real and worth fixing. It was also 6% of the problem, and would have
+stayed the accepted explanation without a measurement that disagreed.
+
+Reproduce with `npm run bench:search`.
 
 ### Realtime channels were public
 
@@ -199,11 +233,12 @@ no second round trip to render a new message.
 
 ## Testing
 
-121 checks, in two layers.
+147 checks, in three layers.
 
 ```bash
-npm test          # 35 unit tests — pure logic, no I/O
-npm run test:e2e  # 86 checks against a running server + real Supabase
+npm test                  # 35 unit tests — pure logic, no I/O
+npm run test:integration  # 18 tests against a real Postgres
+npm run test:e2e          # 94 checks against a running server + real Supabase
 ```
 
 The unit tests cover the things where an edge case is the whole point: URL
@@ -211,6 +246,15 @@ protocol validation, the SSRF address rules including the `172.16/12` boundary
 and IPv4-mapped IPv6, Open Graph parsing, the Sentry scrubbing, the offline
 queue against corrupt and full storage, and the invariant that keeps calls
 connecting — that of any two peers, exactly one yields on a collision.
+
+The integration tests exercise the repository layer — where the query logic
+lives — against a disposable Postgres, so they can assert things no unit test
+can reach: that unread counts exclude your own messages and drop deleted ones,
+that pagination neither skips nor repeats when twelve messages share a
+millisecond, that replying does not hide a message from the main view, and that
+the unique index really does refuse a second send with the same `clientId`
+while still allowing a different author to reuse it. They refuse to run if
+`DATABASE_URL` looks like the deployed database.
 
 The end-to-end suites talk to a **real** server, database, auth and object
 storage. That is deliberate: what they check — block enforcement, rate limiting,
@@ -223,10 +267,16 @@ way out.
 E2E_APP_URL=https://pulse-blond-two.vercel.app npm run test:e2e
 ```
 
-**CI runs typecheck, lint, unit tests and build on every push.** The end-to-end
-suites are excluded on purpose: they need a live server and real credentials,
-and they create real accounts — running them on every push would fill the
-production database with test data.
+**CI runs typecheck, lint, unit tests, integration tests and build on every
+push**, against a throwaway Postgres it starts for the run. Applying the
+migrations to that empty database is itself a test: it caught that the baseline
+migration declared five trigram indexes without creating the `pg_trgm`
+extension they need, which had never surfaced because Supabase ships it
+installed.
+
+The end-to-end suites are excluded on purpose: they need a live server and real
+credentials, and they create real accounts — running them on every push would
+fill the production database with test data.
 
 ---
 
@@ -235,9 +285,22 @@ production database with test data.
 ```bash
 npm install
 cp .env.example .env   # then fill it in
-npm run db:push
+npm run db:deploy      # applies prisma/migrations
 npm run dev
 ```
+
+For the database alone — enough to run the integration tests, not the app:
+
+```bash
+docker compose up -d
+DATABASE_URL=postgresql://pulse:pulse@localhost:5432/pulse npm run db:deploy
+DATABASE_URL=postgresql://pulse:pulse@localhost:5432/pulse npm run test:integration
+```
+
+There is also a `Dockerfile` that builds a production image. Be aware of what it
+cannot do: auth, realtime and object storage are Supabase, so a container still
+needs a project. What Docker buys here is a reproducible build and a local
+database, not a self-contained stack.
 
 `.env.example` documents every variable and which are optional. The short
 version: Supabase URL and keys plus two Postgres connection strings are
@@ -246,8 +309,13 @@ optional and the app runs without them.
 
 Both connection strings go through Supavisor, the Supabase pooler. `DATABASE_URL`
 uses transaction mode on port 6543 with `connection_limit=10`; `DIRECT_URL` uses
-session mode on 5432, which `prisma db push` needs because the pooler does not
-support the protocol it speaks.
+session mode on 5432, which migrations need because the pooler does not support
+the protocol they speak.
+
+Schema changes ship as migrations under `prisma/migrations`, applied with
+`npm run db:deploy`. The initial one was generated from the schema and baselined
+against the deployed database after `migrate diff` confirmed there was no drift,
+so no data was ever touched to introduce it.
 
 `prisma/sql/security.sql` is the reproducible source of truth for everything
 Prisma cannot express: RLS policies, the realtime authorisation rules, storage
@@ -257,10 +325,31 @@ trigger.
 ### Scripts
 
 ```bash
-npm run dev         npm run build       npm run start
-npm run typecheck   npm run lint        npm test
-npm run test:e2e    npm run db:push     npm run db:studio
+npm run dev              npm run build            npm run start
+npm run typecheck        npm run lint             npm test
+npm run test:integration npm run test:e2e         npm run bench:search
+npm run db:migrate       npm run db:deploy        npm run db:studio
 ```
+
+### API
+
+46 endpoints, all JSON, all but `/api/health` requiring a session. Errors share
+one shape: `{ error, code, details? }`.
+
+| Area | Endpoints |
+| --- | --- |
+| Session & profile | `GET/PATCH /me`, `POST /me/onboarding`, `GET /users/[username]`, `GET /users/search`, `POST /presence` |
+| Conversations | `GET/POST /conversations`, `GET/PATCH/DELETE /conversations/[id]`, `POST /conversations/direct`, `GET /discover` |
+| Membership | `GET/POST /conversations/[id]/members`, `DELETE /conversations/[id]/members/[userId]`, `PATCH /conversations/[id]/owner`, `POST /conversations/[id]/join`, `GET/POST /conversations/[id]/join-requests` |
+| Invites | `POST /conversations/[id]/invites`, `GET/POST /invites/[code]` |
+| Messages | `GET/POST /conversations/[id]/messages`, `PATCH/DELETE /messages/[id]`, `POST /messages/[id]/forward`, `GET /messages/[id]/thread`, `POST /messages/[id]/star`, `POST /messages/[id]/pin`, `PUT /messages/[id]/reactions`, `GET /messages/starred` |
+| Polls | `POST /conversations/[id]/polls`, `POST /messages/[id]/poll` |
+| Media & search | `POST /uploads`, `GET /conversations/[id]/gallery`, `GET /search`, `GET /gifs` |
+| Social | `GET/POST /relationships`, `PATCH/DELETE /relationships/[id]`, `POST /blocks` |
+| Moderation | `POST /messages/[id]/report`, `GET /conversations/[id]/reports`, `PATCH /reports/[id]` |
+| Notifications | `GET /notifications`, `PATCH /notifications/[id]`, `POST/DELETE /push/subscriptions` |
+| Calls | `GET /calls/ice`, `POST /conversations/[id]/calls`, `POST /conversations/[id]/calls/[callId]/reject` |
+| Operations | `GET /health` — the only unauthenticated route |
 
 ---
 
@@ -287,3 +376,11 @@ Written down rather than glossed over:
   Fine for a beta, and the ceiling to watch first.
 - **Voice notes record to WebM**, which older iOS Safari does not produce; the
   recorder falls back to whatever `MediaRecorder` offers.
+- **Realtime delivery is best effort.** The server broadcasts over HTTP and does
+  not retry: if that call fails, the message is safely in the database but does
+  not appear live until the recipient refocuses the tab. Structured logging makes
+  the failure visible; nothing yet makes it recoverable.
+- **There are logs but no metrics.** No latency histograms, no traces, no error
+  budget. `/api/health` reports one database round trip and that is the whole of
+  the instrumentation.
+- **Search results are not paginated** and rank by recency, not relevance.
