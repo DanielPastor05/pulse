@@ -56,21 +56,27 @@ export async function makeConversation(
 }
 
 /**
- * Writes messages one at a time rather than with `createMany`.
+ * Writes messages a second apart, oldest first.
  *
- * `createdAt` defaults to the insert moment, and a batch insert lands them all
- * inside the same millisecond — which is exactly the collision the cursor test
- * needs to be able to produce on purpose.
+ * The timestamps are explicit rather than left to `now()`. Inserts this fast
+ * share a millisecond, ties are then broken by a random uuid, and any test
+ * asserting an order becomes a coin flip — which is exactly the failure the
+ * cursor's `id` tiebreaker exists to prevent in production, and no reason to
+ * reproduce it by accident in the suite. The test that *wants* a collision
+ * writes its own timestamps.
  */
 export async function sendMessages(
   conversationId: string,
   authorId: string,
   contents: string[],
 ) {
+  const base = Date.now();
   const messages = [];
-  for (const content of contents) {
+  for (const [index, content] of contents.entries()) {
     messages.push(
-      await prisma.message.create({ data: { conversationId, authorId, content } }),
+      await prisma.message.create({
+        data: { conversationId, authorId, content, createdAt: new Date(base + index * 1000) },
+      }),
     );
   }
   return messages;
