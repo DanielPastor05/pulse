@@ -1,6 +1,14 @@
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
+-- Extensiones
+--
+-- Añadido a mano: `migrate diff` no emite las extensiones, y los cinco índices
+-- GIN de más abajo declaran `gin_trgm_ops`, que no existe sin esto. Supabase la
+-- trae instalada, así que el fallo sólo aparece sobre un Postgres limpio — que
+-- es precisamente lo que el CI levanta, y por lo que se detectó.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 -- CreateEnum
 CREATE TYPE "Presence" AS ENUM ('ONLINE', 'IDLE', 'DND', 'OFFLINE');
 
