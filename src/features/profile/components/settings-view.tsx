@@ -22,6 +22,7 @@ import {
 import { toast } from 'sonner';
 
 import { cn } from '@/lib/utils';
+import { AccountDangerZone } from '@/features/profile/components/account-danger-zone';
 import { updateProfileSchema, type UpdateProfileInput } from '@/features/profile/validators';
 import {
   useBlockedUsers,
@@ -115,54 +116,61 @@ function ProfileTab() {
   const values = watch();
 
   return (
-    <form
-      onSubmit={handleSubmit((input) => update.mutate(input, { onSuccess: () => reset(input) }))}
-      className="space-y-5"
-    >
-      <Section title="Profile" description="How you appear across every conversation.">
-        <div className="space-y-5">
-          <AvatarPicker
-            value={values.avatarUrl ?? null}
-            name={values.displayName ?? me.displayName}
-            onChange={(url) => setValue('avatarUrl', url, { shouldDirty: true })}
-            size="lg"
-          />
+    <>
+      <form
+        onSubmit={handleSubmit((input) => update.mutate(input, { onSuccess: () => reset(input) }))}
+        className="space-y-5"
+      >
+        <Section title="Profile" description="How you appear across every conversation.">
+          <div className="space-y-5">
+            <AvatarPicker
+              value={values.avatarUrl ?? null}
+              name={values.displayName ?? me.displayName}
+              onChange={(url) => setValue('avatarUrl', url, { shouldDirty: true })}
+              size="lg"
+            />
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Display name" htmlFor="displayName" error={errors.displayName?.message}>
-              <Input id="displayName" {...register('displayName')} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Display name" htmlFor="displayName" error={errors.displayName?.message}>
+                <Input id="displayName" {...register('displayName')} />
+              </Field>
+              <Field label="Username" htmlFor="username" error={errors.username?.message}>
+                <Input
+                  id="username"
+                  {...register('username', {
+                    setValueAs: (value: string) => value.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+                  })}
+                />
+              </Field>
+            </div>
+
+            <Field label="Status" htmlFor="statusText" hint="Shown next to your name">
+              <Input id="statusText" placeholder="Heads down until 4pm" {...register('statusText')} />
             </Field>
-            <Field label="Username" htmlFor="username" error={errors.username?.message}>
-              <Input
-                id="username"
-                {...register('username', {
-                  setValueAs: (value: string) => value.toLowerCase().replace(/[^a-z0-9_]/g, ''),
-                })}
-              />
+
+            <Field
+              label="Bio"
+              htmlFor="bio"
+              hint={`${values.bio?.length ?? 0}/280`}
+              error={errors.bio?.message}
+            >
+              <Textarea id="bio" rows={3} maxLength={280} {...register('bio')} />
             </Field>
           </div>
+        </Section>
 
-          <Field label="Status" htmlFor="statusText" hint="Shown next to your name">
-            <Input id="statusText" placeholder="Heads down until 4pm" {...register('statusText')} />
-          </Field>
-
-          <Field
-            label="Bio"
-            htmlFor="bio"
-            hint={`${values.bio?.length ?? 0}/280`}
-            error={errors.bio?.message}
-          >
-            <Textarea id="bio" rows={3} maxLength={280} {...register('bio')} />
-          </Field>
+        <div className="flex justify-end">
+          <Button type="submit" disabled={!isDirty} loading={update.isPending}>
+            Save changes
+          </Button>
         </div>
-      </Section>
+      </form>
 
-      <div className="flex justify-end">
-        <Button type="submit" disabled={!isDirty} loading={update.isPending}>
-          Save changes
-        </Button>
+      {/* Fuera del formulario: sus botones no deben enviar el perfil. */}
+      <div className="mt-5">
+        <AccountDangerZone />
       </div>
-    </form>
+    </>
   );
 }
 

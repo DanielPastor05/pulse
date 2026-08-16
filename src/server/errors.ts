@@ -17,7 +17,10 @@ export const errors = {
   forbidden: (message = 'You do not have permission to do that.') =>
     new AppError(message, 403, 'forbidden'),
   notFound: (message = 'Not found.') => new AppError(message, 404, 'not_found'),
-  conflict: (message = 'That already exists.') => new AppError(message, 409, 'conflict'),
+  // Acepta detalles porque un conflicto suele ser accionable: no basta con
+  // decir que no se puede, hay que decir qué hay que resolver antes.
+  conflict: (message = 'That already exists.', details?: unknown) =>
+    new AppError(message, 409, 'conflict', details),
   badRequest: (message = 'Invalid request.', details?: unknown) =>
     new AppError(message, 400, 'bad_request', details),
   rateLimited: (message = 'Slow down a little.') => new AppError(message, 429, 'rate_limited'),
