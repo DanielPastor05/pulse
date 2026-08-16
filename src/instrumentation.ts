@@ -11,7 +11,7 @@ import { scrubEvent } from '@/lib/sentry-scrub';
  * otherwise see are the ones on the server, while a client exception still
  * shows up in the console and is caught by the `error.tsx` boundaries.
  *
- * Off unless `NEXT_PUBLIC_SENTRY_DSN` is set, the same way push is off without
+ * Off unless `SENTRY_DSN` is set, the same way push is off without
  * VAPID keys: a clone of this repo has to run without anyone's account.
  */
 export function register() {
@@ -20,7 +20,11 @@ export function register() {
   // middleware bundle for errors that the Node runtime already reports.
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
 
-  const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+  // Sin prefijo `NEXT_PUBLIC_`: el SDK sólo se inicializa aquí, en el servidor,
+  // así que publicarlo incrustaría en cada bundle del navegador un valor que
+  // nadie lee ahí. El día que se añada el SDK de cliente hará falta el prefijo;
+  // hoy sería decir que algo es público sin que lo sea.
+  const dsn = process.env.SENTRY_DSN;
   if (!dsn) return;
 
   Sentry.init({
