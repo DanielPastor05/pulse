@@ -10,7 +10,13 @@ import type { PublicUser, SearchResults } from '@/types/dto';
 
 export type SearchScope = 'all' | 'users' | 'conversations' | 'messages' | 'files';
 
-const EMPTY: SearchResults = { users: [], conversations: [], messages: [], files: [] };
+const EMPTY: SearchResults = {
+  users: [],
+  conversations: [],
+  messages: [],
+  files: [],
+  nextCursor: null,
+};
 
 export function useGlobalSearch(term: string, scope: SearchScope = 'all', enabled = true) {
   const query = useDebouncedValue(term.trim(), 220);

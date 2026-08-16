@@ -233,6 +233,11 @@ model Message {
   kind    MessageKind @default(TEXT)
   content String      @default("")
 
+  /// Columna generada, la mantiene Postgres a partir de `content`. La declara
+  /// el esquema para que una regeneración no la borre, pero la aplicación no la
+  /// escribe nunca: intentarlo sería un error del motor.
+  searchVector Unsupported("tsvector")?
+
   replyToId String?  @db.Uuid
   replyTo   Message? @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies   Message[] @relation("MessageReplies")

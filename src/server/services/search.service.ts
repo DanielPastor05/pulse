@@ -6,7 +6,13 @@ import type { SearchResults } from '@/types/dto';
 
 export type SearchScope = 'all' | 'users' | 'conversations' | 'messages' | 'files';
 
-const EMPTY: SearchResults = { users: [], conversations: [], messages: [], files: [] };
+const EMPTY: SearchResults = {
+  users: [],
+  conversations: [],
+  messages: [],
+  files: [],
+  nextCursor: null,
+};
 
 /**
  * Restricts a search to conversations the viewer belongs to.
@@ -22,6 +28,80 @@ const memberOf = (viewerId: string) => ({
 });
 
 /**
+ * Below this, full text search has nothing to offer.
+ *
+ * `to_tsquery` matches whole lexemes; with one or two letters there is no
+ * lexeme to match and prefix search would return most of the table. Trigram
+ * still finds those inside words, so short queries keep the old path and the
+ * `gin_trgm_ops` index that already serves it.
+ */
+const MIN_FULL_TEXT_LENGTH = 3;
+
+/**
+ * A `tsquery` built from the user's words, with every term as a prefix.
+ *
+ * The prefix is what keeps search usable while typing: without `:*`, «quasa»
+ * finds nothing until the last letter of «quasar» lands. Terms are rebuilt from
+ * letters and digits only, so none of the operators `tsquery` understands —
+ * `&`, `|`, `!`, `(`, `:` — can arrive from the outside and change its meaning.
+ */
+function toPrefixQuery(query: string): string | null {
+  const terms = query.split(/[^\p{L}\p{N}_]+/u).filter(Boolean);
+  if (terms.length === 0) return null;
+  return terms.map((term) => `${term}:*`).join(' & ');
+}
+
+type RankedRow = { id: string; rank: number };
+
+/**
+ * Message ids ordered by how well they match, newest first among equals.
+ *
+ * The cursor carries the rank as well as the id because rank is the primary
+ * sort: paging on the id alone would walk a different order than the one on
+ * screen. `(rank, id)` is total, which is the same reason the conversation
+ * history had to break `createdAt` ties by id.
+ */
+async function rankedMessageIds(
+  viewerId: string,
+  tsquery: string,
+  limit: number,
+  cursor: { rank: number; id: string } | null,
+): Promise<RankedRow[]> {
+  return prisma.$queryRaw<RankedRow[]>`
+    SELECT m."id", ts_rank(m."searchVector", to_tsquery('simple', ${tsquery})) AS rank
+    FROM "messages" m
+    WHERE m."searchVector" @@ to_tsquery('simple', ${tsquery})
+      AND m."deletedAt" IS NULL
+      AND m."kind" = 'TEXT'
+      AND EXISTS (
+        SELECT 1 FROM "conversation_members" cm
+        WHERE cm."conversationId" = m."conversationId" AND cm."userId" = ${viewerId}::uuid
+      )
+      AND (
+        ${cursor === null}::boolean
+        OR (ts_rank(m."searchVector", to_tsquery('simple', ${tsquery})), m."id")
+           < (${cursor?.rank ?? 0}::real, ${cursor?.id ?? ''})
+      )
+    ORDER BY rank DESC, m."id" DESC
+    LIMIT ${limit}
+  `;
+}
+
+/** `rank:id`, opaque to the client and cheap to parse back. */
+export function encodeSearchCursor(row: RankedRow): string {
+  return `${row.rank}:${row.id}`;
+}
+
+function decodeSearchCursor(cursor: string | null | undefined) {
+  if (!cursor) return null;
+  const separator = cursor.indexOf(':');
+  if (separator < 0) return null;
+  const rank = Number(cursor.slice(0, separator));
+  const id = cursor.slice(separator + 1);
+  return Number.isFinite(rank) && id ? { rank, id } : null;
+}
+
+/**
  * One query, four result sets. Everything is scoped to conversations the
  * viewer is actually a member of, so search can never leak private history.
  */
@@ -29,11 +109,24 @@ export async function globalSearch(
   viewerId: string,
   rawQuery: string,
   scope: SearchScope = 'all',
+  cursor?: string | null,
 ): Promise<SearchResults> {
   const query = rawQuery.trim();
   if (query.length < 2) return EMPTY;
 
   const wants = (target: SearchScope) => scope === 'all' || scope === target;
+
+  // Por encima de tres caracteres manda la relevancia; por debajo, el trigrama,
+  // que es lo único que encuentra algo dentro de una palabra a esa longitud.
+  const tsquery = query.length >= MIN_FULL_TEXT_LENGTH ? toPrefixQuery(query) : null;
+  const ranked = tsquery
+    ? await rankedMessageIds(
+        viewerId,
+        tsquery,
+        SEARCH_PAGE_SIZE,
+        decodeSearchCursor(cursor),
+      )
+    : null;
 
   const [users, memberships, messages, attachments] = await Promise.all([
     wants('users')
@@ -70,22 +163,35 @@ export async function globalSearch(
         })
       : Promise.resolve([]),
 
-    wants('messages')
-      ? prisma.message.findMany({
-          where: {
-            ...memberOf(viewerId),
-            deletedAt: null,
-            kind: 'TEXT',
-            content: { contains: query, mode: 'insensitive' },
-          },
-          include: {
-            ...messageInclude(viewerId),
-            conversation: { select: { id: true, name: true, type: true, avatarUrl: true } },
-          },
-          orderBy: { createdAt: 'desc' },
-          take: SEARCH_PAGE_SIZE,
-        })
-      : Promise.resolve([]),
+    // Con relevancia: la consulta de arriba ya decidió el orden, así que aquí
+    // sólo se hidratan esos ids. Sin ella (consultas cortas): trigrama, por
+    // recencia, como antes.
+    !wants('messages')
+      ? Promise.resolve([])
+      : ranked
+        ? ranked.length === 0
+          ? Promise.resolve([])
+          : prisma.message.findMany({
+              where: { id: { in: ranked.map((row) => row.id) } },
+              include: {
+                ...messageInclude(viewerId),
+                conversation: { select: { id: true, name: true, type: true, avatarUrl: true } },
+              },
+            })
+        : prisma.message.findMany({
+            where: {
+              ...memberOf(viewerId),
+              deletedAt: null,
+              kind: 'TEXT',
+              content: { contains: query, mode: 'insensitive' },
+            },
+            include: {
+              ...messageInclude(viewerId),
+              conversation: { select: { id: true, name: true, type: true, avatarUrl: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: SEARCH_PAGE_SIZE,
+          }),
 
     wants('files')
       ? prisma.attachment.findMany({
@@ -114,10 +220,24 @@ export async function globalSearch(
     viewerId,
   );
 
+  // `findMany` con `in` no promete orden, y el que importa lo fijó el ranking.
+  const ordered = ranked
+    ? ranked
+        .map((row) => messages.find((message) => message.id === row.id))
+        .filter((message): message is (typeof messages)[number] => message !== undefined)
+    : messages;
+
   return {
     users: users.map(toPublicUser),
     conversations,
-    messages: messages.map((row) => ({
+    // Sólo hay más páginas cuando la página vino llena: una a medias ya agotó
+    // los resultados, y ofrecer «cargar más» para no traer nada es peor que no
+    // ofrecerlo.
+    nextCursor:
+      ranked && ranked.length === SEARCH_PAGE_SIZE && ranked.at(-1)
+        ? encodeSearchCursor(ranked[ranked.length - 1]!)
+        : null,
+    messages: ordered.map((row) => ({
       message: toMessage(row, viewerId),
       conversation: {
         id: row.conversation.id,

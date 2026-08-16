@@ -234,6 +234,14 @@ export type Paginated<T> = {
 export type SearchResults = {
   users: PublicUser[];
   conversations: ConversationSummary[];
+  /**
+   * Cursor for the next page of message results, or null when there are none.
+   *
+   * Only messages paginate: they are the set that grows without bound. People,
+   * conversations and files are capped at a page because a query matching more
+   * than twenty of those is a query worth rewording.
+   */
+  nextCursor: string | null;
   messages: Array<{
     message: MessageDTO;
     conversation: { id: string; name: string; type: ConversationType; avatarUrl: string | null };
