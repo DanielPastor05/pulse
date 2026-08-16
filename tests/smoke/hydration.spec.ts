@@ -42,7 +42,7 @@ test('la validación de cliente rechaza un correo mal formado sin ir al servidor
 
   // Zod corre en el navegador antes de enviar nada. Ver el mensaje prueba a la
   // vez que el formulario está cableado y que la validación viaja en el bundle.
-  await expect(page.getByText(/valid email/i)).toBeVisible();
+  await expect(page.getByText(/does not look like an email/i)).toBeVisible();
   await expect(page).toHaveURL(/\/login/);
 });
 
