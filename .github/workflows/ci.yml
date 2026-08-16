@@ -82,6 +82,16 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Sólo Chromium y sólo sus dependencias: bajar los tres navegadores
+      # costaría minutos para preguntas que se responden con uno.
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+
+      # Corre contra el build de producción recién hecho. Es la única capa que
+      # comprueba que la aplicación cobra vida en un navegador de verdad.
+      - name: Smoke tests
+        run: npm run test:smoke
+
 # Las pruebas end-to-end no corren aquí a propósito. Necesitan un servidor vivo
 # y un Supabase real, y crean cuentas de verdad: ejecutarlas en cada push
 # llenaría la base de datos de producción de cuentas y mensajes de prueba.

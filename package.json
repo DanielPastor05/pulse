@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test \"src/**/*.test.ts\"",
     "test:integration": "node --import tsx --test \"tests/integration/*.test.ts\"",
+    "test:smoke": "playwright test",
     "test:e2e": "node tests/e2e/security.mjs && node tests/e2e/notifications.mjs && node tests/e2e/realtime.mjs && node tests/e2e/push.mjs",
     "bench:search": "node tests/bench/search.mjs",
     "db:generate": "prisma generate",
@@ -73,6 +74,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@next/bundle-analyzer": "^16.3.0",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.1.13",
     "@types/node": "^24.5.2",
     "@types/react": "^19.1.13",
