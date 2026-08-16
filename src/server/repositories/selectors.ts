@@ -208,6 +208,51 @@ export function toMessage(row: MessageRow, viewerId: string): MessageDTO {
   };
 }
 
+/**
+ * Lo que necesita un mensaje recién escrito, y nada más.
+ *
+ * Un mensaje que acaba de insertarse no puede tener reacciones, marcadores,
+ * respuestas, encuesta ni previsualización de enlace: unas llegan después y
+ * otras entran por su propio endpoint. Pedir `messageInclude` tras el insert es
+ * preguntarle a la base de datos por nueve relaciones para que conteste que
+ * ocho están vacías — y bajo concurrencia eso era la mayor parte de los viajes
+ * que hacía un envío.
+ *
+ * Sólo se cargan las dos que sí pueden existir desde el primer instante, y sólo
+ * cuando el mensaje las declara.
+ */
+export const freshMessageInclude = {
+  author: { select: publicUserSelect },
+  attachments: { orderBy: { createdAt: 'asc' as const } },
+  replyTo: { select: messageReferenceSelect },
+  forwardedFrom: { select: messageReferenceSelect },
+} satisfies Prisma.MessageInclude;
+
+type FreshMessageRow = Prisma.MessageGetPayload<{ include: typeof freshMessageInclude }>;
+
+export function toFreshMessage(row: FreshMessageRow): MessageDTO {
+  return {
+    id: row.id,
+    conversationId: row.conversationId,
+    kind: row.kind,
+    content: row.content,
+    author: row.author ? toPublicUser(row.author) : null,
+    createdAt: row.createdAt.toISOString(),
+    editedAt: null,
+    deletedAt: null,
+    pinnedAt: null,
+    replyTo: toMessageReference(row.replyTo),
+    forwardedFrom: toMessageReference(row.forwardedFrom),
+    attachments: row.attachments.map(toAttachment),
+    // Vacíos por construcción, no por no haber mirado.
+    reactions: [],
+    starred: false,
+    replyCount: 0,
+    linkPreview: null,
+    poll: null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Members
 // ---------------------------------------------------------------------------

@@ -38,6 +38,15 @@ const SETTLE_MS = Number(process.env.BENCH_SETTLE_MS ?? 4_000);
  * receptor no escucha.
  */
 const SPREAD = process.env.BENCH_SPREAD === '1';
+/**
+ * `BENCH_MUTE=1` silencia la conversación para todo el mundo antes de medir.
+ *
+ * El segundo experimento: `notify()` sale por la puerta rápida cuando nadie
+ * quiere el aviso, así que si silenciar arregla la latencia el cuello es el
+ * fan-out de notificaciones y no la escritura del mensaje. Mide lo mismo con el
+ * mismo número de miembros, que es lo que le faltaba a `BENCH_SPREAD`.
+ */
+const MUTE = process.env.BENCH_MUTE === '1';
 
 function percentile(sorted, p) {
   if (sorted.length === 0) return 0;
@@ -126,6 +135,19 @@ const accepted = [];
 const rateLimited = [];
 const sentAt = new Map();
 let failures = 0;
+
+if (MUTE) {
+  process.stdout.write('silenciando para todos');
+  for (const user of [receiver, ...senders]) {
+    await api(`/api/conversations/${conversationId}/preferences`, {
+      method: 'PATCH',
+      actor: user,
+      body: { muted: true },
+    });
+    process.stdout.write('.');
+  }
+  console.log('\n');
+}
 
 // Con reparto, cada emisor escribe en una sala propia.
 const targets = [];
