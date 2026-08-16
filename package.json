@@ -18,7 +18,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"src/**/*.test.ts\"",
-    "test:integration": "node --import tsx --test \"tests/integration/*.test.ts\"",
+    "test:integration": "node --conditions=react-server --import tsx --test \"tests/integration/*.test.ts\"",
     "test:smoke": "playwright test",
     "test:e2e": "node tests/e2e/security.mjs && node tests/e2e/notifications.mjs && node tests/e2e/realtime.mjs && node tests/e2e/push.mjs",
     "bench:search": "node tests/bench/search.mjs",
