@@ -14,10 +14,12 @@ import {
   type CallMode,
   type CallPresencePayload,
   type CallSignalPayload,
+  type CallStatePayload,
 } from '@/lib/realtime';
 import { fetchIceConfig, type IceConfig } from '@/features/calls/ice';
 import { Peer, isPolite } from '@/features/calls/peer';
-import { useCallStore } from '@/stores/call-store';
+import { watchAudioLevel } from '@/features/calls/audio-level';
+import { remoteDefaults, useCallStore } from '@/stores/call-store';
 
 /**
  * Drives a call from start to hang-up.
@@ -43,16 +45,29 @@ export function useCall(meId: string) {
   // Fetched once per call and reused by every peer in the mesh: minting a set
   // per connection would spend quota for nothing.
   const ice = React.useRef<IceConfig>({ iceServers: [], relay: false });
+  /** La pista de cámara, guardada aparte para poder volver a ella tras compartir. */
+  const cameraTrack = React.useRef<MediaStreamTrack | null>(null);
+  const screenStream = React.useRef<MediaStream | null>(null);
+  /** Un vigilante de nivel por participante, para poder pararlos todos. */
+  const levelStops = React.useRef(new Map<string, () => void>());
 
   const { status, callId, conversationId, mode } = store;
 
   /** Stops the camera light. Closing the connection alone does not. */
   const stopLocalMedia = React.useCallback(() => {
     localStream.current?.getTracks().forEach((track) => track.stop());
+    // La cámara y la pantalla se paran aparte: al compartir salen del stream
+    // local, así que recorrerlo ya no las alcanza y el piloto se quedaría dado.
+    cameraTrack.current?.stop();
+    screenStream.current?.getTracks().forEach((track) => track.stop());
     localStream.current = null;
+    cameraTrack.current = null;
+    screenStream.current = null;
   }, []);
 
   const teardown = React.useCallback(() => {
+    levelStops.current.forEach((stop) => stop());
+    levelStops.current.clear();
     peers.current.forEach((peer) => peer.close());
     peers.current.clear();
     stopLocalMedia();
@@ -66,6 +81,30 @@ export function useCall(meId: string) {
   const send = React.useCallback((event: string, payload: unknown) => {
     void channel.current?.send({ type: 'broadcast', event, payload });
   }, []);
+
+  /** Empieza a vigilar el nivel de voz de alguien; `self` para uno mismo. */
+  const watchLevel = React.useCallback((who: string, stream: MediaStream) => {
+    levelStops.current.get(who)?.();
+    const stop = watchAudioLevel(stream, (speaking) => {
+      const store = useCallStore.getState();
+      if (who === 'self') store.setSpeaking(speaking);
+      else store.patchRemote(who, { speaking });
+    });
+    levelStops.current.set(who, stop);
+  }, []);
+
+  /** Anuncia qué tenemos encendido. Se manda al cambiar y al entrar alguien. */
+  const broadcastState = React.useCallback(() => {
+    const store = useCallStore.getState();
+    if (!store.callId) return;
+    send(realtimeEvents.callState, {
+      callId: store.callId,
+      userId: meId,
+      micOn: store.micOn,
+      cameraOn: store.cameraOn,
+      sharing: store.sharing,
+    } satisfies CallStatePayload);
+  }, [meId, send]);
 
   /** Opens (or reuses) the connection to one participant. */
   const peerFor = React.useCallback(
@@ -83,11 +122,17 @@ export function useCall(meId: string) {
             to: otherId,
             data,
           } satisfies CallSignalPayload),
-        onTrack: (stream) =>
-          useCallStore.getState().upsertRemote({ userId: otherId, stream, state: 'connected' }),
+        onTrack: (stream) => {
+          useCallStore
+            .getState()
+            .upsertRemote({ ...remoteDefaults, userId: otherId, stream, state: 'connected' });
+          watchLevel(otherId, stream);
+        },
         onStateChange: (state) => {
           const store = useCallStore.getState();
           store.upsertRemote({
+            ...remoteDefaults,
+            ...store.remotes[otherId],
             userId: otherId,
             stream: store.remotes[otherId]?.stream ?? null,
             state,
@@ -97,6 +142,8 @@ export function useCall(meId: string) {
           if (state === 'closed' || state === 'failed') {
             peers.current.get(otherId)?.close();
             peers.current.delete(otherId);
+            levelStops.current.get(otherId)?.();
+            levelStops.current.delete(otherId);
             store.dropRemote(otherId);
           }
         },
@@ -106,7 +153,7 @@ export function useCall(meId: string) {
       peers.current.set(otherId, peer);
       return peer;
     },
-    [meId, send],
+    [meId, send, watchLevel],
   );
 
   /** Subscribes to the conversation channel and wires the call events. */
@@ -146,7 +193,7 @@ export function useCall(meId: string) {
 
         store.setStatus('active');
         if (meId < otherId) peerFor(otherId, currentCallId);
-        else store.upsertRemote({ userId: otherId, stream: null, state: 'new' });
+        else store.upsertRemote({ ...remoteDefaults, userId: otherId, stream: null, state: 'new' });
       };
 
       ch.on('broadcast', { event: realtimeEvents.callAccept }, ({ payload }) => {
@@ -163,12 +210,26 @@ export function useCall(meId: string) {
         } satisfies CallHerePayload);
 
         connectTo(userId);
+        // Quien acaba de entrar no sabe si tenemos el micro cerrado o estamos
+        // compartiendo pantalla: nada de eso viaja en la negociación.
+        broadcastState();
       });
 
       ch.on('broadcast', { event: realtimeEvents.callHere }, ({ payload }) => {
         const { callId: id, userId, to } = payload as CallHerePayload;
         if (id !== currentCallId || to !== meId || userId === meId) return;
         connectTo(userId);
+        broadcastState();
+      });
+
+      ch.on('broadcast', { event: realtimeEvents.callState }, ({ payload }) => {
+        const state = payload as CallStatePayload;
+        if (state.callId !== currentCallId || state.userId === meId) return;
+        useCallStore.getState().patchRemote(state.userId, {
+          micOn: state.micOn,
+          cameraOn: state.cameraOn,
+          sharing: state.sharing,
+        });
       });
 
       ch.on('broadcast', { event: realtimeEvents.callLeave }, ({ payload }) => {
@@ -177,6 +238,8 @@ export function useCall(meId: string) {
 
         peers.current.get(userId)?.close();
         peers.current.delete(userId);
+        levelStops.current.get(userId)?.();
+        levelStops.current.delete(userId);
         useCallStore.getState().dropRemote(userId);
 
         // Last one out closes the call rather than leaving an empty window.
@@ -194,18 +257,24 @@ export function useCall(meId: string) {
       channel.current = ch;
       return ch;
     },
-    [meId, peerFor, send, teardown],
+    [meId, peerFor, send, teardown, broadcastState],
   );
 
-  const captureLocal = React.useCallback(async (wanted: CallMode) => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: wanted === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false,
-    });
-    localStream.current = stream;
-    useCallStore.getState().setLocalStream(stream);
-    return stream;
-  }, []);
+  const captureLocal = React.useCallback(
+    async (wanted: CallMode) => {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: wanted === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false,
+      });
+      localStream.current = stream;
+      cameraTrack.current = stream.getVideoTracks()[0] ?? null;
+      useCallStore.getState().setLocalStream(stream);
+      useCallStore.getState().setCamera(wanted === 'video');
+      watchLevel('self', stream);
+      return stream;
+    },
+    [watchLevel],
+  );
 
   /** Rings everyone else in the conversation. */
   const startCall = React.useCallback(
@@ -301,13 +370,78 @@ export function useCall(meId: string) {
     const next = !useCallStore.getState().micOn;
     localStream.current?.getAudioTracks().forEach((track) => (track.enabled = next));
     useCallStore.getState().setMic(next);
-  }, []);
+    broadcastState();
+  }, [broadcastState]);
 
   const toggleCamera = React.useCallback(() => {
     const next = !useCallStore.getState().cameraOn;
     localStream.current?.getVideoTracks().forEach((track) => (track.enabled = next));
     useCallStore.getState().setCamera(next);
+    broadcastState();
+  }, [broadcastState]);
+
+  /**
+   * Cambia el vídeo que sale hacia todos y el que se ve en el propio recuadro.
+   *
+   * `replaceTrack` no renegocia, así que cambiar de cámara a pantalla no corta
+   * nada. Sólo hace falta `addTrack` —y con él una renegociación— cuando la
+   * llamada empezó en modo audio y no había vídeo que sustituir.
+   */
+  const swapOutgoingVideo = React.useCallback(async (track: MediaStreamTrack | null) => {
+    for (const peer of peers.current.values()) {
+      const sender = peer.connection.getSenders().find((s) => s.track?.kind === 'video');
+      if (sender) {
+        await sender.replaceTrack(track).catch(() => {});
+      } else if (track && localStream.current) {
+        peer.connection.addTrack(track, localStream.current);
+      }
+    }
+
+    const audio = localStream.current?.getAudioTracks() ?? [];
+    const next = new MediaStream([...audio, ...(track ? [track] : [])]);
+    localStream.current = next;
+    useCallStore.getState().setLocalStream(next);
   }, []);
+
+  const stopScreenShare = React.useCallback(async () => {
+    if (!useCallStore.getState().sharing) return;
+
+    screenStream.current?.getTracks().forEach((t) => t.stop());
+    screenStream.current = null;
+
+    // Vuelve a la cámara si la había; si la llamada era de audio, se queda sin
+    // vídeo, que es como estaba antes de compartir.
+    await swapOutgoingVideo(cameraTrack.current);
+    useCallStore.getState().setSharing(false);
+    broadcastState();
+  }, [swapOutgoingVideo, broadcastState]);
+
+  const shareScreen = React.useCallback(async () => {
+    if (useCallStore.getState().sharing) {
+      await stopScreenShare();
+      return;
+    }
+
+    let display: MediaStream;
+    try {
+      display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    } catch {
+      // Cancelar el selector del navegador no es un error que merezca aviso.
+      return;
+    }
+
+    const track = display.getVideoTracks()[0];
+    if (!track) return;
+
+    screenStream.current = display;
+    // El navegador pone su propio botón de «dejar de compartir», y si no se
+    // escucha aquí la aplicación se queda creyendo que sigue compartiendo.
+    track.addEventListener('ended', () => void stopScreenShare());
+
+    await swapOutgoingVideo(track);
+    useCallStore.getState().setSharing(true);
+    broadcastState();
+  }, [stopScreenShare, swapOutgoingVideo, broadcastState]);
 
   // Nobody picked up. Without this the caller sits on "Calling…" indefinitely,
   // holding the microphone open, because a call that is never answered
@@ -351,6 +485,7 @@ export function useCall(meId: string) {
     leaveCall,
     toggleMic,
     toggleCamera,
+    shareScreen,
     /** False means no relay: worth saying, because the failure is silent. */
     hasRelay: ice.current.relay,
   };

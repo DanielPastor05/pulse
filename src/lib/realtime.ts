@@ -31,6 +31,10 @@ export const realtimeEvents = {
   // porque el canal no guarda historial: si A llama, B acepta y después entra
   // C, C nunca vio el «acepto» de B y se quedaría sin conectar con él.
   callHere: 'call.here',
+  // Micrófono, cámara y pantalla compartida de cada uno. Se manda al cambiar y
+  // también al entrar alguien nuevo: sin esto, quien llega ve a todo el mundo
+  // como si tuviera el micro abierto hasta que alguien lo toque.
+  callState: 'call.state',
 } as const;
 
 export type RealtimeEvent = (typeof realtimeEvents)[keyof typeof realtimeEvents];
@@ -85,6 +89,21 @@ export type CallHerePayload = {
   callId: string;
   userId: string;
   to: string;
+};
+
+/**
+ * Qué tiene encendido cada uno.
+ *
+ * Va aparte de la señalización porque no es negociable: una pista de audio
+ * silenciada sigue llegando, y sin este aviso el otro lado no tiene forma de
+ * distinguir «no habla» de «tiene el micro cerrado».
+ */
+export type CallStatePayload = {
+  callId: string;
+  userId: string;
+  micOn: boolean;
+  cameraOn: boolean;
+  sharing: boolean;
 };
 
 /**

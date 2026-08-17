@@ -1,22 +1,44 @@
 'use client';
 
 import * as React from 'react';
-import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from 'lucide-react';
+import {
+  Check,
+  Mic,
+  MicOff,
+  MonitorUp,
+  Phone,
+  PhoneOff,
+  Video,
+  VideoOff,
+  Volume2,
+} from 'lucide-react';
 
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger } from '@/components/ui/menu';
+import { Tooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useCallApi } from '@/features/calls/call-provider';
-import { useCallStore } from '@/stores/call-store';
+import { useCallStore, type RemoteParticipant } from '@/stores/call-store';
+import { useConversation } from '@/features/conversations/hooks';
+import { useSession } from '@/components/providers/session-provider';
 
-/** Attaches a stream without re-rendering the video element on every change. */
+/**
+ * Attaches a stream without re-rendering the video element on every change.
+ *
+ * `sinkId` es la salida de audio elegida. Sólo Chromium la implementa, así que
+ * se aplica cuando existe y se ignora en el resto en vez de esconder el
+ * selector: quien no lo tenga no lo echa en falta, y quien sí, lo agradece.
+ */
 function StreamVideo({
   stream,
   muted,
+  sinkId,
   className,
 }: {
   stream: MediaStream | null;
   muted?: boolean;
+  sinkId?: string;
   className?: string;
 }) {
   const ref = React.useRef<HTMLVideoElement>(null);
@@ -26,6 +48,12 @@ function StreamVideo({
       ref.current.srcObject = stream;
     }
   }, [stream]);
+
+  React.useEffect(() => {
+    const element = ref.current as (HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> }) | null;
+    if (!element?.setSinkId || !sinkId) return;
+    void element.setSinkId(sinkId).catch(() => {});
+  }, [sinkId]);
 
   return <video ref={ref} autoPlay playsInline muted={muted} className={className} />;
 }
@@ -58,24 +86,189 @@ function IncomingCall() {
   );
 }
 
-function ActiveCall() {
-  const { localStream, remotes, micOn, cameraOn, mode, status } = useCallStore();
-  const { leaveCall, toggleMic, toggleCamera, hasRelay } = useCallApi();
+type TileProps = {
+  name: string;
+  avatarUrl: string | null;
+  stream: MediaStream | null;
+  /** Uno mismo se silencia siempre: si no, se oye con retardo. */
+  muted?: boolean;
+  sinkId?: string;
+  micOn: boolean;
+  cameraOn: boolean;
+  sharing: boolean;
+  speaking: boolean;
+  connecting?: boolean;
+  label?: string;
+};
 
-  const participants = Object.values(remotes);
-  // One remote sits large; more than one goes to a grid.
-  const columns = participants.length <= 1 ? 1 : participants.length <= 4 ? 2 : 3;
+/**
+ * Un participante.
+ *
+ * Cuando no hay vídeo se enseña el avatar en grande en vez de un rectángulo
+ * negro: la mitad de las llamadas son de voz, y sin esto la pantalla no dice
+ * quién está dentro.
+ */
+function Tile({
+  name,
+  avatarUrl,
+  stream,
+  muted,
+  sinkId,
+  micOn,
+  cameraOn,
+  sharing,
+  speaking,
+  connecting,
+  label,
+}: TileProps) {
+  const hasVideo = Boolean(stream?.getVideoTracks().length) && (cameraOn || sharing);
+
+  return (
+    <div
+      className={cn(
+        'relative flex min-h-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)]',
+        'bg-[var(--surface-sunken)] ring-2 transition-colors duration-150',
+        speaking && micOn ? 'ring-[var(--accent)]' : 'ring-transparent',
+      )}
+    >
+      {hasVideo ? (
+        <StreamVideo
+          stream={stream}
+          muted={muted}
+          sinkId={sinkId}
+          className={cn('size-full', sharing ? 'object-contain' : 'object-cover')}
+        />
+      ) : (
+        <>
+          {/* El audio sigue haciendo falta aunque no haya imagen. */}
+          <StreamVideo stream={stream} muted={muted} sinkId={sinkId} className="hidden" />
+          <Avatar src={avatarUrl} name={name} size="xl" />
+        </>
+      )}
+
+      {connecting ? (
+        <p className="absolute inset-0 grid place-items-center bg-black/40 text-[13px] text-white/80">
+          Connecting…
+        </p>
+      ) : null}
+
+      <div className="absolute inset-x-2 bottom-2 flex items-center gap-1.5">
+        <span className="flex min-w-0 items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 text-[12px] text-white backdrop-blur">
+          {micOn ? null : <MicOff className="size-3.5 shrink-0 text-[var(--danger)]" />}
+          <span className="truncate">{label ?? name}</span>
+        </span>
+        {sharing ? (
+          <span className="flex shrink-0 items-center gap-1 rounded-full bg-[var(--accent)] px-2 py-1 text-[11px] font-medium text-black">
+            <MonitorUp className="size-3" />
+            Sharing
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** mm:ss desde que la llamada pasó a activa. */
+function Duration({ startedAt }: { startedAt: number }) {
+  const [now, setNow] = React.useState(() => Date.now());
+
+  React.useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const total = Math.max(0, Math.floor((now - startedAt) / 1000));
+  const minutes = String(Math.floor(total / 60)).padStart(2, '0');
+  const seconds = String(total % 60).padStart(2, '0');
+  return <span className="tabular-nums">{`${minutes}:${seconds}`}</span>;
+}
+
+/** Las salidas de audio que ofrece el navegador, si es que ofrece alguna. */
+function useAudioOutputs() {
+  const [devices, setDevices] = React.useState<MediaDeviceInfo[]>([]);
+
+  React.useEffect(() => {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
+
+    const read = () => {
+      void navigator.mediaDevices
+        .enumerateDevices()
+        .then((all) => setDevices(all.filter((d) => d.kind === 'audiooutput' && d.deviceId)))
+        .catch(() => setDevices([]));
+    };
+
+    read();
+    // Enchufar unos auriculares en mitad de una llamada es justo cuando esto
+    // importa, así que la lista no puede leerse una sola vez.
+    navigator.mediaDevices.addEventListener('devicechange', read);
+    return () => navigator.mediaDevices.removeEventListener('devicechange', read);
+  }, []);
+
+  return devices;
+}
+
+function ActiveCall() {
+  const me = useSession();
+  const {
+    localStream,
+    remotes,
+    micOn,
+    cameraOn,
+    sharing,
+    speaking,
+    mode,
+    status,
+    conversationId,
+    conversationName,
+    startedAt,
+  } = useCallStore();
+  const { leaveCall, toggleMic, toggleCamera, shareScreen, hasRelay } = useCallApi();
+
+  const { data: conversation } = useConversation(conversationId ?? undefined);
+  const outputs = useAudioOutputs();
+  const [sinkId, setSinkId] = React.useState<string>('');
+
+  /** userId -> quién es. Sin esto los recuadros serían UUIDs. */
+  const people = React.useMemo(() => {
+    const map = new Map<string, { displayName: string; avatarUrl: string | null }>();
+    for (const member of conversation?.members ?? []) {
+      map.set(member.user.id, {
+        displayName: member.nickname ?? member.user.displayName,
+        avatarUrl: member.user.avatarUrl,
+      });
+    }
+    return map;
+  }, [conversation]);
+
+  const participants: RemoteParticipant[] = Object.values(remotes);
+  const total = participants.length + 1;
+  const columns = total <= 1 ? 1 : total <= 4 ? 2 : 3;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/95">
-      <div className="flex items-center justify-between p-4 text-white">
-        <p className="text-[13px] opacity-80">
-          {status === 'joining' ? 'Calling…' : `${participants.length + 1} in call`}
-        </p>
+      <div className="flex items-center justify-between gap-3 p-4 text-white">
+        <div className="min-w-0">
+          <p className="truncate text-[14px] font-medium">{conversationName ?? 'Call'}</p>
+          <p className="text-[12px] text-white/60">
+            {status === 'joining' ? (
+              'Calling…'
+            ) : (
+              <>
+                {total} in call
+                {startedAt ? (
+                  <>
+                    {' · '}
+                    <Duration startedAt={startedAt} />
+                  </>
+                ) : null}
+              </>
+            )}
+          </p>
+        </div>
         {!hasRelay ? (
           // Worth saying out loud: without a relay this fails on most mobile
           // networks, and the failure looks like "it just never connects".
-          <p className="text-[11px] text-[var(--warning)]">No TURN relay</p>
+          <p className="shrink-0 text-[11px] text-[var(--warning)]">No TURN relay</p>
         ) : null}
       </div>
 
@@ -83,61 +276,113 @@ function ActiveCall() {
         className="grid flex-1 gap-2 p-2"
         style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
       >
-        {participants.map((participant) => (
-          <div
-            key={participant.userId}
-            className="relative overflow-hidden rounded-[var(--radius-card)] bg-[var(--surface-sunken)]"
-          >
-            <StreamVideo stream={participant.stream} className="size-full object-cover" />
-            {participant.state !== 'connected' ? (
-              <p className="absolute inset-0 grid place-items-center text-[13px] text-white/70">
-                Connecting…
-              </p>
-            ) : null}
-          </div>
-        ))}
+        <Tile
+          name={me.displayName}
+          label={`${me.displayName} (you)`}
+          avatarUrl={me.avatarUrl}
+          stream={localStream}
+          muted
+          micOn={micOn}
+          cameraOn={cameraOn}
+          sharing={sharing}
+          speaking={speaking}
+        />
+
+        {participants.map((participant) => {
+          const person = people.get(participant.userId);
+          return (
+            <Tile
+              key={participant.userId}
+              name={person?.displayName ?? 'Someone'}
+              avatarUrl={person?.avatarUrl ?? null}
+              stream={participant.stream}
+              sinkId={sinkId || undefined}
+              micOn={participant.micOn}
+              cameraOn={participant.cameraOn}
+              sharing={participant.sharing}
+              speaking={participant.speaking}
+              connecting={participant.state !== 'connected'}
+            />
+          );
+        })}
+
         {participants.length === 0 ? (
           <p className="grid place-items-center text-[13px] text-white/60">Waiting for an answer…</p>
         ) : null}
       </div>
 
-      {mode === 'video' ? (
-        <StreamVideo
-          stream={localStream}
-          muted
-          className="absolute bottom-24 right-4 h-32 w-24 rounded-[var(--radius-field)] object-cover shadow-lg"
-        />
-      ) : null}
-
       <div className="flex items-center justify-center gap-3 p-6">
-        <Button
-          size="icon"
-          className="size-12"
-          variant={micOn ? 'secondary' : 'ghost'}
-          aria-label={micOn ? 'Mute' : 'Unmute'}
-          onClick={toggleMic}
-        >
-          {micOn ? <Mic /> : <MicOff />}
-        </Button>
-        {mode === 'video' ? (
+        <Tooltip content={micOn ? 'Mute' : 'Unmute'}>
           <Button
             size="icon"
             className="size-12"
-            variant={cameraOn ? 'secondary' : 'ghost'}
-            aria-label={cameraOn ? 'Turn camera off' : 'Turn camera on'}
-            onClick={toggleCamera}
+            variant={micOn ? 'secondary' : 'ghost'}
+            aria-label={micOn ? 'Mute' : 'Unmute'}
+            onClick={toggleMic}
           >
-            {cameraOn ? <Video /> : <VideoOff />}
+            {micOn ? <Mic /> : <MicOff />}
           </Button>
+        </Tooltip>
+
+        {mode === 'video' ? (
+          <Tooltip content={cameraOn ? 'Turn camera off' : 'Turn camera on'}>
+            <Button
+              size="icon"
+              className="size-12"
+              variant={cameraOn ? 'secondary' : 'ghost'}
+              aria-label={cameraOn ? 'Turn camera off' : 'Turn camera on'}
+              onClick={toggleCamera}
+            >
+              {cameraOn ? <Video /> : <VideoOff />}
+            </Button>
+          </Tooltip>
         ) : null}
-        <Button
-          size="icon"
-          aria-label="Leave call"
-          onClick={leaveCall}
-          className={cn('size-12 bg-[var(--danger)] text-white hover:bg-[var(--danger)]')}
-        >
-          <PhoneOff />
-        </Button>
+
+        <Tooltip content={sharing ? 'Stop sharing' : 'Share your screen'}>
+          <Button
+            size="icon"
+            className="size-12"
+            variant={sharing ? 'primary' : 'secondary'}
+            aria-label={sharing ? 'Stop sharing' : 'Share your screen'}
+            onClick={() => void shareScreen()}
+          >
+            <MonitorUp />
+          </Button>
+        </Tooltip>
+
+        {outputs.length > 0 ? (
+          <Menu>
+            <MenuTrigger asChild>
+              <Button size="icon" className="size-12" variant="secondary" aria-label="Speaker">
+                <Volume2 />
+              </Button>
+            </MenuTrigger>
+            <MenuContent align="center">
+              <MenuLabel>Speaker</MenuLabel>
+              {outputs.map((device, index) => (
+                <MenuItem key={device.deviceId} onSelect={() => setSinkId(device.deviceId)}>
+                  {sinkId === device.deviceId ? (
+                    <Check className="size-4" />
+                  ) : (
+                    <span className="size-4" />
+                  )}
+                  {device.label || `Output ${index + 1}`}
+                </MenuItem>
+              ))}
+            </MenuContent>
+          </Menu>
+        ) : null}
+
+        <Tooltip content="Leave call">
+          <Button
+            size="icon"
+            aria-label="Leave call"
+            onClick={leaveCall}
+            className={cn('size-12 bg-[var(--danger)] text-white hover:bg-[var(--danger)]')}
+          >
+            <PhoneOff />
+          </Button>
+        </Tooltip>
       </div>
     </div>
   );

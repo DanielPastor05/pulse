@@ -9,6 +9,16 @@ export type RemoteParticipant = {
   userId: string;
   stream: MediaStream | null;
   state: RTCPeerConnectionState;
+  /**
+   * Lo que el otro lado dice tener encendido. Se asume abierto hasta que
+   * llegue su `call.state`: pintar a todo el mundo silenciado de entrada haría
+   * que el icono de mute dejase de significar nada.
+   */
+  micOn: boolean;
+  cameraOn: boolean;
+  sharing: boolean;
+  /** Derivado del nivel de audio, no de nada que mande el otro. */
+  speaking: boolean;
 };
 
 type CallState = {
@@ -25,6 +35,10 @@ type CallState = {
 
   micOn: boolean;
   cameraOn: boolean;
+  sharing: boolean;
+  speaking: boolean;
+  /** Cuándo empezó, para el contador. Null mientras nadie ha descolgado. */
+  startedAt: number | null;
 
   incoming: (input: {
     callId: string;
@@ -42,11 +56,18 @@ type CallState = {
   setStatus: (status: CallStatus) => void;
   setLocalStream: (stream: MediaStream | null) => void;
   upsertRemote: (participant: RemoteParticipant) => void;
+  /** Sólo los campos que cambian, sin tocar el stream ni el estado de conexión. */
+  patchRemote: (userId: string, patch: Partial<RemoteParticipant>) => void;
   dropRemote: (userId: string) => void;
   setMic: (on: boolean) => void;
   setCamera: (on: boolean) => void;
+  setSharing: (on: boolean) => void;
+  setSpeaking: (on: boolean) => void;
   reset: () => void;
 };
+
+/** Valores por defecto de alguien de quien todavía no sabemos nada. */
+export const remoteDefaults = { micOn: true, cameraOn: true, sharing: false, speaking: false };
 
 const EMPTY = {
   status: 'idle' as CallStatus,
@@ -59,6 +80,9 @@ const EMPTY = {
   remotes: {},
   micOn: true,
   cameraOn: false,
+  sharing: false,
+  speaking: false,
+  startedAt: null,
 };
 
 /**
@@ -83,11 +107,29 @@ export const useCallStore = create<CallState>((set) => ({
       cameraOn: mode === 'video',
     }),
 
-  setStatus: (status) => set({ status }),
+  // El contador arranca cuando la llamada pasa a activa, no cuando se marca:
+  // los segundos que pasan sonando no son tiempo de llamada.
+  setStatus: (status) =>
+    set((state) => ({
+      status,
+      startedAt: status === 'active' ? (state.startedAt ?? Date.now()) : state.startedAt,
+    })),
   setLocalStream: (localStream) => set({ localStream }),
 
   upsertRemote: (participant) =>
-    set((state) => ({ remotes: { ...state.remotes, [participant.userId]: participant } })),
+    set((state) => ({
+      remotes: {
+        ...state.remotes,
+        [participant.userId]: { ...remoteDefaults, ...state.remotes[participant.userId], ...participant },
+      },
+    })),
+
+  patchRemote: (userId, patch) =>
+    set((state) => {
+      const current = state.remotes[userId];
+      if (!current) return {};
+      return { remotes: { ...state.remotes, [userId]: { ...current, ...patch } } };
+    }),
 
   dropRemote: (userId) =>
     set((state) => {
@@ -98,5 +140,7 @@ export const useCallStore = create<CallState>((set) => ({
 
   setMic: (micOn) => set({ micOn }),
   setCamera: (cameraOn) => set({ cameraOn }),
+  setSharing: (sharing) => set({ sharing }),
+  setSpeaking: (speaking) => set({ speaking }),
   reset: () => set(EMPTY),
 }));
