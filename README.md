@@ -539,3 +539,9 @@ Written down rather than glossed over:
 - **There are logs but no metrics.** No latency histograms, no traces, no error
   budget. `/api/health` reports one database round trip and that is the whole of
   the instrumentation.
+
+---
+
+## License
+
+[MIT](LICENSE) — Daniel Pastor, 2026.
