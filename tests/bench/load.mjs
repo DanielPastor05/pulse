@@ -24,7 +24,16 @@ import { clientFor, collectArrivals, subscribed } from '../e2e/realtime-helpers.
 
 const SENDERS = Number(process.env.BENCH_SENDERS ?? 10);
 const ROUNDS = Number(process.env.BENCH_ROUNDS ?? 3);
-const SETTLE_MS = Number(process.env.BENCH_SETTLE_MS ?? 4_000);
+/**
+ * Cuánto se espera tras el último envío antes de contar lo entregado.
+ *
+ * Escala con la concurrencia a propósito. Con un valor fijo de 4 s, cuarenta
+ * emisores daban «50% entregados» — y era falso: el p95 de entrega bajo esa
+ * carga son diez segundos, así que la mitad de los mensajes llegaban después de
+ * dejar de mirar. Un banco que confunde «tarde» con «perdido» es peor que no
+ * medir, porque el número parece un dato.
+ */
+const SETTLE_MS = Number(process.env.BENCH_SETTLE_MS ?? Math.max(6_000, SENDERS * 600));
 /**
  * `BENCH_SPREAD=1` da a cada emisor su propia conversación.
  *
