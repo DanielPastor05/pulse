@@ -4,7 +4,11 @@ import * as React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
-import { authorizeRealtime, getSupabaseBrowserClient } from '@/lib/supabase/client';
+import {
+  authorizeRealtime,
+  getSupabaseBrowserClient,
+  subscribeWithRetry,
+} from '@/lib/supabase/client';
 import { queryKeys } from '@/lib/query-keys';
 import { realtimeChannels, realtimeEvents, type TypingPayload } from '@/lib/realtime';
 import { useMessageCache } from '@/features/messages/hooks';
@@ -119,7 +123,7 @@ export function useConversationChannel(conversationId: string, viewerId: string)
 
     // The channel is private, so Realtime must have the access token before the
     // join is attempted — otherwise RLS sees an anonymous caller and rejects it.
-    void authorizeRealtime().then(() => channel.subscribe());
+    void authorizeRealtime().then(() => subscribeWithRetry(channel, 'conversation'));
 
     return () => {
       channelRef.current = null;

@@ -6,7 +6,11 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { toast } from 'sonner';
 
-import { authorizeRealtime, getSupabaseBrowserClient } from '@/lib/supabase/client';
+import {
+  authorizeRealtime,
+  getSupabaseBrowserClient,
+  subscribeWithRetry,
+} from '@/lib/supabase/client';
 import { queryKeys } from '@/lib/query-keys';
 import { realtimeChannels, realtimeEvents, type CallInvitePayload } from '@/lib/realtime';
 import { playChime, showDesktopNotification } from '@/features/notifications/sound';
@@ -103,7 +107,7 @@ export function useUserChannel() {
         }
       });
 
-    void authorizeRealtime().then(() => channel.subscribe());
+    void authorizeRealtime().then(() => subscribeWithRetry(channel, 'user'));
 
     return () => {
       void supabase.removeChannel(channel);
