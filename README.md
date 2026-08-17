@@ -451,6 +451,12 @@ Written down rather than glossed over:
   Fine for a beta, and the ceiling to watch first.
 - **Voice notes record to WebM**, which older iOS Safari does not produce; the
   recorder falls back to whatever `MediaRecorder` offers.
+- **Deleting your account removes your files, but a CDN copy can outlive it.**
+  The objects are deleted from storage — verified end to end — and the URL
+  returns 400 from origin. Measured caveat: for a short window the exact
+  original URL can still be served from an edge cache to somebody who already
+  had it. Revoking that instantly would mean serving media through the app
+  instead of a public bucket, which costs a request per image.
 - **Realtime delivery is best effort.** The server broadcasts over HTTP and does
   not retry: if that call fails, the message is safely in the database but does
   not appear live until the recipient refocuses the tab. Structured logging makes

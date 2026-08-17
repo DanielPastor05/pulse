@@ -11,6 +11,7 @@ import {
   requireMembership,
 } from '@/server/repositories/conversation.repository';
 import { can, outranks } from '@/lib/permissions';
+import { recordModeration } from '@/server/services/audit.service';
 import { notify } from '@/server/services/notification.service';
 import type {
   CreateGroupInput,
@@ -225,6 +226,22 @@ export async function updateMember(
     },
   });
 
+  // Sólo el rol deja rastro: cambiarle el apodo a alguien no es moderar, y
+  // registrarlo llenaría el historial de ruido hasta esconder lo que importa.
+  if (input.role !== undefined && input.role !== target.role) {
+    const targetUser = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, displayName: true },
+    });
+    await recordModeration({
+      conversationId,
+      actor,
+      action: 'ROLE_CHANGED',
+      target: targetUser,
+      detail: `${target.role} → ${input.role}`,
+    });
+  }
+
   await broadcastToConversation(conversationId, realtimeEvents.memberChanged, { conversationId });
   return getConversationDetail(conversationId, actor.id);
 }
@@ -266,8 +283,20 @@ export async function removeMember(conversationId: string, actor: User, targetUs
 
   const targetUser = await prisma.user.findUnique({
     where: { id: targetUserId },
-    select: { displayName: true },
+    select: { id: true, displayName: true },
   });
+
+  // Irse por voluntad propia no es una acción de moderación, así que sólo se
+  // registra cuando fue otra persona quien te sacó.
+  if (!leaving) {
+    await recordModeration({
+      conversationId,
+      actor,
+      action: 'MEMBER_REMOVED',
+      target: targetUser,
+    });
+  }
+
   await systemMessage(
     conversationId,
     leaving

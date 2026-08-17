@@ -19,6 +19,7 @@ import {
   toMessage,
 } from '@/server/repositories/selectors';
 import { can } from '@/lib/permissions';
+import { recordModeration } from '@/server/services/audit.service';
 import { notify } from '@/server/services/notification.service';
 import type { SendMessageInput } from '@/features/messages/validators';
 import type { MessageDTO } from '@/types/dto';
@@ -353,6 +354,24 @@ export async function deleteMessage(messageId: string, user: User): Promise<void
     data: { content: '', deletedAt: new Date(), pinnedAt: null, pinnedById: null },
   });
   await prisma.attachment.deleteMany({ where: { messageId } });
+
+  // Solo cuando lo borra otra persona. Borrar lo tuyo no es moderar, y
+  // registrarlo convertiria el historial en un diario de todo el mundo.
+  if (!isAuthor) {
+    const author = existing.authorId
+      ? await prisma.user.findUnique({
+          where: { id: existing.authorId },
+          select: { id: true, displayName: true },
+        })
+      : null;
+    await recordModeration({
+      conversationId: existing.conversationId,
+      actor: user,
+      action: 'MESSAGE_DELETED',
+      target: author,
+      detail: messageId,
+    });
+  }
 
   await broadcastToConversation(existing.conversationId, realtimeEvents.messageDeleted, {
     messageId,

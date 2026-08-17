@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { can } from '@/lib/permissions';
 import { errors } from '@/server/errors';
 import { requireMembership } from '@/server/repositories/conversation.repository';
+import { recordModeration } from '@/server/services/audit.service';
 import { publicUserSelect, toPublicUser } from '@/server/repositories/selectors';
 import type { ReportDTO } from '@/types/dto';
 
@@ -126,6 +127,13 @@ export async function reviewReport(
     where: { id: reportId },
     data: { status, reviewedById: actor.id, reviewedAt: new Date() },
     include: reportInclude,
+  });
+
+  await recordModeration({
+    conversationId: report.conversationId,
+    actor,
+    action: 'REPORT_REVIEWED',
+    detail: status,
   });
 
   return toReport(updated);

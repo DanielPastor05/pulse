@@ -141,6 +141,8 @@ model User {
   invites           Invite[]
   pushSubscriptions PushSubscription[]
   pollVotes         PollVote[]
+  moderationActions ModerationEvent[]    @relation("ModerationActor")
+  moderationAgainst ModerationEvent[]    @relation("ModerationTarget")
   reportsFiled      Report[]             @relation("ReportsFiled")
   reportsAgainst    Report[]             @relation("ReportsAgainst")
   reportsReviewed   Report[]             @relation("ReportsReviewed")
@@ -179,6 +181,7 @@ model Conversation {
   members      ConversationMember[]
   messages     Message[]
   joinRequests JoinRequest[]
+  moderationEvents ModerationEvent[]
   invites      Invite[]
   notifications Notification[]
   reports      Report[]
@@ -477,6 +480,47 @@ model PollOption {
 
   @@index([pollId, position])
   @@map("poll_options")
+}
+
+enum ModerationAction {
+  MEMBER_REMOVED
+  ROLE_CHANGED
+  MESSAGE_DELETED
+  REPORT_REVIEWED
+}
+
+/// Quién hizo qué, en moderación.
+///
+/// Sólo se añade: no hay endpoint que edite ni borre, y RLS deniega UPDATE y
+/// DELETE. Un registro que el moderador puede reescribir no sirve para lo único
+/// que sirve un registro.
+model ModerationEvent {
+  id String @id @default(uuid()) @db.Uuid
+
+  conversationId String       @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  /// `SetNull` como el autor de un mensaje: el historial sobrevive a la cuenta
+  /// de quien actuó. Uno que se vacía cuando el responsable se va no es un
+  /// historial, así que el nombre queda copiado abajo en el momento del hecho.
+  actorId   String? @db.Uuid
+  actor     User?   @relation("ModerationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  actorName String
+
+  /// Puede no haber persona señalada: revisar una denuncia no apunta a nadie.
+  targetId   String? @db.Uuid
+  target     User?   @relation("ModerationTarget", fields: [targetId], references: [id], onDelete: SetNull)
+  targetName String?
+
+  action ModerationAction
+  /// Qué cambió exactamente: el rol nuevo, el motivo de la denuncia, el id del
+  /// mensaje. Texto libre porque cada acción cuenta algo distinto.
+  detail String?
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@map("moderation_events")
 }
 
 model PollVote {
