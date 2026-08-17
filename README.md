@@ -9,7 +9,7 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 | | |
 | --- | --- |
-| **Automated checks** | 176 — 41 unit, 35 integration against a real Postgres, 6 browser smoke tests, 94 end-to-end against the deployed instance |
+| **Automated checks** | 183 — 41 unit, 42 integration against a real Postgres, 6 browser smoke tests, 94 end-to-end against the deployed instance |
 | **Row Level Security** | 20 policies, one per table, enforced independently of the API |
 | **Search latency** | 6035 ms → 314 ms p50, measured before and after ([how](#making-search-nineteen-times-faster)) |
 | **Database round trip** | 1230 ms → 16 ms, after moving the functions to the database's region |
@@ -169,6 +169,47 @@ Losing the race retries once, so the most recent tap wins instead of a double
 click returning an error. Verified against production: both requests answer 200,
 and the poll ends with exactly one vote.
 
+### Two bugs the tests could not reach
+
+Closing the file-retention hole added two code paths that touch object storage:
+a sweep that deletes everything a leaving account uploaded, and a scheduled job
+that clears what nothing points at any more. Both shipped. Both were wrong, and
+neither had a test — for the same structural reason.
+
+The integration layer runs against a disposable Postgres with **no Supabase at
+all**, so anything touching storage sat outside what the suite could reach. The
+newest code was the only code with no net under it.
+
+**The sweep could hang.** It lists a page of a hundred objects, deletes them,
+and continues while a page comes back full. It deliberately does not advance an
+offset, because deleted objects leave the listing — so the next page is the first
+page again. That makes the loop depend on the delete taking effect, and Supabase's
+`remove` returns *without an error* when a policy denies it. One full page that
+refuses to go, and the loop runs forever inside the request that deletes an
+account.
+
+Not a slow loop — a stuck one. It awaits nothing real, so it chains microtasks
+without ever yielding, and the event loop never runs another timer. Removing the
+fix and running the test proves it: the test's own five-second timeout never
+fires either.
+
+**The scheduled job cleaned one bucket of two.** It swept attachments and never
+touched avatars, and said nothing about it. Every profile picture anyone ever
+replaced was still public at its URL — the exact problem the job was written to
+solve, one bucket over. Account deletion *did* clear both, so the code already
+knew there were two.
+
+Fixing that one had a trap worth recording. The live set for avatars cannot come
+from `User.avatarUrl` alone: the same picker sets a group's icon, and those live
+in the same bucket. Deriving the set from users only would have deleted every
+group icon twenty-four hours after it was set — turning a leak into data loss.
+
+The fix that matters is neither of the two. Storage now sits behind a five-line
+interface with an in-memory double, so both paths are inside the suite. The
+double imitates the two behaviours that caused the bugs: `list('')` returns
+folders rather than paths, and `remove` can report success without deleting.
+A double without that second behaviour could not have caught the hang at all.
+
 ### Realtime channels were public
 
 Supabase Realtime channels default to public. The app subscribed to
@@ -323,11 +364,11 @@ no second round trip to render a new message.
 
 ## Testing
 
-176 checks, in four layers.
+183 checks, in four layers.
 
 ```bash
 npm test                  # 41 unit tests — pure logic, no I/O
-npm run test:integration  # 35 tests against a real Postgres
+npm run test:integration  # 42 tests against a real Postgres
 npm run test:smoke        # 6 browser checks against the production build
 npm run test:e2e          # 94 checks against a running server + real Supabase
 ```
@@ -352,6 +393,11 @@ millisecond, that replying does not hide a message from the main view, and that
 the unique index really does refuse a second send with the same `clientId`
 while still allowing a different author to reuse it. They refuse to run if
 `DATABASE_URL` looks like the deployed database.
+
+They also cover the file-storage paths, through an in-memory double that
+imitates two behaviours of the real thing that matter: `list('')` returns
+*folders* rather than full paths, and `remove` can report success without
+deleting anything. Both are load-bearing — see the note below.
 
 The end-to-end suites talk to a **real** server, database, auth and object
 storage. That is deliberate: what they check — block enforcement, rate limiting,
@@ -481,6 +527,11 @@ Written down rather than glossed over:
   original URL can still be served from an edge cache to somebody who already
   had it. Revoking that instantly would mean serving media through the app
   instead of a public bucket, which costs a request per image.
+- **Scheduled cleanup scans up to 1000 accounts per bucket per run.** It walks
+  storage a folder at a time, and a run that hits that ceiling logs a warning
+  rather than reporting a clean sweep — a cap that truncates silently reads
+  exactly like "nothing left to do". Past that volume it needs to page by owner,
+  or mark an object as claimed when it is attached and search on that instead.
 - **Realtime delivery is best effort.** The server broadcasts over HTTP and does
   not retry: if that call fails, the message is safely in the database but does
   not appear live until the recipient refocuses the tab. Structured logging makes

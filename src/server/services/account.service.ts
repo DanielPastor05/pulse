@@ -3,6 +3,7 @@ import { STORAGE_BUCKETS } from '@/lib/constants';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { errors } from '@/server/errors';
 import { describeError, log } from '@/server/logger';
+import { adminStorage, type Storage } from '@/server/storage';
 import type { SessionUser } from '@/server/auth';
 
 /**
@@ -119,27 +120,50 @@ export async function orphanedGroups(userId: string) {
  * la aplicación tendrá más de mil objetos, y quedarse con los primeros mil sería
  * peor que no borrar nada, porque parecería hecho.
  */
-async function purgeStoredFiles(userId: string): Promise<number> {
-  const admin = createSupabaseAdminClient();
+export async function purgeStoredFiles(
+  userId: string,
+  storage: Storage = adminStorage(),
+): Promise<number> {
   const PAGE = 100;
   let removed = 0;
 
   for (const bucket of [STORAGE_BUCKETS.attachments, STORAGE_BUCKETS.avatars]) {
+    // El primer objeto de la vuelta anterior, que es lo que dice si esto avanza.
+    let previousFirst: string | undefined;
+
     for (;;) {
-      const { data, error } = await admin.storage
-        .from(bucket)
-        .list(userId, { limit: PAGE, offset: 0 });
+      const { data, error } = await storage.from(bucket).list(userId, { limit: PAGE });
 
       if (error) throw new Error(`no se pudo listar ${bucket}: ${error.message}`);
       if (!data || data.length === 0) break;
 
+      const first = data[0];
+      if (!first) break;
+
+      // Sin `offset`: lo borrado desaparece del listado, así que la siguiente
+      // página vuelve a ser la primera. Avanzar el offset saltaría objetos.
+      //
+      // El precio es que el bucle depende de que el borrado surta efecto, y
+      // `remove` devuelve sin error cuando no borra nada — un permiso denegado,
+      // una política cambiada. Sin esta comprobación, una página llena que no se
+      // va deja dando vueltas para siempre a la petición que borra una cuenta.
+      // Si la lista vuelve a empezar por el mismo objeto es que no ha avanzado,
+      // y repetir la vuelta no lo va a arreglar: mejor fallar y que se vea.
+      //
+      // No es un bucle lento: como no espera a nada, encadena microtareas sin
+      // ceder y el bucle de eventos no vuelve a correr un temporizador. Se
+      // comprobó quitando esta guarda, y ni el `timeout` de la propia prueba
+      // llega a dispararse. Una función así no se degrada, se cuelga entera.
+      if (first.name === previousFirst) {
+        throw new Error(`el borrado de ${bucket} no avanza: ${first.name} sigue ahí`);
+      }
+      previousFirst = first.name;
+
       const paths = data.map((object) => `${userId}/${object.name}`);
-      const { error: removeError } = await admin.storage.from(bucket).remove(paths);
+      const { error: removeError } = await storage.from(bucket).remove(paths);
       if (removeError) throw new Error(`no se pudo borrar de ${bucket}: ${removeError.message}`);
 
       removed += paths.length;
-      // Sin `offset`: lo borrado desaparece del listado, así que la siguiente
-      // página vuelve a ser la primera. Avanzar el offset saltaría objetos.
       if (data.length < PAGE) break;
     }
   }
