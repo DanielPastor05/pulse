@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { STORAGE_BUCKETS } from '@/lib/constants';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { errors } from '@/server/errors';
 import { describeError, log } from '@/server/logger';
@@ -107,13 +108,56 @@ export async function orphanedGroups(userId: string) {
 }
 
 /**
- * Borra la cuenta de verdad.
+ * Todo lo que subió esta persona, fuera de los buckets.
+ *
+ * Cada objeto vive bajo `<userId>/…` porque así lo nombra `/api/uploads`, y los
+ * buckets son de lectura pública. Sin este barrido, borrar la cuenta quitaba las
+ * filas y dejaba las fotos descargables en su URL para siempre — sin quedar
+ * siquiera constancia en la base de datos de que existían.
+ *
+ * Se pagina porque `list` devuelve como mucho un lote: quien lleve años usando
+ * la aplicación tendrá más de mil objetos, y quedarse con los primeros mil sería
+ * peor que no borrar nada, porque parecería hecho.
+ */
+async function purgeStoredFiles(userId: string): Promise<number> {
+  const admin = createSupabaseAdminClient();
+  const PAGE = 100;
+  let removed = 0;
+
+  for (const bucket of [STORAGE_BUCKETS.attachments, STORAGE_BUCKETS.avatars]) {
+    for (;;) {
+      const { data, error } = await admin.storage
+        .from(bucket)
+        .list(userId, { limit: PAGE, offset: 0 });
+
+      if (error) throw new Error(`no se pudo listar ${bucket}: ${error.message}`);
+      if (!data || data.length === 0) break;
+
+      const paths = data.map((object) => `${userId}/${object.name}`);
+      const { error: removeError } = await admin.storage.from(bucket).remove(paths);
+      if (removeError) throw new Error(`no se pudo borrar de ${bucket}: ${removeError.message}`);
+
+      removed += paths.length;
+      // Sin `offset`: lo borrado desaparece del listado, así que la siguiente
+      // página vuelve a ser la primera. Avanzar el offset saltaría objetos.
+      if (data.length < PAGE) break;
+    }
+  }
+
+  return removed;
+}
+
+/**
+ * Borra la cuenta de verdad: ficheros incluidos.
  *
  * El borrado se pide a Supabase Auth con la clave de servicio, no a Postgres:
  * el trigger `on_auth_user_deleted` de `prisma/sql/security.sql` se encarga de
  * la fila de `public.users`, y las cascadas del esquema del resto. Hacerlo al
  * revés dejaría una cuenta de autenticación viva sin perfil, que es peor que no
  * borrar nada — podría iniciar sesión y quedarse a medias en el onboarding.
+ *
+ * Lo que las cascadas no alcanzan es el almacenamiento, que no sabe nada de
+ * claves foráneas. De ahí el barrido previo.
  */
 export async function deleteAccount(user: SessionUser, confirmation: string) {
   if (confirmation !== user.username) {
@@ -128,6 +172,20 @@ export async function deleteAccount(user: SessionUser, confirmation: string) {
     );
   }
 
+  // Los ficheros primero, y si fallan se aborta.
+  //
+  // Al revés perderíamos la cuenta y con ella la única forma de saber que esos
+  // objetos eran suyos, dejándolos huérfanos y públicos. Prometer que
+  // desaparecen y luego perderlos de vista es peor que no prometerlo: así el
+  // fallo es visible y se puede reintentar.
+  let removedFiles: number;
+  try {
+    removedFiles = await purgeStoredFiles(user.id);
+  } catch (error) {
+    log.error('account.purge_files_failed', { userId: user.id, ...describeError(error) });
+    throw errors.badRequest('Could not remove your files. Nothing was deleted — try again.');
+  }
+
   const admin = createSupabaseAdminClient();
   const { error } = await admin.auth.admin.deleteUser(user.id);
 
@@ -136,5 +194,5 @@ export async function deleteAccount(user: SessionUser, confirmation: string) {
     throw errors.badRequest('Could not delete the account. Try again in a moment.');
   }
 
-  log.info('account.deleted', { userId: user.id });
+  log.info('account.deleted', { userId: user.id, removedFiles });
 }

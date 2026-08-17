@@ -11,6 +11,10 @@ const PUBLIC_PREFIXES = [
   // Whatever polls this — orchestrator, uptime monitor, load balancer — has no
   // session, and a health check that needs one cannot report that auth is down.
   '/api/health',
+  // Las tareas programadas las dispara Vercel, que tampoco tiene sesión. No
+  // quedan abiertas: la ruta comprueba el secreto compartido por su cuenta, que
+  // es la autorización que le corresponde a un llamante que no es una persona.
+  '/api/cron',
 ];
 
 const AUTH_ONLY_PAGES = ['/login', '/register', '/forgot-password'];

@@ -45,6 +45,16 @@ export const serverEnv = {
   get tenorApiKey() {
     return process.env.TENOR_API_KEY ?? '';
   },
+  /**
+   * Lo que Vercel manda en `Authorization` al disparar una tarea programada.
+   *
+   * Sin él la limpieza no corre, y es a propósito: un endpoint que borra
+   * ficheros y no comprueba quién llama es peor que no tener limpieza. Que sea
+   * opcional permite además que un clon del repositorio arranque sin ella.
+   */
+  get cronSecret(): string | undefined {
+    return process.env.CRON_SECRET || undefined;
+  },
   get vapidPrivateKey(): string | undefined {
     return process.env.VAPID_PRIVATE_KEY || undefined;
   },

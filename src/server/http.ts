@@ -106,13 +106,57 @@ type Handler<Context> = (request: Request, context: Context) => Promise<Response
  * Wraps a route handler with origin checking and error normalisation so every
  * endpoint returns the same error shape.
  */
+/**
+ * La ruta sin los identificadores, para que agrupe.
+ *
+ * `/api/conversations/9f3…/messages` como tal no sirve para medir: cada
+ * conversación sería su propia serie y no habría dos peticiones comparables.
+ * Sustituir los UUID por `:id` convierte miles de rutas distintas en la
+ * media docena de endpoints que en realidad existen.
+ */
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+function routePattern(url: string): string {
+  try {
+    return new URL(url).pathname.replace(UUID, ':id');
+  } catch {
+    return 'unknown';
+  }
+}
+
+/**
+ * Wraps a route handler with origin checking and error normalisation so every
+ * endpoint returns the same error shape.
+ *
+ * Y mide. Una línea por petición con ruta, método, estado y duración es lo que
+ * convierte «no sé si va lento» en una consulta sobre los registros: p50, p95 y
+ * p99 salen de agrupar esas líneas. No hace falta un servicio de métricas para
+ * empezar a tener métricas, y sí hace falta emitirlas.
+ */
 export function route<Context>(handler: Handler<Context>): Handler<Context> {
   return async (request, context) => {
+    const startedAt = performance.now();
+    let response: Response;
+
     try {
       assertSameOrigin(request);
-      return await handler(request, context);
+      response = await handler(request, context);
     } catch (error) {
-      return toErrorResponse(error);
+      response = toErrorResponse(error);
     }
+
+    const ms = Math.round(performance.now() - startedAt);
+    log.info('http.request', {
+      method: request.method,
+      route: routePattern(request.url),
+      status: response.status,
+      ms,
+    });
+
+    // La misma cifra en la respuesta, para verla en el inspector sin salir del
+    // navegador. Es un estándar y no expone nada que el cliente no pueda
+    // cronometrar por su cuenta.
+    response.headers.set('Server-Timing', `app;dur=${ms}`);
+    return response;
   };
 }

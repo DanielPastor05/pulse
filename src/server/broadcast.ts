@@ -1,6 +1,7 @@
 import { publicEnv, serverEnv } from '@/lib/env';
 import { realtimeChannels, type RealtimeEvent } from '@/lib/realtime';
 import { describeError, log } from '@/server/logger';
+import * as Sentry from '@sentry/nextjs';
 
 /**
  * Server → client realtime fan-out.
@@ -39,10 +40,31 @@ async function send(messages: Array<{ topic: string; event: string; payload: unk
         status: response.status,
         body: await response.text(),
       });
+      alertSilentFailure('realtime.broadcast_rejected', { status: response.status });
     }
   } catch (error) {
     log.error('realtime.broadcast_failed', describeError(error));
+    alertSilentFailure('realtime.broadcast_failed', describeError(error));
   }
+}
+
+/**
+ * Sube el fallo a donde ya se miran los errores.
+ *
+ * Este es el más engañoso de la aplicación: la petición del usuario termina en
+ * 201, el mensaje queda guardado, la API responde perfectamente — y nadie lo
+ * recibe en vivo. No hay excepción que capturar ni petición que falle, así que
+ * el registro por sí solo no basta: hay que estar leyéndolo justo cuando pasa.
+ *
+ * Se manda como aviso y no como excepción porque no lo es: es una degradación,
+ * y mezclarla con los fallos duros haría que ninguna de las dos se mirase.
+ */
+function alertSilentFailure(event: string, fields: Record<string, unknown>) {
+  Sentry.captureMessage(event, {
+    level: 'warning',
+    tags: { subsystem: 'realtime' },
+    extra: fields,
+  });
 }
 
 export function broadcastToConversation(
