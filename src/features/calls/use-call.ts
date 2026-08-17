@@ -28,8 +28,12 @@ import { useCallStore } from '@/stores/call-store';
  * members — at the cost of upload bandwidth, since each person sends their own
  * camera N-1 times. Hence the caps in `CALL_LIMITS`.
  *
- * Mounted once, high in the tree, so a call survives navigating between
- * conversations.
+ * **Se monta una sola vez**, en `CallProvider`, y todo lo demás lo consume por
+ * contexto. No es una preferencia de estilo: el canal, los peers y la cámara
+ * viven en `useRef`, así que dos llamadas a este hook son dos llamadas
+ * distintas que no se ven entre sí — y al desmontarse cualquiera de ellas, su
+ * `teardown` resetea el store de todos. Llamarlo directamente desde un
+ * componente vuelve a romper contestar una llamada.
  */
 export function useCall(meId: string) {
   const store = useCallStore();

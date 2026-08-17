@@ -11,6 +11,7 @@ import { CommandPalette } from '@/features/search/components/command-palette';
 import { ShortcutsDialog } from '@/components/layout/shortcuts-dialog';
 import { MobileTabBar, TopDock } from '@/components/layout/top-dock';
 import { CallOverlay } from '@/features/calls/components/call-overlay';
+import { CallProvider } from '@/features/calls/call-provider';
 import { useOutboxFlush } from '@/features/messages/use-outbox-flush';
 
 /**
@@ -36,22 +37,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <PresenceProvider>
-
-      {/* Dock on top, content columns below — the reference layout. */}
-      <div className="flex h-dvh flex-col gap-4 overflow-hidden p-3 md:p-4 lg:gap-6 lg:p-6">
-        <div className="hidden lg:block">
-          <TopDock />
+      {/* Envuelve todo: la cabecera de la conversación también pide llamar, y
+          tiene que ser la misma llamada que la que pinta el overlay. */}
+      <CallProvider>
+        {/* Dock on top, content columns below — the reference layout. */}
+        <div className="flex h-dvh flex-col gap-4 overflow-hidden p-3 md:p-4 lg:gap-6 lg:p-6">
+          <div className="hidden lg:block">
+            <TopDock />
+          </div>
+          <div className="relative flex min-h-0 flex-1 gap-4 lg:gap-6">{children}</div>
         </div>
-        <div className="relative flex min-h-0 flex-1 gap-4 lg:gap-6">{children}</div>
-      </div>
 
-      <MobileTabBar />
-      <CommandPalette />
-      <ShortcutsDialog />
-      {/* Here rather than inside a conversation: a call has to survive
-          navigating away from the chat it started in, and an incoming one has
-          to appear wherever you happen to be. */}
-      <CallOverlay />
+        <MobileTabBar />
+        <CommandPalette />
+        <ShortcutsDialog />
+        {/* Here rather than inside a conversation: a call has to survive
+            navigating away from the chat it started in, and an incoming one has
+            to appear wherever you happen to be. */}
+        <CallOverlay />
+      </CallProvider>
     </PresenceProvider>
   );
 }

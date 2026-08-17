@@ -24,7 +24,7 @@ import { formatLastSeen } from '@/lib/date';
 import { usePresenceOf } from '@/stores/presence-store';
 import { useUiStore } from '@/stores/ui-store';
 import { useConversationPreferences, useMemberMutations } from '@/features/conversations/hooks';
-import { useCall } from '@/features/calls/use-call';
+import { useCallApi } from '@/features/calls/call-provider';
 import { Avatar, PRESENCE_LABEL } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@/components/ui/menu';
@@ -42,7 +42,7 @@ export function ChatHeader({
 }) {
   const preferences = useConversationPreferences(conversation.id);
   const { leave } = useMemberMutations(conversation.id);
-  const { startCall, status: callStatus } = useCall(meId);
+  const { startCall, status: callStatus } = useCallApi();
   // One call at a time: a second one would fight the first for the microphone.
   const callBusy = callStatus !== 'idle';
   const { rightPanel, toggleRightPanel } = useUiStore();

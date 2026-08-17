@@ -6,9 +6,8 @@ import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useCall } from '@/features/calls/use-call';
+import { useCallApi } from '@/features/calls/call-provider';
 import { useCallStore } from '@/stores/call-store';
-import { useSession } from '@/components/providers/session-provider';
 
 /** Attaches a stream without re-rendering the video element on every change. */
 function StreamVideo({
@@ -33,7 +32,7 @@ function StreamVideo({
 
 function IncomingCall() {
   const { from, mode, conversationName } = useCallStore();
-  const { acceptCall, rejectCall } = useCall(useSession().id);
+  const { acceptCall, rejectCall } = useCallApi();
 
   if (!from) return null;
 
@@ -60,9 +59,8 @@ function IncomingCall() {
 }
 
 function ActiveCall() {
-  const me = useSession();
   const { localStream, remotes, micOn, cameraOn, mode, status } = useCallStore();
-  const { leaveCall, toggleMic, toggleCamera, hasRelay } = useCall(me.id);
+  const { leaveCall, toggleMic, toggleCamera, hasRelay } = useCallApi();
 
   const participants = Object.values(remotes);
   // One remote sits large; more than one goes to a grid.
