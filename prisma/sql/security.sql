@@ -405,3 +405,27 @@ alter table public.push_subscriptions enable row level security;
 alter table public.polls enable row level security;
 alter table public.poll_options enable row level security;
 alter table public.poll_votes enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- Registro de moderación
+--
+-- Sólo lectura, y sólo para quien modera esa conversación. No se declara
+-- política de INSERT porque escribe el servidor con la clave de servicio, ni de
+-- UPDATE o DELETE porque no debe poder editarse: sin política, RLS las deniega.
+-- Un registro que el moderador puede reescribir no sirve para lo único que
+-- sirve un registro.
+-- ---------------------------------------------------------------------------
+
+alter table public.moderation_events enable row level security;
+
+drop policy if exists "moderators read their conversation audit" on public.moderation_events;
+create policy "moderators read their conversation audit"
+  on public.moderation_events for select
+  using (
+    exists (
+      select 1 from public.conversation_members cm
+      where cm."conversationId" = moderation_events."conversationId"
+        and cm."userId" = auth.uid()
+        and cm.role in ('OWNER', 'ADMIN', 'MODERATOR')
+    )
+  );

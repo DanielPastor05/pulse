@@ -40,19 +40,6 @@ ALTER TABLE "moderation_events" ADD CONSTRAINT "moderation_events_actorId_fkey"
 ALTER TABLE "moderation_events" ADD CONSTRAINT "moderation_events_targetId_fkey"
   FOREIGN KEY ("targetId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
--- Sólo se añade. Sin política de UPDATE ni de DELETE, así que RLS las deniega
--- por defecto: un registro que el moderador puede reescribir no sirve para lo
--- único que sirve un registro.
-ALTER TABLE "moderation_events" ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "moderators read their conversation audit" ON "moderation_events";
-CREATE POLICY "moderators read their conversation audit"
-  ON "moderation_events" FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM "conversation_members" cm
-      WHERE cm."conversationId" = "moderation_events"."conversationId"
-        AND cm."userId" = auth.uid()
-        AND cm."role" IN ('OWNER', 'ADMIN', 'MODERATOR')
-    )
-  );
+-- La RLS de esta tabla vive en prisma/sql/security.sql, junto al resto:
+-- usa auth.uid(), que es de Supabase y no existe en un Postgres limpio. Meterla
+-- aqui rompia la migracion en CI, que es exactamente para lo que esta ese CI.
