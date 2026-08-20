@@ -1,0 +1,10 @@
+{
+  "all": true,
+  "include": ["src/server/**/*.ts", "src/lib/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.d.ts"],
+  "reporter": ["text-summary", "text", "lcov", "json-summary"],
+  "reports-dir": "coverage",
+  "temp-directory": "coverage/tmp",
+  "skip-full": true,
+  "check-coverage": false
+}

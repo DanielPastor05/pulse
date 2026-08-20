@@ -20,3 +20,6 @@ contraseña supabesa.txt
 # quien clone el repositorio se queda sin saber qué variables hacen falta.
 .env*
 !.env.example
+
+# Informes de cobertura
+coverage/

@@ -98,6 +98,14 @@ jobs:
       - name: Integration tests
         run: npm run test:integration
 
+      # Las dos capas bajo el mismo contador, y aquí y no en local porque las de
+      # integración necesitan el Postgres que sólo existe en esta tanda. El
+      # alcance es `src/server` y `src/lib`: es el código al que apuntan estas
+      # pruebas. Los componentes quedan fuera y están a cero, que es un hueco
+      # dicho en el README y no un alcance recortado para que salga más alto.
+      - name: Cobertura
+        run: npm run coverage
+
       - name: Build
         run: npm run build
 
