@@ -9,14 +9,14 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 | | |
 | --- | --- |
-| **Automated checks** | 195 — 47 unit, 6 component, 42 integration against a real Postgres, 6 browser smoke tests, 94 end-to-end against the deployed instance |
+| **Automated checks** | 199 — 47 unit, 6 component, 46 integration against a real Postgres, 6 browser smoke tests, 94 end-to-end against the deployed instance |
 | **Latency budgets** | p95 per endpoint over a 15-minute window, alerting to Sentry when a budget is missed ([how](#emitting-signal-is-not-watching-it)) |
 | **Coverage** | 36.2% of statements and 74.2% of branches across `src/server` and `src/lib` ([what that gap means](#thirty-six-percent-and-why-branches-are-double-that)) |
 | **Row Level Security** | 20 policies, one per table, enforced independently of the API |
 | **Search latency** | 6035 ms → **343-434 ms p50**, three runs, unchanged by the vector arm ([how](#making-search-nineteen-times-faster)) |
 | **Search quality** | recall@5 30% → 70% by adding a vector arm, measured on a hand-labelled set ([how](#the-half-of-search-that-was-missing)) |
 | **Database round trip** | 1230 ms → 16 ms, after moving the functions to the database's region |
-| **Concurrent sending** | 13.5 s → 1.48 s p50 with ten people writing at once ([how](#the-send-response-was-waiting-for-the-fan-out)) |
+| **Concurrent sending** | 13.5 s → 1.48 s → **590 ms p50** with ten people writing at once, three runs ([how](#the-hypothesis-that-was-not-wrong-just-hidden)) |
 | **Realtime delivery** | 3.8 s p95 end to end at ten concurrent senders, 100% delivered |
 | **Where it bends** | Sending stays under 1.2 s p95 at forty concurrent senders; delivery stretches to 10.6 s ([how](#where-it-bends-and-the-number-that-lied)) |
 | **API surface** | 51 endpoints, 47 behind `requireUser`; the other four authorise themselves ([which](#the-four-endpoints-without-requireuser)) |
@@ -447,6 +447,80 @@ including the correct secret. The 401 body was identical to the one the endpoint
 itself returns, so the authorisation test passed on all three negative cases
 while never once reaching the code it was testing.
 
+### The hypothesis that was not wrong, just hidden
+
+With latency percentiles finally in place, the obvious next question was whether
+the rate limiter — a Postgres write on every mutating request, and the suspect
+named in three reviews — deserved to move to Redis. `pg_stat_statements` gave a
+different answer:
+
+| query | total | share of all DB time | calls | mean |
+| --- | --- | --- | --- | --- |
+| `UPDATE conversations SET lastMessageAt` | 841 s | **57%** | 1,944 | **433 ms** |
+| rate limiter upsert | 375 s | 25% | 8,118 | 46 ms |
+
+The single largest consumer of database time in this application was a one-row
+update nobody was looking at. Every message into a conversation writes the same
+row, so concurrent sends serialise on its lock — group size charged to whoever
+is typing, which is the exact shape of the fan-out problem, in a different
+place.
+
+**And this project had already tested that hypothesis and dismissed it.** The
+table further up says so: *"Row lock on the conversation → move `lastMessageAt`
+out of the transaction → p50 unchanged"*. That measurement was correct. It was
+also taken while the fan-out cost thirteen seconds, and half a second does not
+show up next to thirteen. The hypothesis was not wrong; it was **masked by a
+larger one**, and it only became visible after the larger one was fixed.
+
+That is an argument for re-measuring after every fix rather than only before the
+first one.
+
+The update moved into `after()`, ahead of the broadcasts — anyone receiving
+`inbox.updated` refetches the conversation list, and a mark not yet written
+would hand them the old ordering.
+
+**1.48 s → 590 ms p50** at ten concurrent senders, delivery still 100%. Measured
+three times — 613, 558 and 607 ms — because a single run is a sample, not a
+measurement, and this README already has one entry that learned that the hard
+way.
+
+### Measuring the half the server cannot see
+
+The server times its own work. It cannot time how long a screen takes to paint,
+how long it takes to answer the first tap, or whether content shifts under a
+finger mid-read. A p50 of 139 ms on an endpoint says nothing about any of it.
+
+`useReportWebVitals` now beacons LCP, INP, CLS, FCP and TTFB to `/api/vitals`,
+and they surface in the same `/api/metrics` as the server percentiles.
+
+Three decisions worth the words:
+
+- **Their own table, not `request_samples`.** The shapes look alike and the
+  units are not: CLS is a unitless score between 0 and 1, and in a millisecond
+  integer column it would round to zero. Storing it there would mean scaling by
+  a thousand and remembering the factor at every read — which is how a number
+  that does not mean what it says ends up published.
+- **`sendBeacon`, not `fetch`.** These arrive as the tab is being hidden or
+  closed, exactly where a normal fetch is cancelled.
+- **A closed list of metric names.** The browser is the caller, so anyone can
+  send anything; without the list an arbitrary string becomes its own series and
+  the dashboard fills with invented metrics until the real ones are buried.
+
+Reported at p75, not p95 — that is the percentile Google defines for Core Web
+Vitals, so the number can be compared against a published threshold instead of
+only against itself.
+
+### A performance gate that counts queries, not milliseconds
+
+A wall-clock budget on a shared CI runner is flaky, and a flaky gate gets
+disabled — at which point it protects nothing. Query counts are deterministic,
+and they are the exact shape of the failure this project already paid for: a
+page of twenty results issuing forty sequential round trips.
+
+Four checks assert that cost **does not grow with page size** — message history,
+conversation summaries and threads — plus one that the GIN search index still
+exists, since `migrate diff` has already tried to drop it once.
+
 ### Realtime channels were public
 
 Supabase Realtime channels default to public. The app subscribed to
@@ -601,12 +675,12 @@ no second round trip to render a new message.
 
 ## Testing
 
-195 checks, in five layers.
+199 checks, in five layers.
 
 ```bash
 npm test                  # 41 unit tests — pure logic, no I/O
 npm run test:component    # 6 component tests in a DOM
-npm run test:integration  # 42 tests against a real Postgres
+npm run test:integration  # 46 tests against a real Postgres, four of them a perf gate
 npm run test:smoke        # 6 browser checks against the production build
 npm run test:e2e          # 94 checks against a running server + real Supabase
 ```
@@ -784,9 +858,14 @@ Written down rather than glossed over:
   not retry: if that call fails, the message is safely in the database but does
   not appear live until the recipient refocuses the tab. Structured logging makes
   the failure visible; nothing yet makes it recoverable.
-- **There are logs but no metrics.** No latency histograms, no traces, no error
-  budget. `/api/health` reports one database round trip and that is the whole of
-  the instrumentation.
+- **Metrics are raw samples, not histograms, and there are no traces.** Exact
+  percentiles are affordable at a few thousand requests a day; past that the
+  table becomes bucketed counters. There is still no distributed trace, so a
+  slow request tells you *which* endpoint and not *which part of it* — the next
+  thing worth adding, and it needs a real reason before it earns its cost.
+- **The latency alert has no error budget behind it.** A p95 over budget raises
+  a warning; nothing counts how long it stayed there or decides what that should
+  cost.
 
 ---
 
