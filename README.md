@@ -24,7 +24,9 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 ![Pulse: a group conversation with unread counts, reactions, a quoted reply and a live poll](docs/screenshots/chat.png)
 
-![The command palette, opened with Ctrl+K: recent conversations and quick actions](docs/screenshots/palette.png)
+![Searching for «lo del servidor lento» — a Spanish query that shares no words with the English message it finds about Washington and Frankfurt](docs/screenshots/search.png)
+
+*Asking for «lo del servidor lento» — Spanish for "the thing about the slow server" — returns the message that reads *"search p50 was 6 seconds… Washington… Frankfurt"*. Not one word in common. Lexical search returned nothing for that query; the numbers behind it are [here](#the-half-of-search-that-was-missing).*
 
 ---
 
