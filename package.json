@@ -9,7 +9,8 @@
   "//overrides": "next 15 has no advisory of its own — npm flags it only for pulling in a vulnerable sharp and postcss. Pinning those two directly closes the CVEs without a major framework bump the night before a launch. Drop this block once Next ships a release that already depends on patched versions.",
   "overrides": {
     "sharp": "^0.35.3",
-    "postcss": "^8.5.26"
+    "postcss": "^8.5.26",
+    "deepmerge-ts": "^8.0.1"
   },
   "scripts": {
     "dev": "next dev",
