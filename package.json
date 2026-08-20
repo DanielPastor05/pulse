@@ -22,6 +22,7 @@
     "test:smoke": "playwright test",
     "test:e2e": "node tests/e2e/security.mjs && node tests/e2e/notifications.mjs && node tests/e2e/realtime.mjs && node tests/e2e/push.mjs",
     "bench:search": "node tests/bench/search.mjs",
+    "bench:quality": "node tests/bench/search-quality.mjs",
     "bench:load": "node tests/bench/load.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

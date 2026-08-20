@@ -9,9 +9,10 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 | | |
 | --- | --- |
-| **Automated checks** | 183 — 41 unit, 42 integration against a real Postgres, 6 browser smoke tests, 94 end-to-end against the deployed instance |
+| **Automated checks** | 189 — 47 unit, 42 integration against a real Postgres, 6 browser smoke tests, 94 end-to-end against the deployed instance |
 | **Row Level Security** | 20 policies, one per table, enforced independently of the API |
 | **Search latency** | 6035 ms → 314 ms p50, measured before and after ([how](#making-search-nineteen-times-faster)) |
+| **Search quality** | recall@5 30% → 70% by adding a vector arm, measured on a hand-labelled set ([how](#the-half-of-search-that-was-missing)) |
 | **Database round trip** | 1230 ms → 16 ms, after moving the functions to the database's region |
 | **Concurrent sending** | 13.5 s → 1.48 s p50 with ten people writing at once ([how](#the-send-response-was-waiting-for-the-fan-out)) |
 | **Realtime delivery** | 3.8 s p95 end to end at ten concurrent senders, 100% delivered |
@@ -147,6 +148,96 @@ arriving after it stopped looking, and being counted as lost.
 
 A benchmark that confuses *late* with *lost* is worse than no benchmark, because
 the number looks like data. The wait now scales with the load.
+
+### The half of search that was missing
+
+Search was fast and it was literal. Ask it for «lo del servidor lento» and it
+returned nothing, while the message sat right there saying *"p50 was six
+seconds… Washington… Frankfurt"*. Not one word in common.
+
+So there is a second retrieval arm now — vector similarity over `pgvector` — and
+the two are combined with **Reciprocal Rank Fusion**.
+
+RRF rather than a weighted sum, for a specific reason: `ts_rank` returns
+something around 0.06 and cosine distance something around 0.2, and they do not
+mean the same thing or live on the same scale. Normalising them into one number
+means picking a range, and the right range changes with every query. RRF only
+compares **positions**, which is the one thing both arms express identically.
+
+Embeddings come from `gte-small` running inside a Supabase Edge Function — no
+third-party API, no key to rotate, no per-token cost. That is what makes it
+affordable to index every message rather than keep the feature as a demo.
+
+#### What the measurements actually said
+
+`npm run bench:quality` seeds a corpus with hand-labelled ground truth — each
+query knows which message it should find — surrounds it with 175 distractors on
+neighbouring topics, and scores all three configurations:
+
+| | recall@1 | recall@5 | MRR |
+| --- | --- | --- | --- |
+| lexical only | 30% | 30% | 0.304 |
+| vector only | 61% | 70% | 0.644 |
+| **hybrid** | **61%** | **70%** | 0.642 |
+
+The win is real and large. **It does not come from the fusion.** On this corpus
+the vector arm alone matches hybrid, and the lexical arm never contributes a
+single unique hit — because with two hundred candidates, tokens like `7f3a91c`
+and `P2002` are rare enough that the embedding separates them too, semantics or
+not. The lexical arm is insurance whose premium is currently unpaid; it should
+start earning as the corpus grows and rare tokens stop being rare.
+
+That is worth saying plainly rather than shipping a table that implies the
+fusion did the work.
+
+#### Where it fails, measured
+
+Broken out by query type, recall@5:
+
+| | lexical | vector | hybrid |
+| --- | --- | --- | --- |
+| paraphrase (en) | 0% | 58% | 58% |
+| exact terms | 100% | 100% | 100% |
+| opaque ids | 100% | 100% | 100% |
+| Spanish query, English corpus | 0% | 50% | 50% |
+
+`gte-small` is an English model. A Spanish question against English messages is
+cross-lingual retrieval, which it cannot do — the same limitation already
+documented for the `simple` text search config, sharper. Within one language it
+holds up; across two it does not.
+
+#### The threshold that does not exist
+
+The lexical arm has a hard filter: `@@` either matches or it does not. The
+vector arm has none — it returns the nearest N however far away they are. The
+obvious fix is a distance cutoff, and it cannot be built honestly here.
+
+Measured on this corpus, best-candidate cosine distance:
+
+| distance | query |
+| --- | --- |
+| 0.161 | screen reader accessibility |
+| **0.178** | **qwerty asdfgh zxcvbn** |
+| **0.187** | **xkcd blorptastic wibblefrump** |
+| 0.191 | the thing about the server being slow |
+
+Gibberish lands *closer* than a good question. Any cutoff that rejects one
+rejects the other. So there is no threshold; instead the vector arm contributes
+few candidates (25 against the lexical arm's 200) to bound how much noise a
+query with no real answer can produce. The asymmetry is deliberate and this is
+why.
+
+#### Three times the instrument was the thing that was wrong
+
+The first version measured 25 messages with no distractors and reported hybrid
+and vector as identical — which was true, and meaningless, because top-5 of 25
+lets almost anything through. The second added distractors but still had no
+query a model genuinely cannot represent, so the lexical arm looked useless. The
+third reported **recall@1 higher than recall@5**, which is arithmetically
+impossible, and that impossible number is what exposed the real bug: the send
+rate limiter had rejected the last three seeded messages, so their ids were
+`undefined`, and `undefined` matched the first element of every empty result
+list. The benchmark had been quietly scoring itself right.
 
 ### A race the schema had already admitted to
 
@@ -471,6 +562,7 @@ trigger.
 npm run dev              npm run build            npm run start
 npm run typecheck        npm run lint             npm test
 npm run test:integration npm run test:e2e         npm run test:smoke
+npm run bench:quality   # recall@k of each retrieval arm
 npm run bench:search     npm run bench:load
 npm run db:migrate       npm run db:deploy        npm run db:studio
 ```

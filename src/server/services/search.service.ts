@@ -44,13 +44,28 @@ const MIN_FULL_TEXT_LENGTH = 3;
 /**
  * Cuántos candidatos trae cada rama antes de fusionar.
  *
- * RRF ordena por **posición dentro de lo recuperado**, así que este número es
- * el horizonte real de la búsqueda: un mensaje que no entre en los 200 mejores
- * de ninguna de las dos ramas no existe para la fusión, por muchas páginas que
- * se pidan. Está dicho en «Known limits» en vez de dejar que parezca
- * exhaustivo.
+ * RRF ordena por **posición dentro de lo recuperado**, así que estos números
+ * son el horizonte real de la búsqueda: un mensaje que no entre aquí no existe
+ * para la fusión, por muchas páginas que se pidan. Está dicho en «Known limits»
+ * en vez de dejar que parezca exhaustivo.
+ *
+ * Las dos profundidades son distintas a propósito, y la asimetría está medida.
+ * Todo lo que devuelve la rama léxica **casa de verdad** —`@@` es un filtro
+ * duro—, así que ir hondo no cuesta precisión. La vectorial no tiene filtro
+ * alguno: devuelve los N más cercanos por lejos que estén, y con `gte-small`
+ * sobre textos cortos no hay distancia que separe una consulta con sentido de
+ * una sin sentido. Medido sobre este corpus: el mejor candidato de «qwerty
+ * asdfgh zxcvbn» queda a 0,178 y el de «the thing about the server being slow»
+ * a 0,191 — el galimatías **más cerca** que la consulta buena. Cualquier umbral
+ * que rechace uno rechaza el otro.
+ *
+ * Como no hay umbral honesto, se limita el daño por el otro lado: la rama
+ * vectorial aporta pocos candidatos. Los aciertos de paráfrasis aparecen en los
+ * primeros puestos —es lo que se mide en el banco de calidad—, así que recortar
+ * la cola quita ruido sin quitar recall.
  */
-const RETRIEVAL_DEPTH = 200;
+const LEXICAL_DEPTH = 200;
+const VECTOR_DEPTH = 25;
 
 /**
  * A `tsquery` built from the user's words, with every term as a prefix.
@@ -126,8 +141,8 @@ async function fusedMessageIds(
   cursor: { rank: number; id: string } | null,
 ): Promise<RankedRow[]> {
   const [lexical, vector] = await Promise.all([
-    tsquery ? lexicalMessageIds(viewerId, tsquery, RETRIEVAL_DEPTH) : Promise.resolve([]),
-    queryVector ? vectorMessageIds(viewerId, queryVector, RETRIEVAL_DEPTH) : Promise.resolve([]),
+    tsquery ? lexicalMessageIds(viewerId, tsquery, LEXICAL_DEPTH) : Promise.resolve([]),
+    queryVector ? vectorMessageIds(viewerId, queryVector, VECTOR_DEPTH) : Promise.resolve([]),
   ]);
 
   const fused = fuse([lexical, vector]);
