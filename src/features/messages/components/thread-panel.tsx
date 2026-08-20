@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 
 import { api } from '@/lib/api-client';
@@ -11,7 +11,7 @@ import { PollCard } from '@/features/messages/components/poll-card';
 import { AttachmentGrid } from '@/features/media/components/attachment-grid';
 import type { MessageDTO } from '@/types/dto';
 
-type Thread = { root: MessageDTO; replies: MessageDTO[] };
+type Thread = { root: MessageDTO; replies: MessageDTO[]; nextCursor: string | null };
 
 function ThreadMessage({ message }: { message: MessageDTO }) {
   const deleted = Boolean(message.deletedAt);
@@ -62,10 +62,22 @@ function ThreadMessage({ message }: { message: MessageDTO }) {
  * without making a single reply easy to miss.
  */
 export function ThreadPanel({ rootId }: { rootId: string }) {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['thread', rootId],
-    queryFn: () => api<Thread>(`/messages/${rootId}/thread`),
-  });
+  // Paginado y no un `take` grande: antes traia doscientas respuestas y ahi se
+  // acababa, sin decir que faltaban. Un tope que trunca en silencio es lo peor
+  // de las dos opciones — ni lo enseña entero ni avisa.
+  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: ['thread', rootId],
+      queryFn: ({ pageParam }) =>
+        api<Thread>(
+          `/messages/${rootId}/thread${pageParam ? `?cursor=${encodeURIComponent(pageParam)}` : ''}`,
+        ),
+      initialPageParam: null as string | null,
+      getNextPageParam: (last) => last.nextCursor,
+    });
+
+  const root = data?.pages[0]?.root;
+  const replies = data?.pages.flatMap((page) => page.replies) ?? [];
 
   if (isLoading) {
     return (
@@ -75,31 +87,43 @@ export function ThreadPanel({ rootId }: { rootId: string }) {
     );
   }
 
-  if (isError || !data) {
+  if (isError || !root) {
     return <p className="p-4 text-[13px] text-[var(--text-3)]">This thread is not available.</p>;
   }
 
   return (
     <div className="p-3">
       <ul className="space-y-3">
-        <ThreadMessage message={data.root} />
+        <ThreadMessage message={root} />
       </ul>
 
       <p className="my-3 border-t border-[var(--hairline)] pt-3 text-[11px] uppercase tracking-wider text-[var(--text-3)]">
-        {data.replies.length} {data.replies.length === 1 ? 'reply' : 'replies'}
+        {replies.length}
+        {hasNextPage ? '+' : ''} {replies.length === 1 ? 'reply' : 'replies'}
       </p>
 
-      {data.replies.length === 0 ? (
+      {replies.length === 0 ? (
         <p className="text-[13px] text-[var(--text-3)]">
           Reply to this message and it will show up here.
         </p>
       ) : (
         <ul className="space-y-3">
-          {data.replies.map((reply) => (
+          {replies.map((reply) => (
             <ThreadMessage key={reply.id} message={reply} />
           ))}
         </ul>
       )}
+
+      {hasNextPage ? (
+        <button
+          type="button"
+          onClick={() => void fetchNextPage()}
+          disabled={isFetchingNextPage}
+          className="mt-3 w-full rounded-[var(--radius-field)] border border-[var(--hairline)] py-2 text-[12px] text-[var(--text-2)] transition-colors hover:border-[var(--hairline-strong)] disabled:opacity-60"
+        >
+          {isFetchingNextPage ? 'Loading…' : 'Load older replies'}
+        </button>
+      ) : null}
     </div>
   );
 }

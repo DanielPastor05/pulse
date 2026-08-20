@@ -1,6 +1,8 @@
+import { z } from 'zod';
+
 import { requireUser } from '@/server/auth';
 import { errors } from '@/server/errors';
-import { json, route } from '@/server/http';
+import { json, parseQuery, route } from '@/server/http';
 import { rateLimit, rateLimits } from '@/server/rate-limit';
 import { requireMembership } from '@/server/repositories/conversation.repository';
 import { listThread } from '@/server/repositories/message.repository';
@@ -9,7 +11,9 @@ import type { RouteContext } from '@/server/route-context';
 
 export const dynamic = 'force-dynamic';
 
-export const GET = route<RouteContext<{ id: string }>>(async (_request, context) => {
+const querySchema = z.object({ cursor: z.string().uuid().optional() });
+
+export const GET = route<RouteContext<{ id: string }>>(async (request, context) => {
   const user = await requireUser();
   const { id } = await context.params;
   await rateLimit(`thread:${user.id}`, rateLimits.search);
@@ -23,7 +27,8 @@ export const GET = route<RouteContext<{ id: string }>>(async (_request, context)
   if (!message) throw errors.notFound('That message no longer exists.');
   await requireMembership(message.conversationId, user.id);
 
-  const thread = await listThread(id, user.id);
+  const { cursor } = parseQuery(request, querySchema);
+  const thread = await listThread(id, user.id, { cursor });
   if (!thread) throw errors.notFound('That message no longer exists.');
 
   return json(thread);

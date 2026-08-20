@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { MESSAGE_PAGE_SIZE } from '@/lib/constants';
+import { MESSAGE_PAGE_SIZE, THREAD_PAGE_SIZE } from '@/lib/constants';
 import { errors } from '@/server/errors';
 import { messageInclude, toMessage } from '@/server/repositories/selectors';
 import type { MessageDTO, Paginated } from '@/types/dto';
@@ -59,23 +59,38 @@ export async function listMessages(
 export async function listThread(
   rootId: string,
   viewerId: string,
-): Promise<{ root: MessageDTO; replies: MessageDTO[] } | null> {
+  options: { cursor?: string | null; limit?: number } = {},
+): Promise<{ root: MessageDTO; replies: MessageDTO[]; nextCursor: string | null } | null> {
+  const limit = Math.min(options.limit ?? THREAD_PAGE_SIZE, 100);
+
   const root = await prisma.message.findUnique({
     where: { id: rootId },
     include: messageInclude(viewerId),
   });
   if (!root) return null;
 
-  const replies = await prisma.message.findMany({
+  const rows = await prisma.message.findMany({
     where: { replyToId: rootId },
     include: messageInclude(viewerId),
+    // Mismo desempate por `id` que el historial, y por el mismo motivo:
+    // `createdAt` no es unico y un cursor sobre un orden que no es total se
+    // salta filas o las repite cuando dos respuestas caen en el mismo
+    // milisegundo.
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-    take: 200,
+    take: limit + 1,
+    ...(options.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}),
   });
+
+  // Antes habia un `take: 200` y nada mas: un hilo mas largo se quedaba
+  // truncado en silencio, que es lo peor de las dos opciones — ni lo enseña
+  // entero ni dice que falta algo.
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
 
   return {
     root: toMessage(root, viewerId),
-    replies: replies.map((row) => toMessage(row, viewerId)),
+    replies: page.map((row) => toMessage(row, viewerId)),
+    nextCursor: hasMore ? (page.at(-1)?.id ?? null) : null,
   };
 }
 

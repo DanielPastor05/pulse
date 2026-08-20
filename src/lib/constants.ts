@@ -4,6 +4,10 @@ export const APP_TAGLINE = 'Conversations that keep up with you.';
 export const MESSAGE_PAGE_SIZE = 40;
 export const SEARCH_PAGE_SIZE = 20;
 export const NOTIFICATION_PAGE_SIZE = 25;
+/** Respuestas de un hilo por pagina. */
+export const THREAD_PAGE_SIZE = 50;
+/** Entradas del registro de moderacion por pagina. */
+export const MODERATION_PAGE_SIZE = 50;
 
 export const MAX_MESSAGE_LENGTH = 4000;
 export const MAX_ATTACHMENTS_PER_MESSAGE = 10;
