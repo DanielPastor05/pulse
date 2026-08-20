@@ -41,6 +41,7 @@ export const updateProfileSchema = z.object({
   statusText: z.string().max(80).nullable().optional(),
   avatarUrl: httpUrl.nullable().optional(),
   accent: z.string().min(1).max(24).optional(),
+  locale: z.enum(['EN', 'ES']).optional(),
   theme: z.enum(['LIGHT', 'DARK', 'SYSTEM']).optional(),
   reducedMotion: z.boolean().optional(),
   presence: z.enum(['ONLINE', 'IDLE', 'DND', 'OFFLINE']).optional(),

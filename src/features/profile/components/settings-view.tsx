@@ -36,6 +36,8 @@ import { AvatarPicker } from '@/features/profile/components/avatar-picker';
 import { ensureNotificationPermission, playChime } from '@/features/notifications/sound';
 import { disablePush, enablePush } from '@/features/notifications/push';
 import { useSession } from '@/components/providers/session-provider';
+import { LOCALE_COOKIE, LOCALE_LABELS, useT } from '@/i18n/provider';
+import type { Locale } from '@prisma/client';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -175,6 +177,7 @@ function ProfileTab() {
 }
 
 function AppearanceTab() {
+  const t = useT();
   const me = useSession();
   const update = useUpdateProfile();
   const { theme, setTheme } = useTheme();
@@ -219,6 +222,10 @@ function AppearanceTab() {
 
       <Section title="Accent" description="Recolours gradients, badges and highlights everywhere.">
         <AccentPicker value={me.accent} onChange={(accent) => update.mutate({ accent })} />
+      </Section>
+
+      <Section title={t.settings.language} description={t.settings.languageHint}>
+        <LanguagePicker />
       </Section>
 
       <Section title="Motion" description="Respected on top of your operating system setting.">
@@ -501,6 +508,62 @@ export function SettingsView() {
           </Tabs>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * El idioma de la interfaz.
+ *
+ * Escribe en dos sitios a la vez y no es duplicidad: la fila del usuario es la
+ * preferencia —viaja entre dispositivos y sobrevive a borrar los datos del
+ * sitio— y la cookie es lo unico que el servidor puede leer para pintar en el
+ * idioma correcto las pantallas que existen antes de la sesion, como la de
+ * entrar.
+ *
+ * Recarga al terminar. Es lo mas honesto que se puede hacer aqui: la mitad de
+ * los textos vienen del servidor, asi que cambiarlos sin volver a pedirlos
+ * dejaria media pantalla en un idioma y media en otro.
+ */
+function LanguagePicker() {
+  const me = useSession();
+  const update = useUpdateProfile();
+  const [saving, setSaving] = React.useState(false);
+
+  const choose = (locale: Locale) => {
+    if (locale === me.locale || saving) return;
+    setSaving(true);
+
+    // Un ano de vida y `SameSite=Lax`: no es un dato sensible, pero tampoco
+    // tiene por que viajar en peticiones que vengan de otro sitio.
+    document.cookie = `${LOCALE_COOKIE}=${locale}; path=/; max-age=31536000; samesite=lax`;
+
+    update.mutate(
+      { locale },
+      { onSettled: () => window.location.reload() },
+    );
+  };
+
+  return (
+    <div className="flex gap-2">
+      {(Object.keys(LOCALE_LABELS) as Locale[]).map((code) => (
+        <button
+          key={code}
+          type="button"
+          onClick={() => choose(code)}
+          disabled={saving}
+          aria-pressed={me.locale === code}
+          className={cn(
+            'flex-1 rounded-[var(--radius-card)] border px-4 py-3 text-[13px] font-medium',
+            'transition-colors duration-150 disabled:opacity-60',
+            me.locale === code
+              ? 'border-[var(--accent)] bg-[color-mix(in_oklab,var(--accent)_8%,transparent)] text-[var(--accent)]'
+              : 'border-[var(--hairline)] text-[var(--text-2)] hover:border-[var(--hairline-strong)]',
+          )}
+        >
+          {LOCALE_LABELS[code]}
+        </button>
+      ))}
     </div>
   );
 }

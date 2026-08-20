@@ -23,6 +23,11 @@ enum Presence {
   OFFLINE
 }
 
+enum Locale {
+  EN
+  ES
+}
+
 enum ThemePreference {
   LIGHT
   DARK
@@ -111,6 +116,9 @@ model User {
   presence   Presence @default(OFFLINE)
   lastSeenAt DateTime @default(now())
 
+  /// El idioma de la interfaz. La cookie lo repite para las pantallas que se
+  /// pintan antes de que haya sesion; esta fila es la que manda.
+  locale        Locale          @default(EN)
   theme         ThemePreference @default(SYSTEM)
   accent        String          @default("violet")
   reducedMotion Boolean         @default(false)

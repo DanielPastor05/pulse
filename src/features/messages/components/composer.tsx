@@ -27,6 +27,7 @@ import { GifPicker } from '@/features/messages/components/gif-picker';
 import { PollDialog } from '@/features/messages/components/poll-dialog';
 import { MentionSuggestions } from '@/features/messages/components/mention-suggestions';
 import { useComposerStore } from '@/stores/composer-store';
+import { useT } from '@/i18n/provider';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/tooltip';
 import type { AttachmentInput } from '@/features/messages/validators';
@@ -53,6 +54,7 @@ export function Composer({
   onEditSubmit,
   onTyping,
 }: Props) {
+  const t = useT();
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
@@ -149,7 +151,7 @@ export function Composer({
     async (files: File[], options: { isVoiceNote?: boolean; duration?: number; waveform?: number[] } = {}) => {
       const room = MAX_ATTACHMENTS_PER_MESSAGE - attachments.length;
       if (room <= 0) {
-        toast.error(`Up to ${MAX_ATTACHMENTS_PER_MESSAGE} attachments per message`);
+        toast.error(t.composer.tooMany(MAX_ATTACHMENTS_PER_MESSAGE));
         return;
       }
 
@@ -184,7 +186,7 @@ export function Composer({
                   ? {
                       ...item,
                       status: 'error',
-                      error: error instanceof Error ? error.message : 'Upload failed',
+                      error: error instanceof Error ? error.message : t.composer.uploadFailed,
                     }
                   : item,
               ),
@@ -193,7 +195,7 @@ export function Composer({
         }),
       );
     },
-    [attachments.length],
+    [attachments.length, t.composer],
   );
 
   const removeAttachment = (id: string) => {
@@ -294,7 +296,7 @@ export function Composer({
             exit={{ opacity: 0 }}
             className="pointer-events-none absolute inset-2 z-10 grid place-items-center rounded-[var(--radius-card)] border-2 border-dashed border-[var(--accent)] bg-[color-mix(in_oklab,var(--accent)_10%,transparent)] "
           >
-            <p className="text-[13px] font-medium text-[var(--accent)]">Drop to attach</p>
+            <p className="text-[13px] font-medium text-[var(--accent)]">{t.composer.dropToAttach}</p>
           </motion.div>
         ) : null}
       </AnimatePresence>
@@ -314,10 +316,10 @@ export function Composer({
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-semibold text-[var(--accent)]">
-                    {edit ? 'Editing message' : `Replying to ${reply?.authorName}`}
+                    {edit ? t.composer.editing : t.composer.replyingTo(reply?.authorName ?? '')}
                   </p>
                   <p className="truncate text-[12px] text-[var(--text-2)]">
-                    {edit ? edit.content : reply?.content || 'Attachment'}
+                    {edit ? edit.content : reply?.content || t.composer.attachment}
                   </p>
                 </div>
                 <button
@@ -327,7 +329,7 @@ export function Composer({
                     else setReplyTo(conversationId, null);
                   }}
                   className="grid size-6 shrink-0 place-items-center rounded-lg text-[var(--text-3)] hover:bg-[var(--hairline)] hover:text-[var(--text-1)]"
-                  aria-label="Cancel"
+                  aria-label={t.common.cancel}
                 >
                   <X className="size-3.5" />
                 </button>
@@ -354,26 +356,26 @@ export function Composer({
         ) : (
           <div className="flex items-end gap-1.5">
             <div className="flex items-center gap-0.5 pb-1">
-              <Tooltip content="Attach a file">
+              <Tooltip content={t.composer.attach}>
                 <Button
                   size="icon-sm"
                   variant="ghost"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={disabled}
-                  aria-label="Attach a file"
+                  aria-label={t.composer.attach}
                 >
                   <Paperclip />
                 </Button>
               </Tooltip>
 
-              <Tooltip content="Take a photo">
+              <Tooltip content={t.composer.photo}>
                 <Button
                   size="icon-sm"
                   variant="ghost"
                   className="hidden sm:inline-flex"
                   onClick={() => cameraInputRef.current?.click()}
                   disabled={disabled}
-                  aria-label="Take a photo"
+                  aria-label={t.composer.photo}
                 >
                   <Camera />
                 </Button>
@@ -386,7 +388,7 @@ export function Composer({
                   insertAtCaret(`![${gif.description}](${gif.url})`);
                 }}
               >
-                <Button size="icon-sm" variant="ghost" disabled={disabled} aria-label="Add a GIF">
+                <Button size="icon-sm" variant="ghost" disabled={disabled} aria-label={t.composer.gif}>
                   <ImageIcon />
                 </Button>
               </GifPicker>
@@ -396,7 +398,7 @@ export function Composer({
                 variant="ghost"
                 disabled={disabled}
                 onClick={() => setPollOpen(true)}
-                aria-label="Create a poll"
+                aria-label={t.composer.poll}
               >
                 <BarChart3 />
               </Button>
@@ -418,8 +420,8 @@ export function Composer({
                 rows={1}
                 maxLength={MAX_MESSAGE_LENGTH}
                 disabled={disabled}
-                placeholder={disabled ? (disabledReason ?? 'You cannot post here') : 'Write a message…'}
-                aria-label="Message"
+                placeholder={disabled ? (disabledReason ?? t.composer.cannotPost) : t.composer.placeholder}
+                aria-label={t.composer.messageLabel}
                 onChange={(event) => {
                   setValue(event.target.value);
                   updateMentionQuery(event.target.value, event.target.selectionStart);
@@ -447,7 +449,7 @@ export function Composer({
                 onOpenChange={setEmojiOpen}
                 onSelect={(emoji) => insertAtCaret(emoji)}
               >
-                <Button size="icon-sm" variant="ghost" disabled={disabled} aria-label="Insert emoji">
+                <Button size="icon-sm" variant="ghost" disabled={disabled} aria-label={t.composer.emoji}>
                   <Smile />
                 </Button>
               </EmojiPicker>
@@ -458,18 +460,18 @@ export function Composer({
                   onClick={submit}
                   disabled={!canSend && !edit}
                   loading={uploading}
-                  aria-label={edit ? 'Save changes' : 'Send message'}
+                  aria-label={edit ? t.composer.saveChanges : t.composer.sendMessage}
                 >
                   <SendHorizonal />
                 </Button>
               ) : (
-                <Tooltip content="Record a voice note">
+                <Tooltip content={t.composer.voice}>
                   <Button
                     size="icon-sm"
                     variant="ghost"
                     onClick={() => setRecording(true)}
                     disabled={disabled}
-                    aria-label="Record a voice note"
+                    aria-label={t.composer.voice}
                   >
                     <Mic />
                   </Button>

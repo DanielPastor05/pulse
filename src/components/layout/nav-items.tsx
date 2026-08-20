@@ -3,9 +3,12 @@
 import { Compass, MessagesSquare, Settings, Star } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
+import type { Messages } from '@/i18n/en';
+
 export type NavItem = {
   href: string;
-  label: string;
+  /** Clave del diccionario, no el texto: aqui todavia no se sabe el idioma. */
+  label: keyof Messages['nav'];
   icon: LucideIcon;
   /** Highlight for any nested route, not just an exact match. */
   match: (pathname: string) => boolean;
@@ -14,25 +17,25 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
   {
     href: '/chat',
-    label: 'Chats',
+    label: 'chats',
     icon: MessagesSquare,
     match: (pathname) => pathname === '/chat' || pathname.startsWith('/chat/'),
   },
   {
     href: '/discover',
-    label: 'Discover',
+    label: 'discover',
     icon: Compass,
     match: (pathname) => pathname.startsWith('/discover'),
   },
   {
     href: '/starred',
-    label: 'Starred',
+    label: 'starred',
     icon: Star,
     match: (pathname) => pathname.startsWith('/starred'),
   },
   {
     href: '/settings',
-    label: 'Settings',
+    label: 'settings',
     icon: Settings,
     match: (pathname) => pathname.startsWith('/settings'),
   },

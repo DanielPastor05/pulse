@@ -20,6 +20,7 @@ import {
 
 import { QUICK_REACTIONS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n/provider';
 import { formatBubbleTime, formatFullTimestamp } from '@/lib/date';
 import { AttachmentGrid } from '@/features/media/components/attachment-grid';
 import { LinkPreviewCard } from '@/features/messages/components/link-preview-card';
@@ -83,15 +84,17 @@ function StatusTicks({
   read: boolean;
   onRetry: () => void;
 }) {
+  const t = useT();
+
   if (message.failed) {
     // Clickable on purpose: the alternative is retyping the message, and the
     // send is idempotent by clientId so pressing twice cannot double-post.
     return (
-      <Tooltip content="Not delivered — tap to retry">
+      <Tooltip content={t.message.notDelivered}>
         <button
           type="button"
           onClick={onRetry}
-          aria-label="Retry sending this message"
+          aria-label={t.message.retrySending}
           className="grid place-items-center rounded-full text-[var(--danger)] transition-transform active:scale-95"
         >
           <AlertCircle className="size-3" />
@@ -104,7 +107,7 @@ function StatusTicks({
   // goes out on its own when the connection returns.
   if (message.queued) {
     return (
-      <Tooltip content="Waiting for a connection — it will send itself">
+      <Tooltip content={t.message.waitingSend}>
         <CloudOff className="size-3 opacity-60" />
       </Tooltip>
     );
@@ -123,6 +126,7 @@ export const MessageBubble = React.memo(function MessageBubble({
   highlighted,
   actions,
 }: Props) {
+  const t = useT();
   const deleted = Boolean(message.deletedAt);
 
   if (message.kind === 'SYSTEM') {
@@ -163,24 +167,24 @@ export const MessageBubble = React.memo(function MessageBubble({
     <>
       <MenuItem onSelect={() => actions.onReply(message)}>
         <CornerUpLeft />
-        Reply
+        {t.message.reply}
       </MenuItem>
       <MenuItem onSelect={() => actions.onForward(message)}>
         <Forward />
-        Forward
+        {t.message.forward}
       </MenuItem>
       <MenuItem onSelect={() => actions.onStar(message, !message.starred)}>
         <Star />
-        {message.starred ? 'Remove star' : 'Star message'}
+        {message.starred ? t.message.unstar : t.message.starMessage}
       </MenuItem>
       <MenuItem onSelect={() => actions.onPin(message, !message.pinnedAt)}>
         {message.pinnedAt ? <PinOff /> : <Pin />}
-        {message.pinnedAt ? 'Unpin' : 'Pin to conversation'}
+        {message.pinnedAt ? t.message.unpin : t.message.pinTo}
       </MenuItem>
       {mine ? (
         <MenuItem onSelect={() => actions.onEdit(message)}>
           <Pencil />
-          Edit
+          {t.message.edit}
         </MenuItem>
       ) : null}
       {!mine ? (
@@ -188,7 +192,7 @@ export const MessageBubble = React.memo(function MessageBubble({
           <MenuSeparator />
           <MenuItem onSelect={() => actions.onReport(message)}>
             <Flag />
-            Report
+            {t.message.report}
           </MenuItem>
         </>
       ) : null}
@@ -197,7 +201,7 @@ export const MessageBubble = React.memo(function MessageBubble({
           <MenuSeparator />
           <MenuItem danger onSelect={() => actions.onDelete(message)}>
             <Trash2 />
-            Delete
+            {t.common.delete}
           </MenuItem>
         </>
       ) : null}
@@ -249,7 +253,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                 <span
                   className={cn('cursor-pointer text-[15px] font-bold hover:underline', nameTone)}
                 >
-                  {message.author?.displayName ?? 'Unknown'}
+                  {message.author?.displayName ?? t.message.unknown}
                 </span>
                 <Tooltip content={formatFullTimestamp(message.createdAt)}>
                   <time
@@ -285,15 +289,15 @@ export const MessageBubble = React.memo(function MessageBubble({
                     </span>
                     <span className="line-clamp-2 text-[12px] text-[var(--text-2)]">
                       {message.replyTo.deleted
-                        ? 'Message deleted'
+                        ? t.message.deletedShort
                         : message.replyTo.content ||
-                          `${message.replyTo.attachmentCount} attachment${message.replyTo.attachmentCount === 1 ? '' : 's'}`}
+                          t.message.attachments(message.replyTo.attachmentCount)}
                     </span>
                   </button>
                 ) : null}
 
                 {deleted ? (
-                  <p className="italic text-[var(--text-3)]">This message was deleted</p>
+                  <p className="italic text-[var(--text-3)]">{t.message.deleted}</p>
                 ) : (
                   <>
                     {message.attachments.length > 0 ? (
@@ -317,8 +321,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                         onClick={() => actions.onOpenThread(message)}
                         className="mt-1 text-[11px] font-medium text-[var(--accent)] hover:underline"
                       >
-                        {message.replyCount}{' '}
-                        {message.replyCount === 1 ? 'reply' : 'replies'}
+                        {t.message.replies(message.replyCount)}
                       </button>
                     ) : null}
                   </>
@@ -332,7 +335,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                 >
                   {message.pinnedAt ? <Pin className="size-3" /> : null}
                   {message.starred ? <Star className="size-3 fill-current" /> : null}
-                  {message.editedAt ? <span>edited</span> : null}
+                  {message.editedAt ? <span>{t.message.edited}</span> : null}
                   {mine && !deleted ? (
                     <StatusTicks
                       message={message}
@@ -368,7 +371,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                     type="button"
                     onClick={() => actions.onOpenEmoji(message)}
                     className="grid size-7 place-items-center rounded-full text-[var(--text-3)] transition-colors hover:text-[var(--text-1)]"
-                    aria-label="More reactions"
+                    aria-label={t.message.moreReactions}
                   >
                     <Smile className="size-4" />
                   </button>
@@ -376,7 +379,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                     type="button"
                     onClick={() => actions.onReply(message)}
                     className="grid size-7 place-items-center rounded-full text-[var(--text-3)] transition-colors hover:text-[var(--text-1)]"
-                    aria-label="Reply"
+                    aria-label={t.message.reply}
                   >
                     <CornerUpLeft className="size-4" />
                   </button>
@@ -385,7 +388,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                       <button
                         type="button"
                         className="grid size-7 place-items-center rounded-full text-[var(--text-3)] transition-colors hover:text-[var(--text-1)]"
-                        aria-label="More actions"
+                        aria-label={t.message.moreActions}
                       >
                         <MoreHorizontal className="size-4" />
                       </button>
@@ -423,30 +426,30 @@ export const MessageBubble = React.memo(function MessageBubble({
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => actions.onReply(message)}>
           <CornerUpLeft />
-          Reply
+          {t.message.reply}
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => actions.onForward(message)}>
           <Forward />
-          Forward
+          {t.message.forward}
         </ContextMenuItem>
         {!mine ? (
           <ContextMenuItem onSelect={() => actions.onReport(message)}>
             <Flag />
-            Report
+            {t.message.report}
           </ContextMenuItem>
         ) : null}
         <ContextMenuItem onSelect={() => actions.onStar(message, !message.starred)}>
           <Star />
-          {message.starred ? 'Remove star' : 'Star message'}
+          {message.starred ? t.message.unstar : t.message.starMessage}
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => actions.onPin(message, !message.pinnedAt)}>
           {message.pinnedAt ? <PinOff /> : <Pin />}
-          {message.pinnedAt ? 'Unpin' : 'Pin to conversation'}
+          {message.pinnedAt ? t.message.unpin : t.message.pinTo}
         </ContextMenuItem>
         {mine ? (
           <ContextMenuItem onSelect={() => actions.onEdit(message)}>
             <Pencil />
-            Edit
+            {t.message.edit}
           </ContextMenuItem>
         ) : null}
         {mine || canModerate ? (
@@ -454,7 +457,7 @@ export const MessageBubble = React.memo(function MessageBubble({
             <ContextMenuSeparator />
             <ContextMenuItem danger onSelect={() => actions.onDelete(message)}>
               <Trash2 />
-              Delete
+              {t.common.delete}
             </ContextMenuItem>
           </>
         ) : null}

@@ -14,16 +14,12 @@ import { Input } from '@/components/ui/input';
 import { ConversationSkeleton } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
 import { useUiStore } from '@/stores/ui-store';
+import { useT } from '@/i18n/provider';
 import type { ConversationSummary } from '@/types/dto';
 
-const FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'unread', label: 'Unread' },
-  { id: 'groups', label: 'Groups' },
-  { id: 'archived', label: 'Archived' },
-] as const;
+const FILTERS = ['all', 'unread', 'groups', 'archived'] as const;
 
-type FilterId = (typeof FILTERS)[number]['id'];
+type FilterId = (typeof FILTERS)[number];
 
 function applyFilter(list: ConversationSummary[], filter: FilterId, term: string) {
   const query = term.trim().toLowerCase();
@@ -42,6 +38,7 @@ function applyFilter(list: ConversationSummary[], filter: FilterId, term: string
 }
 
 export function ConversationSidebar() {
+  const t = useT();
   const params = useParams<{ conversationId?: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -72,9 +69,9 @@ export function ConversationSidebar() {
       <div className="panel relative flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-[var(--radius-panel)]">
         <header className="space-y-3 border-b border-[var(--hairline)] p-4 pb-3">
           <div className="flex items-center justify-between">
-            <h2 className="label-caps">Nodes</h2>
-            <Tooltip content="New conversation">
-              <Button size="icon-sm" onClick={() => setDialogOpen(true)} aria-label="New conversation">
+            <h2 className="label-caps">{t.sidebar.title}</h2>
+            <Tooltip content={t.sidebar.newConversationShort}>
+              <Button size="icon-sm" onClick={() => setDialogOpen(true)} aria-label={t.sidebar.newConversationShort}>
                 <Plus />
               </Button>
             </Tooltip>
@@ -84,17 +81,17 @@ export function ConversationSidebar() {
             <Input
               value={term}
               onChange={(event) => setTerm(event.target.value)}
-              placeholder="Filter conversations"
+              placeholder={t.sidebar.filter}
               icon={<Search />}
               className="pr-8"
-              aria-label="Filter conversations"
+              aria-label={t.sidebar.filter}
             />
             {term ? (
               <button
                 type="button"
                 onClick={() => setTerm('')}
                 className="absolute inset-y-0 right-1.5 my-auto grid size-5 place-items-center rounded-[var(--radius-control)] text-[var(--text-3)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-1)]"
-                aria-label="Clear filter"
+                aria-label={t.sidebar.clearFilter}
               >
                 <X className="size-3" />
               </button>
@@ -106,22 +103,22 @@ export function ConversationSidebar() {
             four filters is the kind of animation you notice on the first click
             and resent by the twentieth.
           */}
-          <div role="tablist" aria-label="Conversation filters" className="-mb-px flex gap-4">
+          <div role="tablist" aria-label={t.sidebar.filters} className="-mb-px flex gap-4">
             {FILTERS.map((option) => (
               <button
-                key={option.id}
+                key={option}
                 role="tab"
-                aria-selected={filter === option.id}
-                onClick={() => setFilter(option.id)}
+                aria-selected={filter === option}
+                onClick={() => setFilter(option)}
                 className={cn(
                   'border-b-2 pb-1.5 text-[12.5px] font-medium',
                   'transition-colors duration-[120ms] ease-[var(--ease-out)]',
-                  filter === option.id
+                  filter === option
                     ? 'border-[var(--accent)] text-[var(--text-1)]'
                     : 'border-transparent text-[var(--text-3)] hover:text-[var(--text-1)]',
                 )}
               >
-                {option.label}
+                {t.sidebar[option]}
               </button>
             ))}
           </div>
@@ -134,11 +131,11 @@ export function ConversationSidebar() {
             <EmptyState
               compact
               icon={<MessagesSquare />}
-              title="Could not load your chats"
-              description="Check your connection and try again."
+              title={t.sidebar.loadError}
+              description={t.sidebar.loadErrorHint}
               action={
                 <Button size="sm" variant="secondary" onClick={() => void refetch()}>
-                  Retry
+                  {t.common.retry}
                 </Button>
               }
             />
@@ -148,25 +145,25 @@ export function ConversationSidebar() {
               icon={filter === 'archived' ? <Archive /> : <Inbox />}
               title={
                 term
-                  ? 'Nothing matched'
+                  ? t.sidebar.nothingMatched
                   : filter === 'archived'
-                    ? 'No archived chats'
+                    ? t.sidebar.noArchived
                     : filter === 'unread'
-                      ? 'You are all caught up'
-                      : 'No conversations yet'
+                      ? t.sidebar.caughtUp
+                      : t.sidebar.empty
               }
               description={
                 term
-                  ? 'Try a different word, or search everything with ⌘K.'
+                  ? t.sidebar.nothingMatchedHint
                   : filter === 'all'
-                    ? 'Start a direct message or create a group to get going.'
+                    ? t.sidebar.emptyHint
                     : undefined
               }
               action={
                 filter === 'all' && !term ? (
                   <Button size="sm" onClick={() => setDialogOpen(true)}>
                     <Plus />
-                    New conversation
+                    {t.sidebar.newConversationShort}
                   </Button>
                 ) : undefined
               }
@@ -188,7 +185,7 @@ export function ConversationSidebar() {
         <div className="border-t border-[var(--hairline)] p-3">
           <Button variant="outline" block onClick={() => setDialogOpen(true)}>
             <UserRoundPlus />
-            Establish link
+            {t.sidebar.newConversation}
           </Button>
         </div>
       </div>

@@ -12,6 +12,7 @@ import { NotificationBell } from '@/features/notifications/components/notificati
 import { useConversation } from '@/features/conversations/hooks';
 import { Tooltip } from '@/components/ui/tooltip';
 import { useUiStore } from '@/stores/ui-store';
+import { useT } from '@/i18n/provider';
 
 /**
  * The floating dock: sections on the left, current context in the middle, tools
@@ -19,6 +20,7 @@ import { useUiStore } from '@/stores/ui-store';
  * below get the full height of the viewport.
  */
 export function TopDock() {
+  const t = useT();
   const pathname = usePathname();
   const params = useParams<{ conversationId?: string }>();
   const { commandOpen, toggleCommand, toggleRightPanel } = useUiStore();
@@ -33,13 +35,13 @@ export function TopDock() {
     <header className="panel neon-border z-50 flex shrink-0 items-center justify-between gap-4 rounded-[var(--radius-panel)] p-3">
       <div className="flex min-w-0 items-center gap-4">
         <nav
-          aria-label="Primary"
+          aria-label={t.nav.primary}
           className="flex items-center gap-2 border-r border-[var(--hairline)] pr-4"
         >
           {NAV_ITEMS.map((item) => {
             const active = item.match(pathname);
             return (
-              <Tooltip key={item.href} content={item.label} side="bottom">
+              <Tooltip key={item.href} content={t.nav[item.label]} side="bottom">
                 <Link
                   href={item.href}
                   aria-current={active ? 'page' : undefined}
@@ -58,7 +60,7 @@ export function TopDock() {
                       aria-hidden
                     />
                   ) : null}
-                  <span className="sr-only">{item.label}</span>
+                  <span className="sr-only">{t.nav[item.label]}</span>
                 </Link>
               </Tooltip>
             );
@@ -81,8 +83,8 @@ export function TopDock() {
             <p className="flex items-center gap-1 truncate text-[11px] font-semibold uppercase tracking-widest text-[var(--accent)] opacity-80">
               <Hash className="size-3 shrink-0" />
               {conversation
-                ? `${conversation.memberCount} member${conversation.memberCount === 1 ? '' : 's'}`
-                : 'all channels'}
+                ? t.conversation.members(conversation.memberCount)
+                : t.search.allChannels}
             </p>
           </div>
         </div>
@@ -101,30 +103,30 @@ export function TopDock() {
             'transition-colors duration-200 hover:border-[var(--accent-line)] hover:text-[var(--text-2)]',
           )}
         >
-          <span className="flex-1 text-left">Search signals…</span>
+          <span className="flex-1 text-left">{t.search.signals}</span>
           <Search className="size-4 text-[var(--accent)] opacity-70" />
         </button>
 
         <div className="flex items-center gap-1">
           <NotificationBell side="bottom" />
-          <Tooltip content="Pinned messages" side="bottom">
+          <Tooltip content={t.conversation.pinned} side="bottom">
             <button
               type="button"
               onClick={() => toggleRightPanel('pins')}
               className="grid size-9 place-items-center rounded-full text-[var(--accent)] shadow-[0_0_10px_var(--accent-glow)] transition-colors hover:bg-[var(--accent-quiet)]"
             >
               <Pin className="size-[18px]" />
-              <span className="sr-only">Pinned messages</span>
+              <span className="sr-only">{t.conversation.pinned}</span>
             </button>
           </Tooltip>
-          <Tooltip content="Keyboard shortcuts" side="bottom">
+          <Tooltip content={t.nav.shortcuts} side="bottom">
             <button
               type="button"
               onClick={() => useUiStore.getState().setShortcutsOpen(true)}
               className="grid size-9 place-items-center rounded-full text-[var(--text-2)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--accent-mint)]"
             >
               <HelpCircle className="size-[18px]" />
-              <span className="sr-only">Keyboard shortcuts</span>
+              <span className="sr-only">{t.nav.shortcuts}</span>
             </button>
           </Tooltip>
         </div>
@@ -137,12 +139,13 @@ export function TopDock() {
 
 /** Mobile navigation: the dock collapses to a bar docked at the bottom. */
 export function MobileTabBar() {
+  const t = useT();
   const pathname = usePathname();
   const toggleCommand = useUiStore((state) => state.toggleCommand);
 
   return (
     <nav
-      aria-label="Primary"
+      aria-label={t.nav.primary}
       className="panel fixed inset-x-3 bottom-3 z-40 flex items-stretch justify-around rounded-[var(--radius-panel)] px-1 lg:hidden"
       style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}
     >
@@ -168,7 +171,7 @@ export function MobileTabBar() {
               />
             ) : null}
             <item.icon className="size-[17px]" />
-            {item.label}
+            {t.nav[item.label]}
           </Link>
         );
       })}
@@ -179,7 +182,7 @@ export function MobileTabBar() {
         className="flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-medium text-[var(--text-3)]"
       >
         <Search className="size-[17px]" />
-        Search
+        {t.common.search}
       </button>
     </nav>
   );

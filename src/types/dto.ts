@@ -1,4 +1,5 @@
 import type {
+  Locale,
   AttachmentKind,
   ConversationType,
   JoinRequestStatus,
@@ -27,6 +28,7 @@ export type PublicUser = {
 
 export type CurrentUser = PublicUser & {
   email: string;
+  locale: Locale;
   theme: ThemePreference;
   accent: string;
   reducedMotion: boolean;

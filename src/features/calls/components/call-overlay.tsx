@@ -19,6 +19,7 @@ import { Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger } from '@/component
 import { Tooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useCallApi } from '@/features/calls/call-provider';
+import { useT } from '@/i18n/provider';
 import { useCallStore, type RemoteParticipant } from '@/stores/call-store';
 import { useConversation } from '@/features/conversations/hooks';
 import { useSession } from '@/components/providers/session-provider';
@@ -59,6 +60,7 @@ function StreamVideo({
 }
 
 function IncomingCall() {
+  const t = useT();
   const { from, mode, conversationName } = useCallStore();
   const { acceptCall, rejectCall } = useCallApi();
 
@@ -71,14 +73,14 @@ function IncomingCall() {
         <div className="min-w-0 flex-1">
           <p className="truncate text-[14px] font-medium">{from.displayName}</p>
           <p className="truncate text-[12px] text-[var(--text-3)]">
-            {mode === 'video' ? 'Video call' : 'Voice call'}
+            {mode === 'video' ? t.call.video : t.call.voice}
             {conversationName ? ` · ${conversationName}` : ''}
           </p>
         </div>
-        <Button size="icon" variant="ghost" aria-label="Decline" onClick={rejectCall}>
+        <Button size="icon" variant="ghost" aria-label={t.call.decline} onClick={rejectCall}>
           <PhoneOff className="text-[var(--danger)]" />
         </Button>
-        <Button size="icon" aria-label="Answer" onClick={() => void acceptCall()}>
+        <Button size="icon" aria-label={t.call.answer} onClick={() => void acceptCall()}>
           <Phone />
         </Button>
       </div>
@@ -121,6 +123,7 @@ function Tile({
   connecting,
   label,
 }: TileProps) {
+  const t = useT();
   const hasVideo = Boolean(stream?.getVideoTracks().length) && (cameraOn || sharing);
 
   return (
@@ -154,7 +157,7 @@ function Tile({
 
       {connecting ? (
         <p className="absolute inset-0 grid place-items-center bg-black/40 text-[13px] text-white/80">
-          Connecting…
+          {t.call.connecting}
         </p>
       ) : null}
 
@@ -166,7 +169,7 @@ function Tile({
         {sharing ? (
           <span className="flex shrink-0 items-center gap-1 rounded-full bg-[var(--accent)] px-2 py-1 text-[11px] font-medium text-black">
             <MonitorUp className="size-3" />
-            Sharing
+            {t.call.sharing}
           </span>
         ) : null}
       </div>
@@ -206,6 +209,7 @@ function Countdown({ until }: { until: number }) {
  * sin querer o quedarse sin cobertura no deberían costar volver a llamar.
  */
 function RejoinBar() {
+  const t = useT();
   const rejoinable = useCallStore((state) => state.rejoinable);
   const clearRejoin = useCallStore((state) => state.clearRejoin);
   const { rejoinCall } = useCallApi();
@@ -225,17 +229,19 @@ function RejoinBar() {
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] font-medium">
-            {rejoinable.conversationName ?? 'Call'} is still going
+            {rejoinable.conversationName ?? t.call.voice} {t.call.stillGoing}
           </p>
           <p className="text-[12px] text-[var(--text-3)]">
-            Ends in <Countdown until={rejoinable.expiresAt} /> if nobody comes back
+            {t.call.endsIfNobody.split('{time}')[0]}
+            <Countdown until={rejoinable.expiresAt} />
+            {t.call.endsIfNobody.split('{time}')[1]}
           </p>
         </div>
         <Button size="sm" variant="ghost" onClick={clearRejoin}>
-          Dismiss
+          {t.call.dismiss}
         </Button>
         <Button size="sm" onClick={() => void rejoinCall()}>
-          Rejoin
+          {t.call.rejoin}
         </Button>
       </div>
     </div>
@@ -267,6 +273,7 @@ function useAudioOutputs() {
 }
 
 function ActiveCall() {
+  const t = useT();
   const me = useSession();
   const {
     localStream,
@@ -315,10 +322,10 @@ function ActiveCall() {
           <p className="truncate text-[14px] font-medium">{conversationName ?? 'Call'}</p>
           <p className="text-[12px] text-white/60">
             {status === 'joining' ? (
-              'Calling…'
+              t.call.calling
             ) : (
               <>
-                {total} in call
+                {t.call.inCall(total)}
                 {startedAt ? (
                   <>
                     {' · '}
@@ -332,7 +339,7 @@ function ActiveCall() {
         {!hasRelay ? (
           // Worth saying out loud: without a relay this fails on most mobile
           // networks, and the failure looks like "it just never connects".
-          <p className="shrink-0 text-[11px] text-[var(--warning)]">No TURN relay</p>
+          <p className="shrink-0 text-[11px] text-[var(--warning)]">{t.call.noRelay}</p>
         ) : null}
       </div>
 
@@ -342,7 +349,7 @@ function ActiveCall() {
       >
         <Tile
           name={me.displayName}
-          label={`${me.displayName} (you)`}
+          label={`${me.displayName} (${t.call.you})`}
           avatarUrl={me.avatarUrl}
           stream={localStream}
           muted
@@ -378,26 +385,26 @@ function ActiveCall() {
               // mismo para quien la está mirando.
               <>
                 <p className="text-[13px] text-white/80">
-                  {people.get(waitingFor.userId)?.displayName ?? 'They'} left — they can rejoin
+                  {t.call.left(people.get(waitingFor.userId)?.displayName ?? '—')}
                 </p>
                 <p className="text-[12px] text-white/50">
-                  Ending in <Countdown until={waitingFor.until} />
+                  {t.call.endingIn} <Countdown until={waitingFor.until} />
                 </p>
               </>
             ) : (
-              <p className="text-[13px] text-white/60">Waiting for an answer…</p>
+              <p className="text-[13px] text-white/60">{t.call.waiting}</p>
             )}
           </div>
         ) : null}
       </div>
 
       <div className="flex items-center justify-center gap-3 p-6">
-        <Tooltip content={micOn ? 'Mute' : 'Unmute'}>
+        <Tooltip content={micOn ? t.call.mute : t.call.unmute}>
           <Button
             size="icon"
             className="size-12"
             variant={micOn ? 'secondary' : 'ghost'}
-            aria-label={micOn ? 'Mute' : 'Unmute'}
+            aria-label={micOn ? t.call.mute : t.call.unmute}
             onClick={toggleMic}
           >
             {micOn ? <Mic /> : <MicOff />}
@@ -405,12 +412,12 @@ function ActiveCall() {
         </Tooltip>
 
         {mode === 'video' ? (
-          <Tooltip content={cameraOn ? 'Turn camera off' : 'Turn camera on'}>
+          <Tooltip content={cameraOn ? t.call.cameraOff : t.call.cameraOn}>
             <Button
               size="icon"
               className="size-12"
               variant={cameraOn ? 'secondary' : 'ghost'}
-              aria-label={cameraOn ? 'Turn camera off' : 'Turn camera on'}
+              aria-label={cameraOn ? t.call.cameraOff : t.call.cameraOn}
               onClick={toggleCamera}
             >
               {cameraOn ? <Video /> : <VideoOff />}
@@ -418,12 +425,12 @@ function ActiveCall() {
           </Tooltip>
         ) : null}
 
-        <Tooltip content={sharing ? 'Stop sharing' : 'Share your screen'}>
+        <Tooltip content={sharing ? t.call.stopSharing : t.call.share}>
           <Button
             size="icon"
             className="size-12"
             variant={sharing ? 'primary' : 'secondary'}
-            aria-label={sharing ? 'Stop sharing' : 'Share your screen'}
+            aria-label={sharing ? t.call.stopSharing : t.call.share}
             onClick={() => void shareScreen()}
           >
             <MonitorUp />
@@ -433,12 +440,12 @@ function ActiveCall() {
         {outputs.length > 0 ? (
           <Menu>
             <MenuTrigger asChild>
-              <Button size="icon" className="size-12" variant="secondary" aria-label="Speaker">
+              <Button size="icon" className="size-12" variant="secondary" aria-label={t.call.speaker}>
                 <Volume2 />
               </Button>
             </MenuTrigger>
             <MenuContent align="center">
-              <MenuLabel>Speaker</MenuLabel>
+              <MenuLabel>{t.call.speaker}</MenuLabel>
               {outputs.map((device, index) => (
                 <MenuItem key={device.deviceId} onSelect={() => setSinkId(device.deviceId)}>
                   {sinkId === device.deviceId ? (
@@ -453,10 +460,10 @@ function ActiveCall() {
           </Menu>
         ) : null}
 
-        <Tooltip content="Leave call">
+        <Tooltip content={t.call.leave}>
           <Button
             size="icon"
-            aria-label="Leave call"
+            aria-label={t.call.leave}
             onClick={leaveCall}
             className={cn('size-12 bg-[var(--danger)] text-white hover:bg-[var(--danger)]')}
           >

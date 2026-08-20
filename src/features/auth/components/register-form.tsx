@@ -7,6 +7,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowRight, Mail, MailCheck } from 'lucide-react';
 
+import { useT } from '@/i18n/provider';
+
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { hardNavigate } from '@/lib/navigate';
 import { signUpSchema, type SignUpInput } from '@/features/auth/validators';
@@ -20,6 +22,7 @@ import { Input } from '@/components/ui/input';
 
 export function RegisterForm() {
   const searchParams = useSearchParams();
+  const t = useT();
   const next = searchParams.get('next') ?? '/onboarding';
   const [sentTo, setSentTo] = React.useState<string | null>(null);
 
@@ -65,17 +68,17 @@ export function RegisterForm() {
   if (sentTo) {
     return (
       <AuthCard
-        title="Check your inbox"
-        description={`We sent a confirmation link to ${sentTo}. Open it to activate your account — the link expires in an hour.`}
+        title={t.auth.checkInbox}
+        description={t.auth.checkInboxHint(sentTo)}
         footer={
           <>
-            Wrong address?{' '}
+            {t.auth.wrongAddress}{' '}
             <button
               type="button"
               onClick={() => setSentTo(null)}
               className="font-semibold text-[var(--accent)] hover:underline"
             >
-              Use another one
+              {t.auth.useAnother}
             </button>
           </>
         }
@@ -88,8 +91,7 @@ export function RegisterForm() {
           <ResendConfirmation email={sentTo} />
 
           <p className="text-center text-[12px] leading-relaxed text-[var(--text-3)]">
-            Nothing after a minute? Check spam — and if it still has not arrived, the address may be
-            unreachable from our mail provider.
+            {t.auth.nothingArrived}
           </p>
         </div>
       </AuthCard>
@@ -98,41 +100,41 @@ export function RegisterForm() {
 
   return (
     <AuthCard
-      title="Create your account"
-      description="Two fields now, a profile in a moment, and you are in."
+      title={t.auth.createTitle}
+      description={t.auth.createHint}
       footer={
         <>
-          Already have an account?{' '}
+          {t.auth.haveAccount}{' '}
           <Link
             href="/login"
             className="font-semibold text-[var(--accent)] hover:underline"
           >
-            Sign in
+            {t.auth.signIn}
           </Link>
         </>
       }
     >
       <OAuthButtons next="/onboarding" />
-      <AuthDivider label="or sign up with email" />
+      <AuthDivider label={t.auth.orEmail} />
 
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
-        <Field label="Email" htmlFor="email" error={errors.email?.message}>
+        <Field label={t.auth.email} htmlFor="email" error={errors.email?.message}>
           <Input
             id="email"
             type="email"
             autoComplete="email"
-            placeholder="you@example.com"
+            placeholder={t.auth.emailPlaceholder}
             icon={<Mail />}
             aria-invalid={Boolean(errors.email)}
             {...register('email')}
           />
         </Field>
 
-        <Field label="Password" htmlFor="password" error={errors.password?.message}>
+        <Field label={t.auth.password} htmlFor="password" error={errors.password?.message}>
           <PasswordInput
             id="password"
             autoComplete="new-password"
-            placeholder="Something only you know"
+            placeholder={t.auth.passwordPlaceholder}
             aria-invalid={Boolean(errors.password)}
             {...register('password')}
           />
@@ -140,12 +142,12 @@ export function RegisterForm() {
         </Field>
 
         <Button type="submit" size="lg" block loading={isSubmitting} className="mt-2">
-          Create account
+          {t.auth.signUp}
           <ArrowRight />
         </Button>
 
         <p className="text-center text-[11px] leading-relaxed text-[var(--text-3)]">
-          By continuing you agree to be nice to the people you talk to.
+          {t.auth.beNice}
         </p>
       </form>
     </AuthCard>

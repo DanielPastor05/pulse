@@ -6,6 +6,8 @@ import { QueryProvider } from '@/components/providers/query-provider';
 import { ThemeProvider } from '@/components/providers/theme-provider';
 import { Toaster } from '@/components/providers/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { LocaleProvider } from '@/i18n/provider';
+import { resolveLocale } from '@/i18n/server';
 
 import './globals.css';
 
@@ -52,10 +54,15 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // El idioma se resuelve en el servidor para que el primer pintado ya venga en
+  // el correcto. Hacerlo en el cliente ensenaria un parpadeo en ingles a todo
+  // el que no lo hable, que es justo a quien va dirigido esto.
+  const locale = await resolveLocale();
+
   return (
     <html
-      lang="en"
+      lang={locale.toLowerCase()}
       suppressHydrationWarning
       data-accent="electric"
       className={`${outfit.variable} ${jetbrains.variable}`}
@@ -64,8 +71,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <QueryProvider>
             <TooltipProvider delayDuration={260} skipDelayDuration={400}>
-              {children}
-              <Toaster />
+              <LocaleProvider locale={locale}>
+                {children}
+                <Toaster />
+              </LocaleProvider>
             </TooltipProvider>
           </QueryProvider>
         </ThemeProvider>

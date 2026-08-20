@@ -23,6 +23,7 @@ import { useConversations, useOpenDirectConversation } from '@/features/conversa
 import { useGlobalSearch } from '@/features/search/hooks';
 import { Avatar } from '@/components/ui/avatar';
 import { Kbd } from '@/components/ui/misc';
+import { useT } from '@/i18n/provider';
 
 const itemClass = cn(
   'flex cursor-pointer items-center gap-3 rounded-[var(--radius-field)] px-3 py-2.5 text-[13px]',
@@ -45,6 +46,7 @@ const groupClass = cn(
  * the rest, with `shouldFilter={false}` so the server ranking is respected.
  */
 export function CommandPalette() {
+  const t = useT();
   const router = useRouter();
   const { commandOpen, setCommandOpen } = useUiStore();
   const [term, setTerm] = React.useState('');
@@ -82,9 +84,9 @@ export function CommandPalette() {
             'surface-overlay shadow-[var(--shadow-modal)] outline-none',
           )}
         >
-          <DialogPrimitive.Title className="sr-only">Search Pulse</DialogPrimitive.Title>
+          <DialogPrimitive.Title className="sr-only">{t.search.title}</DialogPrimitive.Title>
           <DialogPrimitive.Description className="sr-only">
-            Find people, conversations, messages and files.
+            {t.search.description}
           </DialogPrimitive.Description>
 
           <Command shouldFilter={false} loop className="w-full">
@@ -98,7 +100,7 @@ export function CommandPalette() {
                 value={term}
                 onValueChange={setTerm}
                 autoFocus
-                placeholder="Search people, groups, messages and files…"
+                placeholder={t.search.placeholder}
                 className="h-14 flex-1 bg-transparent text-[15px] text-[var(--text-1)] outline-none placeholder:text-[var(--text-3)]"
               />
               <Kbd>Esc</Kbd>
@@ -106,12 +108,12 @@ export function CommandPalette() {
 
             <Command.List className="scroll-area max-h-[52vh] overflow-y-auto p-2">
               <Command.Empty className="px-3 py-10 text-center text-[13px] text-[var(--text-3)]">
-                {searching ? 'Nothing matched that search.' : 'Start typing to search.'}
+                {searching ? t.search.nothingMatched : t.search.startTyping}
               </Command.Empty>
 
               {!searching ? (
                 <>
-                  <Command.Group heading="Recent" className={groupClass}>
+                  <Command.Group heading={t.search.recent} className={groupClass}>
                     {recent.map((conversation) => (
                       <Command.Item
                         key={conversation.id}
@@ -138,14 +140,14 @@ export function CommandPalette() {
                     ))}
                   </Command.Group>
 
-                  <Command.Group heading="Actions" className={groupClass}>
+                  <Command.Group heading={t.search.actions} className={groupClass}>
                     <Command.Item
                       value="action-new-group"
                       className={itemClass}
                       onSelect={() => run(() => router.push('/chat?new=group'))}
                     >
                       <Plus />
-                      Create a group
+                      {t.search.createGroup}
                     </Command.Item>
                     <Command.Item
                       value="action-discover"
@@ -153,7 +155,7 @@ export function CommandPalette() {
                       onSelect={() => run(() => router.push('/discover'))}
                     >
                       <Compass />
-                      Discover public groups
+                      {t.search.discoverGroups}
                     </Command.Item>
                     <Command.Item
                       value="action-starred"
@@ -161,7 +163,7 @@ export function CommandPalette() {
                       onSelect={() => run(() => router.push('/starred'))}
                     >
                       <Star />
-                      Starred messages
+                      {t.search.starredMessages}
                     </Command.Item>
                     <Command.Item
                       value="action-settings"
@@ -169,14 +171,14 @@ export function CommandPalette() {
                       onSelect={() => run(() => router.push('/settings'))}
                     >
                       <Settings />
-                      Open settings
+                      {t.search.openSettings}
                     </Command.Item>
                   </Command.Group>
                 </>
               ) : (
                 <>
                   {results?.users.length ? (
-                    <Command.Group heading="People" className={groupClass}>
+                    <Command.Group heading={t.search.people} className={groupClass}>
                       {results.users.map((user) => (
                         <Command.Item
                           key={user.id}
@@ -198,7 +200,7 @@ export function CommandPalette() {
                   ) : null}
 
                   {results?.conversations.length ? (
-                    <Command.Group heading="Conversations" className={groupClass}>
+                    <Command.Group heading={t.search.conversations} className={groupClass}>
                       {results.conversations.map((conversation) => (
                         <Command.Item
                           key={conversation.id}
@@ -214,7 +216,7 @@ export function CommandPalette() {
                   ) : null}
 
                   {results?.messages.length ? (
-                    <Command.Group heading="Messages" className={groupClass}>
+                    <Command.Group heading={t.search.messages} className={groupClass}>
                       {results.messages.map(({ message, conversation }) => (
                         <Command.Item
                           key={message.id}
@@ -230,7 +232,10 @@ export function CommandPalette() {
                               {truncate(message.content, 70)}
                             </span>
                             <span className="block truncate text-[11px] text-[var(--text-3)]">
-                              {message.author?.displayName} in {conversation.name}
+                              {t.search.inConversation(
+                                message.author?.displayName ?? '',
+                                conversation.name,
+                              )}
                             </span>
                           </span>
                         </Command.Item>
@@ -239,7 +244,7 @@ export function CommandPalette() {
                   ) : null}
 
                   {results?.files.length ? (
-                    <Command.Group heading="Files" className={groupClass}>
+                    <Command.Group heading={t.search.files} className={groupClass}>
                       {results.files.map((file) => (
                         <Command.Item
                           key={file.attachment.id}

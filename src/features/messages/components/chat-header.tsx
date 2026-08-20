@@ -25,6 +25,7 @@ import { usePresenceOf } from '@/stores/presence-store';
 import { useUiStore } from '@/stores/ui-store';
 import { useConversationPreferences, useMemberMutations } from '@/features/conversations/hooks';
 import { useCallApi } from '@/features/calls/call-provider';
+import { useT } from '@/i18n/provider';
 import { Avatar, PRESENCE_LABEL } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@/components/ui/menu';
@@ -40,6 +41,7 @@ export function ChatHeader({
   meId: string;
   typingCount: number;
 }) {
+  const t = useT();
   const preferences = useConversationPreferences(conversation.id);
   const { leave } = useMemberMutations(conversation.id);
   const { startCall, status: callStatus } = useCallApi();
@@ -53,9 +55,9 @@ export function ChatHeader({
   );
 
   const subtitle = (() => {
-    if (typingCount > 0) return 'typing…';
+    if (typingCount > 0) return t.conversation.typing;
     if (conversation.type === 'GROUP') {
-      return `${conversation.memberCount} member${conversation.memberCount === 1 ? '' : 's'}`;
+      return t.conversation.members(conversation.memberCount);
     }
     if (!conversation.peer) return null;
     return peerPresence === 'ONLINE'
@@ -65,7 +67,7 @@ export function ChatHeader({
 
   return (
     <header className="flex items-center gap-3 border-b border-[var(--hairline)] px-3 py-2.5 sm:px-4">
-      <Button asChild size="icon-sm" variant="ghost" className="lg:hidden" aria-label="Back to chats">
+      <Button asChild size="icon-sm" variant="ghost" className="lg:hidden" aria-label={t.conversation.back}>
         <Link href="/chat">
           <ArrowLeft />
         </Link>
@@ -111,72 +113,72 @@ export function ChatHeader({
       </button>
 
       <div className="flex shrink-0 items-center gap-0.5">
-        <Tooltip content="Voice call">
+        <Tooltip content={t.call.voice}>
           <Button
             size="icon-sm"
             variant="ghost"
             disabled={callBusy}
             onClick={() => void startCall(conversation.id, conversation.name, 'audio')}
-            aria-label="Start a voice call"
+            aria-label={t.conversation.startVoice}
           >
             <Phone />
           </Button>
         </Tooltip>
 
-        <Tooltip content="Video call">
+        <Tooltip content={t.call.video}>
           <Button
             size="icon-sm"
             variant="ghost"
             disabled={callBusy}
             onClick={() => void startCall(conversation.id, conversation.name, 'video')}
-            aria-label="Start a video call"
+            aria-label={t.conversation.startVideo}
           >
             <Video />
           </Button>
         </Tooltip>
 
-        <Tooltip content="Search in conversation" shortcut="⌘F">
+        <Tooltip content={t.conversation.searchIn} shortcut="⌘F">
           <Button
             size="icon-sm"
             variant="ghost"
             onClick={() => toggleRightPanel('search')}
-            aria-label="Search in conversation"
+            aria-label={t.conversation.searchIn}
             className={cn(rightPanel === 'search' && 'bg-[var(--surface-sunken)] text-[var(--text-1)]')}
           >
             <Search />
           </Button>
         </Tooltip>
 
-        <Tooltip content="Photos and files">
+        <Tooltip content={t.conversation.photosFiles}>
           <Button
             size="icon-sm"
             variant="ghost"
             onClick={() => toggleRightPanel('gallery')}
-            aria-label="Shared photos and files"
+            aria-label={t.conversation.sharedPhotos}
             className={cn(rightPanel === 'gallery' && 'bg-[var(--surface-sunken)] text-[var(--text-1)]')}
           >
             <Images />
           </Button>
         </Tooltip>
 
-        <Tooltip content="Pinned messages">
+        <Tooltip content={t.conversation.pinned}>
           <Button
             size="icon-sm"
             variant="ghost"
             onClick={() => toggleRightPanel('pins')}
-            aria-label="Pinned messages"
+            aria-label={t.conversation.pinned}
             className={cn(rightPanel === 'pins' && 'bg-[var(--surface-sunken)] text-[var(--text-1)]')}
           >
             <Pin />
           </Button>
         </Tooltip>
 
-        <Tooltip content="Details">
+        <Tooltip content={t.conversation.details}>
           <Button
             size="icon-sm"
             variant="ghost"
             onClick={() => toggleRightPanel('details')}
-            aria-label="Conversation details"
+            aria-label={t.conversation.detailsLabel}
             className={cn(rightPanel === 'details' && 'bg-[var(--surface-sunken)] text-[var(--text-1)]')}
           >
             <Info />
@@ -185,22 +187,22 @@ export function ChatHeader({
 
         <Menu>
           <MenuTrigger asChild>
-            <Button size="icon-sm" variant="ghost" aria-label="Conversation options">
+            <Button size="icon-sm" variant="ghost" aria-label={t.conversation.options}>
               <span className="text-lg leading-none">⋯</span>
             </Button>
           </MenuTrigger>
           <MenuContent align="end">
             <MenuItem onSelect={() => preferences.mutate({ favorite: !conversation.favorite })}>
               {conversation.favorite ? <StarOff /> : <Star />}
-              {conversation.favorite ? 'Remove from favourites' : 'Add to favourites'}
+              {conversation.favorite ? t.conversation.favoriteRemove : t.conversation.favoriteAdd}
             </MenuItem>
             <MenuItem onSelect={() => preferences.mutate({ muted: !conversation.muted })}>
               {conversation.muted ? <Bell /> : <BellOff />}
-              {conversation.muted ? 'Unmute' : 'Mute notifications'}
+              {conversation.muted ? t.conversation.unmute : t.conversation.muteNotifications}
             </MenuItem>
             <MenuItem onSelect={() => preferences.mutate({ archived: !conversation.archived })}>
               <Archive />
-              {conversation.archived ? 'Move to inbox' : 'Archive'}
+              {conversation.archived ? t.conversation.toInbox : t.conversation.archive}
             </MenuItem>
 
             {conversation.type === 'GROUP' ? (
@@ -208,11 +210,11 @@ export function ChatHeader({
                 <MenuSeparator />
                 <MenuItem onSelect={() => toggleRightPanel('details')}>
                   <UserRoundPlus />
-                  Manage members
+                  {t.conversation.manageMembers}
                 </MenuItem>
                 <MenuItem danger onSelect={() => leave.mutate(meId)}>
                   <LogOut />
-                  Leave group
+                  {t.conversation.leaveGroup}
                 </MenuItem>
               </>
             ) : null}
