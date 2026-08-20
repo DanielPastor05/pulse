@@ -2,7 +2,7 @@ import { reviewJoinRequestSchema } from '@/features/conversations/validators';
 import { requireUser } from '@/server/auth';
 import { json, parseBody, route } from '@/server/http';
 import type { RouteContext } from '@/server/route-context';
-import { reviewJoinRequest } from '@/server/services/conversation.service';
+import { reviewJoinRequest } from '@/server/services/access.service';
 
 export const dynamic = 'force-dynamic';
 

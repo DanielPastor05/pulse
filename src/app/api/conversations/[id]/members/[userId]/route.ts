@@ -2,7 +2,7 @@ import { updateMemberSchema } from '@/features/conversations/validators';
 import { requireUser } from '@/server/auth';
 import { json, parseBody, route } from '@/server/http';
 import type { RouteContext } from '@/server/route-context';
-import { removeMember, updateMember } from '@/server/services/conversation.service';
+import { removeMember, updateMember } from '@/server/services/membership.service';
 
 export const dynamic = 'force-dynamic';
 

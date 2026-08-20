@@ -3,7 +3,7 @@ import { requireUser } from '@/server/auth';
 import { json, parseBody, route } from '@/server/http';
 import { rateLimit, rateLimits } from '@/server/rate-limit';
 import type { RouteContext } from '@/server/route-context';
-import { createInvite } from '@/server/services/conversation.service';
+import { createInvite } from '@/server/services/access.service';
 
 export const dynamic = 'force-dynamic';
 

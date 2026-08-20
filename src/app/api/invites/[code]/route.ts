@@ -4,7 +4,7 @@ import { errors } from '@/server/errors';
 import { json, route } from '@/server/http';
 import { rateLimit, rateLimits } from '@/server/rate-limit';
 import type { RouteContext } from '@/server/route-context';
-import { redeemInvite } from '@/server/services/conversation.service';
+import { redeemInvite } from '@/server/services/access.service';
 
 export const dynamic = 'force-dynamic';
 
