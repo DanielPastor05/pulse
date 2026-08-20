@@ -10,6 +10,8 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 | | |
 | --- | --- |
 | **Automated checks** | 189 — 47 unit, 42 integration against a real Postgres, 6 browser smoke tests, 94 end-to-end against the deployed instance |
+| **Latency budgets** | p95 per endpoint over a 15-minute window, alerting to Sentry when a budget is missed ([how](#emitting-signal-is-not-watching-it)) |
+| **Coverage** | 34.8% of statements and 74.3% of branches across `src/server` and `src/lib` ([what that gap means](#thirty-five-percent-and-why-branches-are-double-that)) |
 | **Row Level Security** | 20 policies, one per table, enforced independently of the API |
 | **Search latency** | 6035 ms → **343-434 ms p50**, three runs, unchanged by the vector arm ([how](#making-search-nineteen-times-faster)) |
 | **Search quality** | recall@5 30% → 70% by adding a vector arm, measured on a hand-labelled set ([how](#the-half-of-search-that-was-missing)) |
@@ -17,7 +19,7 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 | **Concurrent sending** | 13.5 s → 1.48 s p50 with ten people writing at once ([how](#the-send-response-was-waiting-for-the-fan-out)) |
 | **Realtime delivery** | 3.8 s p95 end to end at ten concurrent senders, 100% delivered |
 | **Where it bends** | Sending stays under 1.2 s p95 at forty concurrent senders; delivery stretches to 10.6 s ([how](#where-it-bends-and-the-number-that-lied)) |
-| **API surface** | 46 endpoints, 45 of them behind `requireUser`; the exception runs before a profile exists |
+| **API surface** | 51 endpoints, 47 behind `requireUser`; the other four authorise themselves ([which](#the-four-endpoints-without-requireuser)) |
 
 ---
 
@@ -333,6 +335,111 @@ double imitates the two behaviours that caused the bugs: `list('')` returns
 folders rather than paths, and `remove` can report success without deleting.
 A double without that second behaviour could not have caught the hang at all.
 
+### Emitting signal is not watching it
+
+There was a line per request in the logs with route, method, status and
+duration. That is not observability — it is having the signal and not looking at
+it, which in practice resembles not having it. "Is it slow right now?" still had
+no answer without reading logs at the exact moment it mattered.
+
+Now a sample per request lands in `request_samples`, percentiles come from
+`percentile_cont`, seven days are kept and the daily job prunes the rest, and a
+p95 over budget raises a warning in Sentry — where errors are already looked at,
+rather than in a channel invented for the purpose.
+
+Four decisions worth more than the code:
+
+**Raw samples, not bucketed histograms.** Histograms are what real metrics
+systems use: they aggregate, they cost nothing to store and they merge across
+windows. At a few thousand requests a day, `percentile_cont` gives the exact
+percentile instead of an approximation. Past that volume this table becomes
+buckets, and that is the stated ceiling rather than a surprise.
+
+**The check rides the traffic, not a timer.** Scheduled jobs on this plan run
+once a day, and a latency alert that notices tomorrow is not an alert. Riding
+the traffic also has a property a cron does not: with no requests, there is
+nothing to watch. Only one request per five-minute window actually evaluates —
+an upsert whose `ON CONFLICT ... WHERE` acts as a lock with an expiry, the same
+mechanism the rate limiter uses.
+
+**A budget per endpoint, not one global number.** Search fans out across every
+conversation a person belongs to and will always cost more than reading one row.
+With a single threshold the alert would mean "this is search" instead of "this
+is worse than it should be".
+
+**Twenty samples before believing a p95.** A percentile over three requests is
+the slowest of three. Without that floor the first person of the day on bad wifi
+fires an alert that means nothing — and a few alerts that mean nothing is exactly
+how a dashboard stops being read.
+
+Measuring costs the measured nothing: both the write and the check run in
+`after()`, and neither throws. `/api/health` and `/api/cron` are not sampled — a
+probe would fill the table with the latency of `select 1`, and the cron takes
+half a minute by design.
+
+Read them at `GET /api/metrics` behind the same shared secret as the cron. On
+one production sample:
+
+| route | n | p50 | p95 |
+| --- | --- | --- | --- |
+| `/api/search` | 50 | 139 ms | 211 ms |
+| `/api/conversations` | 50 | 119 ms | 168 ms |
+
+Those are lower than the 340 ms the benchmark reports for search, and both are
+right: this measures what the server spends, the benchmark measures the round
+trip from a machine an ocean away.
+
+### Thirty-five percent, and why branches are double that
+
+`npm run coverage` runs the unit and integration suites under one counter — in
+CI, because the integration tests need the throwaway Postgres that only exists
+there. Scope is `src/server` and `src/lib`, the code those suites aim at:
+
+| | |
+| --- | --- |
+| Statements | **34.8%** |
+| Branches | **74.3%** |
+| Functions | 47.3% |
+
+The two headline numbers differ by a factor of two, and that is the useful part.
+Statement coverage measures how much of the code is reached; branch coverage
+measures how thoroughly the reached parts are exercised. **Where these tests go,
+they go into the corners** — the SSRF address rules including the `172.16/12`
+boundary, pagination under a twelve-way timestamp collision, the unique index
+refusing a second send. They just do not go many places.
+
+By directory:
+
+| | statements | branches |
+| --- | --- | --- |
+| `server/repositories` | 65.9% | 78.0% |
+| `server/services` | 26.9% | 67.6% |
+| `lib` | 40.7% | 66.7% |
+
+One confound worth stating rather than tuning away: `src/lib` mixes browser and
+server code, so modules like `navigate.ts` and `api-client.ts` sit at 0% by
+construction under a server-side suite. Excluding them would raise the number
+without changing anything true, so they stay in.
+
+### The four endpoints without requireUser
+
+Forty-seven of fifty-one route handlers call `requireUser()`. The other four are
+each a deliberate answer to "who is calling this?":
+
+| endpoint | who calls it | how it authorises |
+| --- | --- | --- |
+| `/api/health` | uptime probes, orchestrators | nobody — a health check that needs a session cannot report that auth is down |
+| `/api/cron/cleanup` | Vercel's scheduler | shared secret in the `Authorization` header |
+| `/api/metrics` | whoever is asking how it performs | the same shared secret |
+| `/api/me/onboarding` | a signed-in account with no profile row yet | `getAuthUser()` and its own 401 — `requireUser` resolves the profile row, which is precisely what this endpoint creates |
+
+Only the first is genuinely open. The middleware exempts the other three from
+its session check, which is a thing worth getting right in both directions:
+`/api/metrics` was added without that exemption and returned 401 to everything,
+including the correct secret. The 401 body was identical to the one the endpoint
+itself returns, so the authorisation test passed on all three negative cases
+while never once reaching the code it was testing.
+
 ### Realtime channels were public
 
 Supabase Realtime channels default to public. The app subscribed to
@@ -596,6 +703,7 @@ npm run typecheck        npm run lint             npm test
 npm run test:integration npm run test:e2e         npm run test:smoke
 npm run bench:quality   # recall@k of each retrieval arm
 npm run bench:breakdown # where search latency actually goes
+npm run coverage        # unit + integration under one counter
 npm run bench:search     npm run bench:load
 npm run db:migrate       npm run db:deploy        npm run db:studio
 ```
