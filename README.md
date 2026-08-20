@@ -21,6 +21,9 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 | **Where it bends** | Sending stays under 1.2 s p95 at forty concurrent senders; delivery stretches to 10.6 s ([how](#where-it-bends-and-the-number-that-lied)) |
 | **API surface** | 51 endpoints, 47 behind `requireUser`; the other four authorise themselves ([which](#the-four-endpoints-without-requireuser)) |
 
+
+![Pulse: a group conversation with unread counts, reactions, a quoted reply and a live poll](docs/screenshots/chat.png)
+
 ---
 
 ## What this is
