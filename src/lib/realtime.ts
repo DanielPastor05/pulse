@@ -2,6 +2,18 @@
 
 export const realtimeChannels = {
   conversation: (conversationId: string) => `conversation:${conversationId}`,
+  /**
+   * Señalización de llamada. Topic propio y no el de la conversación, aunque
+   * el permiso sea el mismo.
+   *
+   * Dos objetos de canal sobre un mismo topic parecen independientes y no lo
+   * son: en supabase-js, `removeChannel` de uno manda `phx_leave` de ese topic
+   * y **el otro deja de recibir**. Con la señalización dentro del topic de la
+   * conversación, colgar una llamada dejaba la conversación sorda —sin mensajes
+   * en vivo, sin «está escribiendo»— hasta recargar la página. Y desde fuera se
+   * veía como que el tiempo real «a veces va y a veces no».
+   */
+  call: (conversationId: string) => `call:${conversationId}`,
   user: (userId: string) => `user:${userId}`,
   presence: 'presence:global',
 } as const;
@@ -69,6 +81,20 @@ export type CallMode = 'audio' | 'video';
  * cuenten la misma historia.
  */
 export const CALL_LIMITS: Record<CallMode, number> = { video: 4, audio: 6 };
+
+/**
+ * Cuánto sigue viva una llamada de la que se ha ido todo el mundo menos uno.
+ *
+ * Colgar por accidente, quedarse sin batería o perder la cobertura en un túnel
+ * son la misma cosa desde fuera, y en los tres casos volver a llamar es fricción
+ * innecesaria. La llamada se queda esperando y quien se fue puede reengancharse
+ * donde estaba.
+ *
+ * Quince minutos y no indefinidamente porque una llamada abierta mantiene el
+ * micrófono abierto: pasado ese rato, lo que hay no es una llamada en pausa,
+ * es una ventana olvidada.
+ */
+export const CALL_REJOIN_WINDOW_MS = 15 * 60_000;
 
 /** Quien inicia anuncia la llamada a toda la conversación. */
 export type CallInvitePayload = {

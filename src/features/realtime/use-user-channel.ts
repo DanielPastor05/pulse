@@ -107,10 +107,20 @@ export function useUserChannel() {
         }
       });
 
-    void authorizeRealtime().then(() => subscribeWithRetry(channel, 'user'));
+    // `cancelled` cierra una carrera real: autorizar es asíncrono, así que si
+    // el efecto se limpia mientras tanto —una re-ejecución, un desmontaje— el
+    // `.then()` acabaría suscribiendo un canal que ya se quitó, y el topic se
+    // queda a medias entre unido y no unido.
+    let cancelled = false;
+    void authorizeRealtime().then(() => {
+      if (!cancelled) subscribeWithRetry(channel, 'user');
+    });
 
     return () => {
+      cancelled = true;
       void supabase.removeChannel(channel);
     };
+    // `router` y `queryClient` son estables; están para que el linter no
+    // proteste, y por eso el efecto no se re-ejecuta al navegar.
   }, [me.id, queryClient, router]);
 }

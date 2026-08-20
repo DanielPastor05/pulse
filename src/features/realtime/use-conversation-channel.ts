@@ -123,9 +123,15 @@ export function useConversationChannel(conversationId: string, viewerId: string)
 
     // The channel is private, so Realtime must have the access token before the
     // join is attempted — otherwise RLS sees an anonymous caller and rejects it.
-    void authorizeRealtime().then(() => subscribeWithRetry(channel, 'conversation'));
+    // Misma carrera que en el canal de usuario: sin esta bandera, un efecto que
+    // se limpia mientras se autoriza acaba suscribiendo un canal ya retirado.
+    let cancelled = false;
+    void authorizeRealtime().then(() => {
+      if (!cancelled) subscribeWithRetry(channel, 'conversation');
+    });
 
     return () => {
+      cancelled = true;
       channelRef.current = null;
       void supabase.removeChannel(channel);
     };

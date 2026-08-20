@@ -33,6 +33,22 @@ export function getSupabaseBrowserClient(): SupabaseClient {
       }
     });
 
+    // Y lo mismo al volver de segundo plano o de un corte de red.
+    //
+    // El navegador estrangula los temporizadores de una pestaña oculta, así que
+    // el latido del socket se pierde y la conexión acaba cayéndose.
+    // supabase-js reconecta y se vuelve a unir a los canales por su cuenta —
+    // pero con el token que tuviera guardado, que a esas alturas puede haber
+    // caducado, y entonces los canales privados se rechazan en silencio. Esto
+    // sólo se asegura de que el token esté al día justo cuando va a reengancharse.
+    if (typeof document !== 'undefined') {
+      const refresh = () => {
+        if (document.visibilityState === 'visible') void created.realtime.setAuth();
+      };
+      document.addEventListener('visibilitychange', refresh);
+      window.addEventListener('online', refresh);
+    }
+
     client = created;
   }
   return client;
@@ -60,17 +76,32 @@ export function subscribeWithRetry(
   channel: ReturnType<SupabaseClient['channel']>,
   label: string,
 ): void {
-  let retried = false;
+  // Los reintentos no se agotan para siempre: se cuentan por racha y la racha
+  // se pone a cero en cuanto el canal engancha. Un contador de una sola vida
+  // deja el canal muerto tras la primera reconexión fallida del día, que es
+  // justo el caso que se quiere sobrevivir.
+  let attempts = 0;
 
-  channel.subscribe((status, error) => {
-    if (status !== 'CHANNEL_ERROR' && status !== 'TIMED_OUT') return;
+  const join = () => {
+    channel.subscribe((status, error) => {
+      if (status === 'SUBSCRIBED') {
+        attempts = 0;
+        return;
+      }
+      if (status !== 'CHANNEL_ERROR' && status !== 'TIMED_OUT') return;
 
-    if (!retried) {
-      retried = true;
-      void authorizeRealtime().then(() => channel.subscribe());
-      return;
-    }
+      if (attempts >= 4) {
+        console.error(`[realtime] ${label} no pudo suscribirse: ${status}`, error);
+        return;
+      }
 
-    console.error(`[realtime] ${label} no pudo suscribirse: ${status}`, error);
-  });
+      // Espera creciente: reintentar en bucle contra un servicio caído sólo
+      // añade ruido al problema.
+      const wait = 500 * 2 ** attempts;
+      attempts += 1;
+      setTimeout(() => void authorizeRealtime().then(join), wait);
+    });
+  };
+
+  join();
 }

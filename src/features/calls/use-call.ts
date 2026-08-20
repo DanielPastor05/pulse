@@ -8,6 +8,7 @@ import { api } from '@/lib/api-client';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import {
   CALL_LIMITS,
+  CALL_REJOIN_WINDOW_MS,
   realtimeChannels,
   realtimeEvents,
   type CallHerePayload,
@@ -51,7 +52,7 @@ export function useCall(meId: string) {
   /** Un vigilante de nivel por participante, para poder pararlos todos. */
   const levelStops = React.useRef(new Map<string, () => void>());
 
-  const { status, callId, conversationId, mode } = store;
+  const { status, callId, conversationId, mode, waitingFor } = store;
 
   /** Stops the camera light. Closing the connection alone does not. */
   const stopLocalMedia = React.useCallback(() => {
@@ -162,7 +163,10 @@ export function useCall(meId: string) {
       const supabase = getSupabaseBrowserClient();
       await supabase.realtime.setAuth();
 
-      const ch = supabase.channel(realtimeChannels.conversation(targetConversationId), {
+      // Topic propio, no el de la conversación: ver el comentario en
+      // `realtimeChannels.call`. Compartirlo hacía que colgar dejase la
+      // conversación sin tiempo real.
+      const ch = supabase.channel(realtimeChannels.call(targetConversationId), {
         config: { private: true },
       });
 
@@ -192,6 +196,8 @@ export function useCall(meId: string) {
         }
 
         store.setStatus('active');
+        // Alguien ha entrado: ya no se espera a nadie.
+        if (store.waitingFor) store.setWaitingFor(null);
         if (meId < otherId) peerFor(otherId, currentCallId);
         else store.upsertRemote({ ...remoteDefaults, userId: otherId, stream: null, state: 'new' });
       };
@@ -242,8 +248,19 @@ export function useCall(meId: string) {
         levelStops.current.delete(userId);
         useCallStore.getState().dropRemote(userId);
 
-        // Last one out closes the call rather than leaving an empty window.
-        if (peers.current.size === 0) teardown();
+        // Quedarse solo ya no cierra la llamada.
+        //
+        // Colgar sin querer, quedarse sin batería o meterse en un túnel se ven
+        // exactamente igual desde el otro lado, y en los tres casos volver a
+        // llamar es fricción que no hacía falta. La llamada se queda esperando
+        // y quien se fue puede reengancharse donde estaba. A los quince
+        // minutos se acaba sola: pasado ese rato lo que hay no es una llamada
+        // en pausa, es una ventana olvidada con el micrófono abierto.
+        if (peers.current.size === 0) {
+          useCallStore
+            .getState()
+            .setWaitingFor({ userId, until: Date.now() + CALL_REJOIN_WINDOW_MS });
+        }
       });
 
       await new Promise<void>((resolve) => {
@@ -257,7 +274,8 @@ export function useCall(meId: string) {
       channel.current = ch;
       return ch;
     },
-    [meId, peerFor, send, teardown, broadcastState],
+    // Ya no depende de `teardown`: quedarse solo dejó de cerrar la llamada.
+    [meId, peerFor, send, broadcastState],
   );
 
   const captureLocal = React.useCallback(
@@ -325,26 +343,63 @@ export function useCall(meId: string) {
     [captureLocal, joinSignalling, teardown],
   );
 
+  /**
+   * Entra en una llamada que ya existe: cogerla, o volver a ella.
+   *
+   * Los dos casos son el mismo camino —capturar, unirse a la señalización y
+   * anunciarse— y la única diferencia es de dónde sale el `callId`. Tenerlos
+   * separados sería tener dos sitios donde arreglar el mismo fallo.
+   */
+  const joinExisting = React.useCallback(
+    async (callId: string, targetConversationId: string, wanted: CallMode) => {
+      try {
+        await captureLocal(wanted);
+      } catch {
+        toast.error('Could not use your microphone or camera');
+        teardown();
+        return;
+      }
+
+      ice.current = await fetchIceConfig();
+      await joinSignalling(targetConversationId, callId);
+      send(realtimeEvents.callAccept, { callId, userId: meId } satisfies CallPresencePayload);
+      useCallStore.getState().setStatus('active');
+    },
+    [captureLocal, joinSignalling, meId, send, teardown],
+  );
+
   /** Picks up a ringing call. */
   const acceptCall = React.useCallback(async () => {
     const store = useCallStore.getState();
     if (store.status !== 'ringing' || !store.callId || !store.conversationId) return;
 
     store.setStatus('joining');
+    store.clearRejoin();
+    await joinExisting(store.callId, store.conversationId, store.mode);
+  }, [joinExisting]);
 
-    try {
-      await captureLocal(store.mode);
-    } catch {
-      toast.error('Could not use your microphone or camera');
-      teardown();
+  /** Vuelve a la llamada de la que uno se acaba de salir. */
+  const rejoinCall = React.useCallback(async () => {
+    const store = useCallStore.getState();
+    const offer = store.rejoinable;
+    if (!offer || store.status !== 'idle') return;
+
+    if (Date.now() > offer.expiresAt) {
+      store.clearRejoin();
+      toast.message('That call has ended');
       return;
     }
 
-    ice.current = await fetchIceConfig();
-    await joinSignalling(store.conversationId, store.callId);
-    send(realtimeEvents.callAccept, { callId: store.callId, userId: meId } satisfies CallPresencePayload);
-    useCallStore.getState().setStatus('active');
-  }, [captureLocal, joinSignalling, meId, send, teardown]);
+    store.clearRejoin();
+    store.start({
+      callId: offer.callId,
+      conversationId: offer.conversationId,
+      conversationName: offer.conversationName,
+      mode: offer.mode,
+    });
+
+    await joinExisting(offer.callId, offer.conversationId, offer.mode);
+  }, [joinExisting]);
 
   const rejectCall = React.useCallback(() => {
     const store = useCallStore.getState();
@@ -358,13 +413,48 @@ export function useCall(meId: string) {
     teardown();
   }, [teardown]);
 
-  const leaveCall = React.useCallback(() => {
-    const store = useCallStore.getState();
-    if (store.callId) {
-      send(realtimeEvents.callLeave, { callId: store.callId, userId: meId } satisfies CallPresencePayload);
-    }
-    teardown();
-  }, [meId, send, teardown]);
+  /**
+   * Salir de la llamada, ofreciendo volver o no.
+   *
+   * El parámetro vive aquí y no en `leaveCall` porque ésa se pasa tal cual a un
+   * `onClick`: con un booleano en la firma, el navegador le colaría el evento
+   * del ratón, que es siempre verdadero, y «colgar del todo» pasaría a ofrecer
+   * volver sin que nadie lo pidiera.
+   */
+  const exitCall = React.useCallback(
+    (offerReturn: boolean) => {
+      const store = useCallStore.getState();
+
+      if (store.callId && store.conversationId) {
+        send(realtimeEvents.callLeave, {
+          callId: store.callId,
+          userId: meId,
+        } satisfies CallPresencePayload);
+
+        if (offerReturn) {
+          // Salir no cierra la puerta: los demás dejan la llamada abierta un
+          // rato, así que se guarda lo justo para poder volver a ella.
+          store.offerRejoin({
+            callId: store.callId,
+            conversationId: store.conversationId,
+            conversationName: store.conversationName,
+            mode: store.mode,
+            expiresAt: Date.now() + CALL_REJOIN_WINDOW_MS,
+          });
+        } else {
+          store.clearRejoin();
+        }
+      }
+
+      teardown();
+    },
+    [meId, send, teardown],
+  );
+
+  const leaveCall = React.useCallback(() => exitCall(true), [exitCall]);
+
+  /** Colgar del todo: ni se espera a nadie ni se ofrece volver. */
+  const endCall = React.useCallback(() => exitCall(false), [exitCall]);
 
   const toggleMic = React.useCallback(() => {
     const next = !useCallStore.getState().micOn;
@@ -459,6 +549,31 @@ export function useCall(meId: string) {
     return () => clearTimeout(timer);
   }, [status, leaveCall]);
 
+  /**
+   * La llamada que espera a alguien no espera para siempre.
+   *
+   * El temporizador se arma con el instante de vencimiento y no con una
+   * duración, para que volver de segundo plano —donde el navegador estrangula
+   * los temporizadores— no regale minutos que ya habían pasado.
+   */
+  React.useEffect(() => {
+    if (!waitingFor) return;
+
+    const remaining = waitingFor.until - Date.now();
+    if (remaining <= 0) {
+      endCall();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      // Se comprueba otra vez en vez de fiarse: en el rato puede haber vuelto
+      // alguien, y colgarle encima sería peor que no haber esperado.
+      if (Object.keys(useCallStore.getState().remotes).length === 0) endCall();
+    }, remaining);
+
+    return () => clearTimeout(timer);
+  }, [waitingFor, endCall]);
+
   // Leaving the tab open on a dead call is worse than dropping it: the other
   // side keeps seeing a participant who is not there.
   React.useEffect(() => {
@@ -482,7 +597,9 @@ export function useCall(meId: string) {
     startCall,
     acceptCall,
     rejectCall,
+    rejoinCall,
     leaveCall,
+    endCall,
     toggleMic,
     toggleCamera,
     shareScreen,

@@ -40,6 +40,29 @@ type CallState = {
   /** Cuándo empezó, para el contador. Null mientras nadie ha descolgado. */
   startedAt: number | null;
 
+  /**
+   * Quién se fue de una llamada que sigue abierta, y hasta cuándo se le espera.
+   *
+   * Es lo que distingue «me he quedado solo porque el otro colgó» de «todavía
+   * no lo ha cogido nadie»: las dos son una llamada sin nadie enfrente, y no
+   * significan lo mismo para quien la mira.
+   */
+  waitingFor: { userId: string; until: number } | null;
+
+  /**
+   * La llamada de la que uno acaba de salir y a la que puede volver.
+   *
+   * Sobrevive al `reset`, a diferencia de todo lo demás: colgar tiene que
+   * dejar la llamada limpia y a la vez dejar la puerta abierta.
+   */
+  rejoinable: {
+    callId: string;
+    conversationId: string;
+    conversationName: string | null;
+    mode: CallMode;
+    expiresAt: number;
+  } | null;
+
   incoming: (input: {
     callId: string;
     conversationId: string;
@@ -63,6 +86,9 @@ type CallState = {
   setCamera: (on: boolean) => void;
   setSharing: (on: boolean) => void;
   setSpeaking: (on: boolean) => void;
+  setWaitingFor: (waiting: CallState['waitingFor']) => void;
+  offerRejoin: (offer: NonNullable<CallState['rejoinable']>) => void;
+  clearRejoin: () => void;
   reset: () => void;
 };
 
@@ -83,6 +109,7 @@ const EMPTY = {
   sharing: false,
   speaking: false,
   startedAt: null,
+  waitingFor: null,
 };
 
 /**
@@ -92,6 +119,7 @@ const EMPTY = {
  */
 export const useCallStore = create<CallState>((set) => ({
   ...EMPTY,
+  rejoinable: null,
 
   incoming: ({ callId, conversationId, conversationName, mode, from }) =>
     set({ ...EMPTY, status: 'ringing', callId, conversationId, conversationName, mode, from }),
@@ -142,5 +170,13 @@ export const useCallStore = create<CallState>((set) => ({
   setCamera: (cameraOn) => set({ cameraOn }),
   setSharing: (sharing) => set({ sharing }),
   setSpeaking: (speaking) => set({ speaking }),
-  reset: () => set(EMPTY),
+  setWaitingFor: (waitingFor) => set({ waitingFor }),
+
+  offerRejoin: (rejoinable) => set({ rejoinable }),
+  clearRejoin: () => set({ rejoinable: null }),
+
+  // `rejoinable` sobrevive al reset a propósito: colgar tiene que dejar la
+  // llamada limpia —micrófono, cámara, conexiones— y a la vez recordar dónde
+  // estabas para poder volver.
+  reset: () => set((state) => ({ ...EMPTY, rejoinable: state.rejoinable })),
 }));

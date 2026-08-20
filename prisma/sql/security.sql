@@ -204,6 +204,19 @@ begin
     return private.is_conversation_member(raw::uuid);
   end if;
 
+  -- Señalización de llamada. El permiso es el mismo que el de la conversación
+  -- —hay que ser miembro—, pero el topic va aparte: dos objetos de canal sobre
+  -- un mismo topic no son independientes, y al cerrar uno el otro deja de
+  -- recibir. Con la señalización dentro de `conversation:`, colgar una llamada
+  -- dejaba la conversación sin mensajes en vivo hasta recargar.
+  if topic like 'call:%' then
+    raw := substring(topic from 6);
+    if raw !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
+      return false;
+    end if;
+    return private.is_conversation_member(raw::uuid);
+  end if;
+
   return false;
 end;
 $$;

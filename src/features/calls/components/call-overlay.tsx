@@ -168,19 +168,72 @@ function Tile({
   );
 }
 
-/** mm:ss desde que la llamada pasó a activa. */
-function Duration({ startedAt }: { startedAt: number }) {
+/** Un reloj que corre solo, hacia delante desde `from` o hacia atrás hasta `until`. */
+function useTicker() {
   const [now, setNow] = React.useState(() => Date.now());
-
   React.useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+  return now;
+}
 
-  const total = Math.max(0, Math.floor((now - startedAt) / 1000));
-  const minutes = String(Math.floor(total / 60)).padStart(2, '0');
-  const seconds = String(total % 60).padStart(2, '0');
-  return <span className="tabular-nums">{`${minutes}:${seconds}`}</span>;
+function mmss(ms: number) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/** mm:ss desde que la llamada pasó a activa. */
+function Duration({ startedAt }: { startedAt: number }) {
+  return <span className="tabular-nums">{mmss(useTicker() - startedAt)}</span>;
+}
+
+/** Lo que queda para que la llamada se cierre sola. */
+function Countdown({ until }: { until: number }) {
+  return <span className="tabular-nums">{mmss(until - useTicker())}</span>;
+}
+
+/**
+ * La llamada de la que te acabas de salir, mientras siga en pie.
+ *
+ * Se pinta con el estado en `idle`, que es cuando el overlay no existe: colgar
+ * sin querer o quedarse sin cobertura no deberían costar volver a llamar.
+ */
+function RejoinBar() {
+  const rejoinable = useCallStore((state) => state.rejoinable);
+  const clearRejoin = useCallStore((state) => state.clearRejoin);
+  const { rejoinCall } = useCallApi();
+  const now = useTicker();
+
+  React.useEffect(() => {
+    if (rejoinable && now > rejoinable.expiresAt) clearRejoin();
+  }, [rejoinable, now, clearRejoin]);
+
+  if (!rejoinable || now > rejoinable.expiresAt) return null;
+
+  return (
+    <div className="fixed inset-x-0 bottom-4 z-50 mx-auto w-[min(26rem,92vw)]">
+      <div className="panel flex items-center gap-3 rounded-[var(--radius-card)] p-3 shadow-lg">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--surface-hover)]">
+          <Phone className="size-4 text-[var(--accent)]" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] font-medium">
+            {rejoinable.conversationName ?? 'Call'} is still going
+          </p>
+          <p className="text-[12px] text-[var(--text-3)]">
+            Ends in <Countdown until={rejoinable.expiresAt} /> if nobody comes back
+          </p>
+        </div>
+        <Button size="sm" variant="ghost" onClick={clearRejoin}>
+          Dismiss
+        </Button>
+        <Button size="sm" onClick={() => void rejoinCall()}>
+          Rejoin
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 /** Las salidas de audio que ofrece el navegador, si es que ofrece alguna. */
@@ -221,6 +274,7 @@ function ActiveCall() {
     conversationId,
     conversationName,
     startedAt,
+    waitingFor,
   } = useCallStore();
   const { leaveCall, toggleMic, toggleCamera, shareScreen, hasRelay } = useCallApi();
 
@@ -307,7 +361,23 @@ function ActiveCall() {
         })}
 
         {participants.length === 0 ? (
-          <p className="grid place-items-center text-[13px] text-white/60">Waiting for an answer…</p>
+          <div className="grid place-items-center gap-1 text-center">
+            {waitingFor ? (
+              // Quedarse solo porque el otro colgó y que aún no lo haya cogido
+              // nadie se ven igual —una llamada sin nadie enfrente— y no son lo
+              // mismo para quien la está mirando.
+              <>
+                <p className="text-[13px] text-white/80">
+                  {people.get(waitingFor.userId)?.displayName ?? 'They'} left — they can rejoin
+                </p>
+                <p className="text-[12px] text-white/50">
+                  Ending in <Countdown until={waitingFor.until} />
+                </p>
+              </>
+            ) : (
+              <p className="text-[13px] text-white/60">Waiting for an answer…</p>
+            )}
+          </div>
         ) : null}
       </div>
 
@@ -392,7 +462,8 @@ function ActiveCall() {
 export function CallOverlay() {
   const status = useCallStore((state) => state.status);
 
-  if (status === 'idle') return null;
+  // En reposo no siempre hay «nada»: puede quedar una llamada a la que volver.
+  if (status === 'idle') return <RejoinBar />;
   if (status === 'ringing') return <IncomingCall />;
   return <ActiveCall />;
 }
