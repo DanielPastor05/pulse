@@ -12,6 +12,7 @@ import { ShortcutsDialog } from '@/components/layout/shortcuts-dialog';
 import { MobileTabBar, TopDock } from '@/components/layout/top-dock';
 import { CallOverlay } from '@/features/calls/components/call-overlay';
 import { CallProvider } from '@/features/calls/call-provider';
+import { WebVitals } from '@/features/telemetry/web-vitals';
 import { useOutboxFlush } from '@/features/messages/use-outbox-flush';
 
 /**
@@ -55,6 +56,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             navigating away from the chat it started in, and an incoming one has
             to appear wherever you happen to be. */}
         <CallOverlay />
+        {/* No pinta nada: manda al servidor lo que sólo sabe el navegador. */}
+        <WebVitals />
       </CallProvider>
     </PresenceProvider>
   );

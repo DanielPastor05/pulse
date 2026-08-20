@@ -192,8 +192,78 @@ export async function checkLatencyBudgets(): Promise<void> {
 
 /** Tira lo que ya no cabe en la ventana de retención. */
 export async function pruneSamples(): Promise<number> {
-  return prisma.$executeRaw`
+  const peticiones = await prisma.$executeRaw`
     DELETE FROM "request_samples"
      WHERE "at" < now() - make_interval(days => ${SAMPLE_RETENTION_DAYS}::int)
   `;
+  const vitals = await prisma.$executeRaw`
+    DELETE FROM "web_vitals"
+     WHERE "at" < now() - make_interval(days => ${SAMPLE_RETENTION_DAYS}::int)
+  `;
+  return peticiones + vitals;
+}
+
+/**
+ * Guarda una medida del navegador. Nunca lanza.
+ *
+ * Es la única señal que no puede venir del servidor: cuánto tarda el servidor
+ * en responder se mide dentro, pero cuánto tarda una pantalla en pintarse sólo
+ * lo sabe quien la está mirando.
+ */
+export async function recordVital(vital: {
+  metric: string;
+  value: number;
+  rating: string;
+  path: string;
+}): Promise<void> {
+  try {
+    await prisma.$executeRaw`
+      INSERT INTO "web_vitals" ("metric", "value", "rating", "path")
+      VALUES (${vital.metric}, ${vital.value}, ${vital.rating}, ${vital.path})
+    `;
+  } catch (error) {
+    log.warn('metrics.vital_failed', describeError(error));
+  }
+}
+
+export type VitalSummary = {
+  metric: string;
+  samples: number;
+  p50: number;
+  p75: number;
+  good: number;
+};
+
+/**
+ * Percentiles de las métricas del navegador.
+ *
+ * p75 y no p95 porque es el que define Google para los Core Web Vitals: la
+ * pregunta no es «cuál fue la peor carga» sino «¿le va bien a tres de cada
+ * cuatro personas?». Usar otro percentil daría un número que no se puede
+ * comparar con ningún umbral publicado.
+ */
+export async function vitals(minutes: number): Promise<VitalSummary[]> {
+  const rows = await prisma.$queryRaw<
+    Array<{ metric: string; samples: bigint; p50: number; p75: number; good: bigint }>
+  >`
+    SELECT "metric",
+           count(*)                                              AS samples,
+           percentile_cont(0.50) WITHIN GROUP (ORDER BY "value")  AS p50,
+           percentile_cont(0.75) WITHIN GROUP (ORDER BY "value")  AS p75,
+           count(*) FILTER (WHERE "rating" = 'good')              AS good
+      FROM "web_vitals"
+     WHERE "at" > now() - make_interval(mins => ${minutes}::int)
+     GROUP BY "metric"
+     ORDER BY "metric"
+  `;
+
+  return rows.map((row) => ({
+    metric: row.metric,
+    samples: Number(row.samples),
+    // CLS es una puntuación sin unidad y muy pequeña, así que redondear a
+    // entero la borraría. Tres decimales es lo que usan los umbrales.
+    p50: Number(row.p50.toFixed(3)),
+    p75: Number(row.p75.toFixed(3)),
+    good: Number(row.good),
+  }));
 }

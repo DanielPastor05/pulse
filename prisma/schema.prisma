@@ -747,3 +747,21 @@ model MetricsState {
 
   @@map("metrics_state")
 }
+
+/// Lo que mide el navegador y el servidor no puede medir.
+///
+/// Tabla propia y no `request_samples` porque CLS no son milisegundos: es una
+/// puntuacion sin unidad entre 0 y 1, y en una columna de enteros seria
+/// siempre cero.
+model WebVital {
+  id     BigInt   @id @default(autoincrement())
+  metric String
+  value  Float
+  rating String
+  path   String
+  at     DateTime @default(now())
+
+  @@index([at(sort: Desc)])
+  @@index([metric, at(sort: Desc)])
+  @@map("web_vitals")
+}

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { serverEnv } from '@/lib/env';
 import { json, parseQuery, route } from '@/server/http';
 import { errors } from '@/server/errors';
-import { percentiles, SAMPLE_RETENTION_DAYS } from '@/server/metrics';
+import { percentiles, SAMPLE_RETENTION_DAYS, vitals } from '@/server/metrics';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,12 +29,16 @@ export const GET = route(async (request) => {
   }
 
   const { minutes } = parseQuery(request, querySchema);
-  const routes = await percentiles(minutes);
+
+  // Las dos mitades de la misma pregunta: lo que gasta el servidor y lo que
+  // tarda la pantalla. Ninguna de las dos sola dice si la aplicación va bien.
+  const [routes, browser] = await Promise.all([percentiles(minutes), vitals(minutes)]);
 
   return json({
     windowMinutes: minutes,
     retentionDays: SAMPLE_RETENTION_DAYS,
     samples: routes.reduce((total, row) => total + row.samples, 0),
     routes,
+    vitals: browser,
   });
 });
