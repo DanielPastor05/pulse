@@ -15,6 +15,12 @@ const PUBLIC_PREFIXES = [
   // quedan abiertas: la ruta comprueba el secreto compartido por su cuenta, que
   // es la autorización que le corresponde a un llamante que no es una persona.
   '/api/cron',
+  // Los percentiles se leen con el mismo secreto compartido, así que quien los
+  // pide tampoco tiene sesión. Sin esta línea el middleware devolvía 401 antes
+  // de que el endpoint llegara a mirar la cabecera — y el 401 se veía idéntico
+  // al suyo, así que parecía que la autorización funcionaba cuando lo que
+  // funcionaba era el middleware.
+  '/api/metrics',
 ];
 
 const AUTH_ONLY_PAGES = ['/login', '/register', '/forgot-password'];
