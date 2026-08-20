@@ -11,7 +11,7 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 | --- | --- |
 | **Automated checks** | 189 — 47 unit, 42 integration against a real Postgres, 6 browser smoke tests, 94 end-to-end against the deployed instance |
 | **Row Level Security** | 20 policies, one per table, enforced independently of the API |
-| **Search latency** | 6035 ms → 314 ms p50, measured before and after ([how](#making-search-nineteen-times-faster)) |
+| **Search latency** | 6035 ms → 314 ms p50 when the region was fixed; **434 ms today** with a second retrieval arm and a larger corpus ([how](#making-search-nineteen-times-faster)) |
 | **Search quality** | recall@5 30% → 70% by adding a vector arm, measured on a hand-labelled set ([how](#the-half-of-search-that-was-missing)) |
 | **Database round trip** | 1230 ms → 16 ms, after moving the functions to the database's region |
 | **Concurrent sending** | 13.5 s → 1.48 s p50 with ten people writing at once ([how](#the-send-response-was-waiting-for-the-fan-out)) |
@@ -189,6 +189,20 @@ start earning as the corpus grows and rare tokens stop being rare.
 
 That is worth saying plainly rather than shipping a table that implies the
 fusion did the work.
+
+#### What it cost
+
+The latency benchmark, re-run after all of this: **p50 434 ms**, against 314 ms
+when the region fix was measured. The headline number in the table was updated
+rather than left standing.
+
+Part of that is this feature and part is not, and the honest position is that
+the two were not separated: the corpus grew by thousands of messages over the
+same period, and the lexical arm now fetches 200 candidates instead of 20 so
+there is something to fuse. Attributing the whole 120 ms to either would be a
+guess. What is measurable is that a query too short for the vector arm — under
+fifteen characters, so `fra1` or `Frankfurt` — takes the same path it always
+did, and the cache means a repeated question does not pay for the model twice.
 
 #### Where it fails, measured
 
