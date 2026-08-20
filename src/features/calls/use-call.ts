@@ -363,7 +363,12 @@ export function useCall(meId: string) {
       ice.current = await fetchIceConfig();
       await joinSignalling(targetConversationId, callId);
       send(realtimeEvents.callAccept, { callId, userId: meId } satisfies CallPresencePayload);
-      useCallStore.getState().setStatus('active');
+
+      // El estado se queda en `joining` a propósito: pasa a `active` cuando
+      // alguien conteste, en `connectTo`. Para quien vuelve a una llamada eso
+      // es la diferencia entre entrar y comprobar que sigue habiendo alguien —
+      // si no queda nadie, el temporizador de «no contestan» la cierra sola en
+      // vez de dejar una ventana abierta contra una sala vacía.
     },
     [captureLocal, joinSignalling, meId, send, teardown],
   );
@@ -376,6 +381,9 @@ export function useCall(meId: string) {
     store.setStatus('joining');
     store.clearRejoin();
     await joinExisting(store.callId, store.conversationId, store.mode);
+    // Coger una llamada que está sonando sí implica que hay alguien al otro
+    // lado: quien llama está esperando. Volver a una, no.
+    useCallStore.getState().setStatus('active');
   }, [joinExisting]);
 
   /** Vuelve a la llamada de la que uno se acaba de salir. */
@@ -425,13 +433,20 @@ export function useCall(meId: string) {
     (offerReturn: boolean) => {
       const store = useCallStore.getState();
 
+      // Si no queda nadie dentro, la llamada se acaba aqui: una llamada
+      // necesita al menos una persona para seguir existiendo. Sin esta
+      // condición, el último en salir se llevaría una oferta de volver a una
+      // sala vacía — y el primero en salir tendría la suya, así que los dos
+      // podrían «reengancharse» por separado a una llamada que ya no existe.
+      const alone = Object.keys(store.remotes).length === 0;
+
       if (store.callId && store.conversationId) {
         send(realtimeEvents.callLeave, {
           callId: store.callId,
           userId: meId,
         } satisfies CallPresencePayload);
 
-        if (offerReturn) {
+        if (offerReturn && !alone) {
           // Salir no cierra la puerta: los demás dejan la llamada abierta un
           // rato, así que se guarda lo justo para poder volver a ella.
           store.offerRejoin({
