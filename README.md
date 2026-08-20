@@ -24,6 +24,8 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 ![Pulse: a group conversation with unread counts, reactions, a quoted reply and a live poll](docs/screenshots/chat.png)
 
+![The command palette, opened with Ctrl+K: recent conversations and quick actions](docs/screenshots/palette.png)
+
 ---
 
 ## What this is
