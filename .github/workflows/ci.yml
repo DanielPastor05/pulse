@@ -22,7 +22,12 @@ jobs:
     # cálculo de no leídos completamente roto, porque nada lo tocaba.
     services:
       postgres:
-        image: postgres:17
+        # `pgvector/pgvector` y no `postgres` a secas: la imagen oficial de
+        # Postgres no trae la extensión `vector`, así que la migración de los
+        # embeddings fallaba aquí con «extension is not available» mientras en
+        # producción se aplicaba sin problema. Lo cazó este mismo paso, que es
+        # la tercera vez que lo hace — antes fueron `pg_trgm` y `auth.uid()`.
+        image: pgvector/pgvector:pg17
         env:
           POSTGRES_USER: ci
           POSTGRES_PASSWORD: ci
