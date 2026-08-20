@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { log } from '@/server/logger';
 import { adminStorage, type Storage } from '@/server/storage';
 import { backfillEmbeddings } from '@/server/services/embedding.service';
+import { pruneSamples } from '@/server/metrics';
 
 /**
  * Cuántos mensajes se embeben por ejecución de la tarea.
@@ -158,11 +159,16 @@ export async function cleanupOrphans(storage: Storage = adminStorage()) {
   // códigos para eso serían dos sitios donde equivocarse.
   const embeddings = await backfillEmbeddings(EMBED_PER_RUN);
 
+  // Las muestras de latencia también caducan. Una tabla que sólo crece acaba
+  // siendo el problema que venía a medir.
+  const prunedSamples = await pruneSamples();
+
   return {
     attachments: removedAttachments,
     avatars: removedAvatars,
     removed: removedAttachments + removedAvatars,
     embedded: embeddings.done,
     embeddingsLeft: embeddings.left,
+    prunedSamples,
   };
 }

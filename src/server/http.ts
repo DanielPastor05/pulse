@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
 import { Prisma } from '@prisma/client';
 import { ZodError, type TypeOf, type ZodTypeAny } from 'zod';
@@ -6,6 +6,7 @@ import { ZodError, type TypeOf, type ZodTypeAny } from 'zod';
 import { publicEnv } from '@/lib/env';
 import { AppError, errors } from '@/server/errors';
 import { describeError, log } from '@/server/logger';
+import { checkLatencyBudgets, recordSample } from '@/server/metrics';
 
 export type ApiErrorBody = { error: string; code: string; details?: unknown };
 
@@ -146,11 +147,22 @@ export function route<Context>(handler: Handler<Context>): Handler<Context> {
     }
 
     const ms = Math.round(performance.now() - startedAt);
-    log.info('http.request', {
+    const sample = {
       method: request.method,
       route: routePattern(request.url),
       status: response.status,
       ms,
+    };
+
+    log.info('http.request', sample);
+
+    // Guardar la muestra y revisar los presupuestos van fuera de la respuesta:
+    // medir no puede costarle latencia a lo que mide. Ninguna de las dos lanza,
+    // así que un fallo midiendo no puede romper la petición que ya se
+    // respondió.
+    after(async () => {
+      await recordSample(sample);
+      await checkLatencyBudgets();
     });
 
     // La misma cifra en la respuesta, para verla en el inspector sin salir del

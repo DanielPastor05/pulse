@@ -719,3 +719,31 @@ model QueryEmbedding {
   @@index([usedAt])
   @@map("query_embeddings")
 }
+
+/// Una fila por peticion servida, para poder calcular percentiles.
+///
+/// Muestras crudas y no un histograma de cubos: a este volumen
+/// `percentile_cont` da el percentil exacto en vez de una aproximacion. El
+/// techo esta dicho en el README. La escribe el servidor por SQL crudo desde
+/// `after()`, nunca el cliente.
+model RequestSample {
+  id     BigInt   @id @default(autoincrement())
+  route  String
+  method String
+  status Int      @db.SmallInt
+  ms     Int
+  at     DateTime @default(now())
+
+  @@index([at(sort: Desc)])
+  @@index([route, at(sort: Desc)])
+  @@map("request_samples")
+}
+
+/// Candados con caducidad: cuando se comprobaron los percentiles por ultima
+/// vez, y cuando salto el aviso de cada ruta.
+model MetricsState {
+  key String   @id
+  at  DateTime @default(now())
+
+  @@map("metrics_state")
+}
