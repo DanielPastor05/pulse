@@ -77,9 +77,22 @@ export function ConversationView({ conversationId }: { conversationId: string })
 
   // Mark read whenever the newest message changes and the tab is visible.
   React.useEffect(() => {
-    if (!lastMessage || lastMessage.pending || document.visibilityState !== 'visible') return;
-    if (conversation && conversation.unreadCount === 0 && lastMessage.author?.id === me.id) return;
-    markRead.mutate(lastMessage.id);
+    const attempt = () => {
+      if (!lastMessage || lastMessage.pending || document.visibilityState !== 'visible') return;
+      if (conversation && conversation.unreadCount === 0 && lastMessage.author?.id === me.id) return;
+      markRead.mutate(lastMessage.id);
+    };
+
+    attempt();
+
+    // Y otra vez al volver a la pestaña.
+    //
+    // Sin esto, un mensaje que llegaba con la pestaña de fondo gastaba su único
+    // intento contra `visibilityState !== 'visible'` y nada lo repetía: al
+    // volver, la conversación seguía marcada como no leída mientras la estabas
+    // mirando, y sólo se arreglaba al llegar el mensaje siguiente.
+    document.addEventListener('visibilitychange', attempt);
+    return () => document.removeEventListener('visibilitychange', attempt);
     // `markRead` is a stable mutation object; re-running on it would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastMessage?.id, conversationId]);
