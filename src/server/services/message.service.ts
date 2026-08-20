@@ -20,6 +20,7 @@ import {
 } from '@/server/repositories/selectors';
 import { can } from '@/lib/permissions';
 import { recordModeration } from '@/server/services/audit.service';
+import { embedMessage } from '@/server/services/embedding.service';
 import { notify } from '@/server/services/notification.service';
 import type { SendMessageInput } from '@/features/messages/validators';
 import type { MessageDTO } from '@/types/dto';
@@ -259,6 +260,13 @@ export async function sendMessage(
   // else's server, and no chat message should be held up by a slow website.
   // The card arrives moments later over the same channel that carries edits.
   after(() => attachLinkPreview(created.id, conversationId, content, author.id));
+
+  // También fuera de la respuesta, y por el mismo motivo: embeber cuesta unos
+  // cientos de milisegundos y nadie debería esperarlos para ver su propio
+  // mensaje enviado. Si falla, el mensaje se queda sin vector y lo recoge la
+  // tarea programada — no hay estado inconsistente, sólo un mensaje que durante
+  // unas horas sólo encuentra la búsqueda léxica.
+  after(() => embedMessage(created.id, content));
 
   return dto;
 }

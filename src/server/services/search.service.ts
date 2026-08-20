@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { SEARCH_PAGE_SIZE } from '@/lib/constants';
 import { messageInclude, publicUserSelect, toMessage, toPublicUser } from '@/server/repositories/selectors';
 import { getSummariesFor } from '@/server/repositories/conversation.repository';
+import { queryEmbedding, vectorMessageIds } from '@/server/services/embedding.service';
+import { fuse } from '@/server/services/rrf';
 import type { SearchResults } from '@/types/dto';
 
 export type SearchScope = 'all' | 'users' | 'conversations' | 'messages' | 'files';
@@ -40,6 +42,17 @@ const memberOf = (viewerId: string) => ({
 const MIN_FULL_TEXT_LENGTH = 3;
 
 /**
+ * Cuántos candidatos trae cada rama antes de fusionar.
+ *
+ * RRF ordena por **posición dentro de lo recuperado**, así que este número es
+ * el horizonte real de la búsqueda: un mensaje que no entre en los 200 mejores
+ * de ninguna de las dos ramas no existe para la fusión, por muchas páginas que
+ * se pidan. Está dicho en «Known limits» en vez de dejar que parezca
+ * exhaustivo.
+ */
+const RETRIEVAL_DEPTH = 200;
+
+/**
  * A `tsquery` built from the user's words, with every term as a prefix.
  *
  * The prefix is what keeps search usable while typing: without `:*`, «quasa»
@@ -63,25 +76,15 @@ type RankedRow = { id: string; rank: number };
  * screen. `(rank, id)` is total, which is the same reason the conversation
  * history had to break `createdAt` ties by id.
  */
-async function rankedMessageIds(
+async function lexicalMessageIds(
   viewerId: string,
   tsquery: string,
   limit: number,
-  cursor: { rank: number; id: string } | null,
-): Promise<RankedRow[]> {
+): Promise<string[]> {
   const query = Prisma.sql`to_tsquery('simple', ${tsquery})`;
-  const rank = Prisma.sql`ts_rank(m."searchVector", ${query})`;
 
-  // La condición del cursor se compone aparte en vez de meterse en la consulta
-  // como un interruptor booleano: un `OR` con un parámetro obliga a Postgres a
-  // inferir tipos para una comparación que en la primera página ni se evalúa, y
-  // ahí se rompía — `m."id"` es uuid y el marcador llegaba como texto.
-  const after = cursor
-    ? Prisma.sql`AND (${rank}, m."id"::text) < (${cursor.rank}::real, ${cursor.id})`
-    : Prisma.empty;
-
-  return prisma.$queryRaw<RankedRow[]>`
-    SELECT m."id"::text AS id, ${rank} AS rank
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT m."id"::text AS id
     FROM "messages" m
     WHERE m."searchVector" @@ ${query}
       AND m."deletedAt" IS NULL
@@ -90,10 +93,56 @@ async function rankedMessageIds(
         SELECT 1 FROM "conversation_members" cm
         WHERE cm."conversationId" = m."conversationId" AND cm."userId" = ${viewerId}::uuid
       )
-      ${after}
-    ORDER BY rank DESC, m."id" DESC
+    ORDER BY ts_rank(m."searchVector", ${query}) DESC, m."id" DESC
     LIMIT ${limit}
   `;
+
+  return rows.map((row) => row.id);
+}
+
+/**
+ * Las dos ramas, fusionadas.
+ *
+ * La léxica encuentra lo que se cita; la vectorial, lo que se describe. Los
+ * mensajes de chat son cortos, y ahí ninguna de las dos basta sola: el vector
+ * falla con nombres propios, códigos e identificadores, y el léxico falla con
+ * cualquier paráfrasis. Por eso se conservan las dos en vez de sustituir una
+ * por otra, que es lo habitual.
+ *
+ * Se fusiona en Node y no en SQL a propósito. RRF sólo necesita posiciones, así
+ * que traer 200 ids por rama y sumarlos aquí deja la fusión como una función
+ * pura que se puede probar con listas fijas, sin motor y sin modelo. Las dos
+ * consultas van en paralelo, así que el viaje de más no se paga en latencia.
+ *
+ * El cursor se aplica después de fusionar. La fusión es determinista para la
+ * misma consulta —las dos ramas devuelven lo mismo y en el mismo orden—, así
+ * que la página siguiente camina exactamente la lista que se vio en pantalla.
+ */
+async function fusedMessageIds(
+  viewerId: string,
+  tsquery: string | null,
+  queryVector: number[] | null,
+  limit: number,
+  cursor: { rank: number; id: string } | null,
+): Promise<RankedRow[]> {
+  const [lexical, vector] = await Promise.all([
+    tsquery ? lexicalMessageIds(viewerId, tsquery, RETRIEVAL_DEPTH) : Promise.resolve([]),
+    queryVector ? vectorMessageIds(viewerId, queryVector, RETRIEVAL_DEPTH) : Promise.resolve([]),
+  ]);
+
+  const fused = fuse([lexical, vector]);
+
+  // Mismo orden total que antes: `(puntuación, id)` descendente. La comparación
+  // va en flotante de doble precisión y no en `real` porque las puntuaciones
+  // RRF son diminutas —del orden de 0,016— y `real` no distingue dos posiciones
+  // consecutivas a esa escala.
+  const after = cursor
+    ? fused.filter(
+        (row) => row.rank < cursor.rank || (row.rank === cursor.rank && row.id < cursor.id),
+      )
+    : fused;
+
+  return after.slice(0, limit);
 }
 
 /** `rank:id`, opaque to the client and cheap to parse back. */
@@ -128,14 +177,23 @@ export async function globalSearch(
   // Por encima de tres caracteres manda la relevancia; por debajo, el trigrama,
   // que es lo único que encuentra algo dentro de una palabra a esa longitud.
   const tsquery = query.length >= MIN_FULL_TEXT_LENGTH ? toPrefixQuery(query) : null;
-  const ranked = tsquery
-    ? await rankedMessageIds(
-        viewerId,
-        tsquery,
-        SEARCH_PAGE_SIZE,
-        decodeSearchCursor(cursor),
-      )
-    : null;
+
+  // Deja la consulta embebida en la caché y devuelve su clave, o `null` si no
+  // hay mitad vectorial para esta búsqueda —consulta demasiado corta, o la
+  // función de embeddings caída—. En ese caso la búsqueda sigue exactamente
+  // como antes de todo esto, con la rama léxica sola.
+  const queryVector = tsquery && wants('messages') ? await queryEmbedding(query) : null;
+
+  const ranked =
+    tsquery || queryVector
+      ? await fusedMessageIds(
+          viewerId,
+          tsquery,
+          queryVector,
+          SEARCH_PAGE_SIZE,
+          decodeSearchCursor(cursor),
+        )
+      : null;
 
   const [users, memberships, messages, attachments] = await Promise.all([
     wants('users')

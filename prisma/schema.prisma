@@ -115,37 +115,37 @@ model User {
   accent        String          @default("violet")
   reducedMotion Boolean         @default(false)
 
-  notifyOnMessage    Boolean @default(true)
-  notifyOnMention    Boolean @default(true)
-  notifyOnReaction   Boolean @default(false)
-  notifySounds       Boolean @default(true)
-  notifyDesktopPush  Boolean @default(true)
+  notifyOnMessage   Boolean @default(true)
+  notifyOnMention   Boolean @default(true)
+  notifyOnReaction  Boolean @default(false)
+  notifySounds      Boolean @default(true)
+  notifyDesktopPush Boolean @default(true)
 
   onboardedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  memberships       ConversationMember[]
-  messages          Message[]
-  reactions         Reaction[]
-  stars             StarredMessage[]
-  pinnedMessages    Message[]            @relation("MessagePinnedBy")
-  ownedConversations Conversation[]      @relation("ConversationOwner")
-  sentRelationships     Relationship[]   @relation("RelationshipRequester")
-  receivedRelationships Relationship[]   @relation("RelationshipAddressee")
-  blocksMade        Block[]              @relation("BlockAuthor")
-  blocksReceived    Block[]              @relation("BlockTarget")
-  joinRequests      JoinRequest[]
-  notifications     Notification[]       @relation("NotificationOwner")
-  notificationsSent Notification[]       @relation("NotificationActor")
-  invites           Invite[]
-  pushSubscriptions PushSubscription[]
-  pollVotes         PollVote[]
-  moderationActions ModerationEvent[]    @relation("ModerationActor")
-  moderationAgainst ModerationEvent[]    @relation("ModerationTarget")
-  reportsFiled      Report[]             @relation("ReportsFiled")
-  reportsAgainst    Report[]             @relation("ReportsAgainst")
-  reportsReviewed   Report[]             @relation("ReportsReviewed")
+  memberships           ConversationMember[]
+  messages              Message[]
+  reactions             Reaction[]
+  stars                 StarredMessage[]
+  pinnedMessages        Message[]            @relation("MessagePinnedBy")
+  ownedConversations    Conversation[]       @relation("ConversationOwner")
+  sentRelationships     Relationship[]       @relation("RelationshipRequester")
+  receivedRelationships Relationship[]       @relation("RelationshipAddressee")
+  blocksMade            Block[]              @relation("BlockAuthor")
+  blocksReceived        Block[]              @relation("BlockTarget")
+  joinRequests          JoinRequest[]
+  notifications         Notification[]       @relation("NotificationOwner")
+  notificationsSent     Notification[]       @relation("NotificationActor")
+  invites               Invite[]
+  pushSubscriptions     PushSubscription[]
+  pollVotes             PollVote[]
+  moderationActions     ModerationEvent[]    @relation("ModerationActor")
+  moderationAgainst     ModerationEvent[]    @relation("ModerationTarget")
+  reportsFiled          Report[]             @relation("ReportsFiled")
+  reportsAgainst        Report[]             @relation("ReportsAgainst")
+  reportsReviewed       Report[]             @relation("ReportsReviewed")
 
   @@index([username])
   @@index([displayName])
@@ -161,15 +161,15 @@ model User {
 // ---------------------------------------------------------------------------
 
 model Conversation {
-  id          String           @id @default(uuid()) @db.Uuid
-  type        ConversationType
-  name        String?
-  slug        String?          @unique
-  description String?
-  avatarUrl   String?
-  accent      String           @default("violet")
-  isPublic    Boolean          @default(false)
-  requiresApproval Boolean     @default(false)
+  id               String           @id @default(uuid()) @db.Uuid
+  type             ConversationType
+  name             String?
+  slug             String?          @unique
+  description      String?
+  avatarUrl        String?
+  accent           String           @default("violet")
+  isPublic         Boolean          @default(false)
+  requiresApproval Boolean          @default(false)
 
   ownerId String? @db.Uuid
   owner   User?   @relation("ConversationOwner", fields: [ownerId], references: [id], onDelete: SetNull)
@@ -178,13 +178,13 @@ model Conversation {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  members      ConversationMember[]
-  messages     Message[]
-  joinRequests JoinRequest[]
+  members          ConversationMember[]
+  messages         Message[]
+  joinRequests     JoinRequest[]
   moderationEvents ModerationEvent[]
-  invites      Invite[]
-  notifications Notification[]
-  reports      Report[]
+  invites          Invite[]
+  notifications    Notification[]
+  reports          Report[]
 
   @@index([type, isPublic])
   @@index([lastMessageAt])
@@ -205,10 +205,10 @@ model ConversationMember {
   role     MemberRole @default(MEMBER)
   nickname String?
 
-  muted      Boolean @default(false)
-  favorite   Boolean @default(false)
-  archived   Boolean @default(false)
-  draft      String?
+  muted    Boolean @default(false)
+  favorite Boolean @default(false)
+  archived Boolean @default(false)
+  draft    String?
 
   lastReadAt        DateTime?
   lastReadMessageId String?   @db.Uuid
@@ -241,12 +241,18 @@ model Message {
   /// escribe nunca: intentarlo sería un error del motor.
   searchVector Unsupported("tsvector")?
 
-  replyToId String?  @db.Uuid
-  replyTo   Message? @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  /// La mitad vectorial de la busqueda. A diferencia de `searchVector`, esta no
+  /// se calcula sola: la escribe `embedding.service` fuera del camino de la
+  /// respuesta, y lo que quede a NULL lo recoge la tarea programada. Prisma no
+  /// sabe leer ni escribir `vector`, asi que ambas cosas van por SQL crudo.
+  embedding Unsupported("vector(384)")?
+
+  replyToId String?   @db.Uuid
+  replyTo   Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies   Message[] @relation("MessageReplies")
 
-  forwardedFromId String?  @db.Uuid
-  forwardedFrom   Message? @relation("MessageForwards", fields: [forwardedFromId], references: [id], onDelete: SetNull)
+  forwardedFromId String?   @db.Uuid
+  forwardedFrom   Message?  @relation("MessageForwards", fields: [forwardedFromId], references: [id], onDelete: SetNull)
   forwards        Message[] @relation("MessageForwards")
 
   editedAt   DateTime?
@@ -277,7 +283,6 @@ model Message {
   // Postgres treats NULLs as distinct, so messages sent without a clientId are
   // unaffected by this constraint.
   @@unique([authorId, clientId])
-
   @@index([conversationId, createdAt(sort: Desc)])
   @@index([conversationId, pinnedAt])
   // Covering indexes for the outgoing foreign keys — without them every
@@ -455,7 +460,7 @@ model Poll {
   question String @db.VarChar(300)
 
   /// Whether one person may pick several answers.
-  multiple Boolean @default(false)
+  multiple Boolean   @default(false)
   /// Closed polls keep their results but take no more votes.
   closedAt DateTime?
 
@@ -472,7 +477,7 @@ model PollOption {
   pollId String @db.Uuid
   poll   Poll   @relation(fields: [pollId], references: [id], onDelete: Cascade)
 
-  label String @db.VarChar(150)
+  label    String @db.VarChar(150)
   /// Keeps the author's order rather than whatever the database returns.
   position Int
 
@@ -574,7 +579,7 @@ model PushSubscription {
   /// Rough label for the settings screen ("Chrome on Android").
   label String? @db.VarChar(120)
 
-  createdAt DateTime @default(now())
+  createdAt  DateTime @default(now())
   lastUsedAt DateTime @default(now())
 
   @@index([userId])
@@ -699,4 +704,18 @@ model RateLimit {
 
   @@index([windowStart], map: "rate_limits_windowstart_idx")
   @@map("rate_limits")
+}
+
+/// Embeddings de consultas ya calculados.
+///
+/// Existe para no pagar un viaje a la funcion de embeddings en cada busqueda.
+/// La clave es el texto normalizado, no el original.
+model QueryEmbedding {
+  query     String                     @id
+  embedding Unsupported("vector(384)")
+  createdAt DateTime                   @default(now())
+  usedAt    DateTime                   @default(now())
+
+  @@index([usedAt])
+  @@map("query_embeddings")
 }

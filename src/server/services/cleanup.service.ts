@@ -2,6 +2,16 @@ import { STORAGE_BUCKETS } from '@/lib/constants';
 import { prisma } from '@/lib/prisma';
 import { log } from '@/server/logger';
 import { adminStorage, type Storage } from '@/server/storage';
+import { backfillEmbeddings } from '@/server/services/embedding.service';
+
+/**
+ * Cuántos mensajes se embeben por ejecución de la tarea.
+ *
+ * Acotado a propósito: con miles pendientes, intentarlo todo de una vez agota
+ * el tiempo de la función y no deja nada hecho. Avanzar un trozo por vuelta
+ * termina igual y sin depender de que una sola ejecución llegue al final.
+ */
+const EMBED_PER_RUN = 300;
 
 /** Una subida sin mensaje puede seguir en curso; por debajo de esto no se toca. */
 const ORPHAN_AGE_MS = 24 * 60 * 60_000;
@@ -142,9 +152,17 @@ export async function cleanupOrphans(storage: Storage = adminStorage()) {
   );
   const removedAvatars = await sweep(storage, STORAGE_BUCKETS.avatars, liveAvatars, cutoff);
 
+  // El relleno de embeddings vive aquí y no en su propia tarea porque no es un
+  // problema distinto: repara lo que falló en el camino rápido y, de paso,
+  // recorre todo lo que existía antes de que hubiera búsqueda vectorial. Dos
+  // códigos para eso serían dos sitios donde equivocarse.
+  const embeddings = await backfillEmbeddings(EMBED_PER_RUN);
+
   return {
     attachments: removedAttachments,
     avatars: removedAvatars,
     removed: removedAttachments + removedAvatars,
+    embedded: embeddings.done,
+    embeddingsLeft: embeddings.left,
   };
 }
