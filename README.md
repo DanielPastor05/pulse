@@ -9,9 +9,9 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 | | |
 | --- | --- |
-| **Automated checks** | 189 — 47 unit, 42 integration against a real Postgres, 6 browser smoke tests, 94 end-to-end against the deployed instance |
+| **Automated checks** | 195 — 47 unit, 6 component, 42 integration against a real Postgres, 6 browser smoke tests, 94 end-to-end against the deployed instance |
 | **Latency budgets** | p95 per endpoint over a 15-minute window, alerting to Sentry when a budget is missed ([how](#emitting-signal-is-not-watching-it)) |
-| **Coverage** | 34.8% of statements and 74.3% of branches across `src/server` and `src/lib` ([what that gap means](#thirty-five-percent-and-why-branches-are-double-that)) |
+| **Coverage** | 36.2% of statements and 74.2% of branches across `src/server` and `src/lib` ([what that gap means](#thirty-six-percent-and-why-branches-are-double-that)) |
 | **Row Level Security** | 20 policies, one per table, enforced independently of the API |
 | **Search latency** | 6035 ms → **343-434 ms p50**, three runs, unchanged by the vector arm ([how](#making-search-nineteen-times-faster)) |
 | **Search quality** | recall@5 30% → 70% by adding a vector arm, measured on a hand-labelled set ([how](#the-half-of-search-that-was-missing)) |
@@ -392,7 +392,7 @@ Those are lower than the 340 ms the benchmark reports for search, and both are
 right: this measures what the server spends, the benchmark measures the round
 trip from a machine an ocean away.
 
-### Thirty-five percent, and why branches are double that
+### Thirty-six percent, and why branches are double that
 
 `npm run coverage` runs the unit and integration suites under one counter — in
 CI, because the integration tests need the throwaway Postgres that only exists
@@ -400,9 +400,9 @@ there. Scope is `src/server` and `src/lib`, the code those suites aim at:
 
 | | |
 | --- | --- |
-| Statements | **34.8%** |
-| Branches | **74.3%** |
-| Functions | 47.3% |
+| Statements | **36.2%** |
+| Branches | **74.2%** |
+| Functions | 46.7% |
 
 The two headline numbers differ by a factor of two, and that is the useful part.
 Statement coverage measures how much of the code is reached; branch coverage
@@ -597,10 +597,11 @@ no second round trip to render a new message.
 
 ## Testing
 
-183 checks, in four layers.
+195 checks, in five layers.
 
 ```bash
 npm test                  # 41 unit tests — pure logic, no I/O
+npm run test:component    # 6 component tests in a DOM
 npm run test:integration  # 42 tests against a real Postgres
 npm run test:smoke        # 6 browser checks against the production build
 npm run test:e2e          # 94 checks against a running server + real Supabase
@@ -611,6 +612,13 @@ transport that captures the envelope instead of sending it, then asserts a
 message body cannot be found anywhere in the bytes that would have left the
 process — with a positive control proving the assertion can fail. Testing the
 scrubbing function alone would have proved it scrubs, not that it is wired in.
+
+The component layer exists now too: six tests over `MessageBubble`, the piece
+that decides what a person sees of every message and the one rendered hundreds
+of times per screen. No snapshots — a snapshot fails when a CSS class changes
+and passes when the "message deleted" notice disappears, which protects the
+appearance instead of the promise. The one that earns its place asserts that a
+soft-deleted message never ships its original text to the browser.
 
 The unit tests cover the things where an edge case is the whole point: URL
 protocol validation, the SSRF address rules including the `172.16/12` boundary
