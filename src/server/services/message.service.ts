@@ -203,15 +203,6 @@ export async function sendMessage(
 
   const preview = previewOf({ content, attachmentCount: input.attachments.length });
 
-  // Una sola sentencia, y con guarda de monotonía: si dos envíos terminan
-  // desordenados, el más viejo no puede hacer retroceder la marca. `updateMany`
-  // y no `update` porque la condición forma parte del `where`, así que la fila
-  // ni siquiera se toca cuando ya está por delante.
-  await prisma.conversation.updateMany({
-    where: { id: conversationId, lastMessageAt: { lt: created.createdAt } },
-    data: { lastMessageAt: created.createdAt },
-  });
-
   /**
    * El reparto no bloquea la respuesta.
    *
@@ -229,6 +220,33 @@ export async function sendMessage(
    * exactamente la garantía que ya teníamos, ahora sin pagarla en latencia.
    */
   after(async () => {
+    // La marca de última actividad, antes de avisar a nadie.
+    //
+    // Estaba en el camino de la respuesta y resultó ser **el mayor consumidor
+    // de tiempo de base de datos de toda la aplicación**: 57% del total, con
+    // 433 ms de media. Todos los envíos a una misma conversación escriben la
+    // misma fila, así que bajo concurrencia se serializan en su bloqueo — el
+    // tamaño de la sala volvía a cobrarse a quien escribe, igual que hacía el
+    // reparto antes de moverse aquí.
+    //
+    // Lo curioso es que esta hipótesis se probó al principio del proyecto y se
+    // descartó: sacarla de la transacción no movía el p50. No estaba
+    // equivocada, estaba **tapada** — con el reparto costando trece segundos,
+    // medio segundo no se veía. Al quitar lo grande, quedó a la vista.
+    //
+    // Va antes de los avisos a propósito: quien reciba `inbox.updated` va a
+    // pedir la lista de conversaciones, y si la marca aún no está escrita la
+    // recibiría en el orden viejo.
+    //
+    // Guarda de monotonía: si dos envíos terminan desordenados, el más viejo no
+    // puede hacer retroceder la marca. `updateMany` y no `update` porque la
+    // condición va en el `where`, así que la fila ni se toca cuando ya está por
+    // delante — que es también lo que evita tomar el bloqueo sin necesidad.
+    await prisma.conversation.updateMany({
+      where: { id: conversationId, lastMessageAt: { lt: created.createdAt } },
+      data: { lastMessageAt: created.createdAt },
+    });
+
     await Promise.all([
       broadcastToConversation(conversationId, realtimeEvents.messageCreated, {
         message: dto,
