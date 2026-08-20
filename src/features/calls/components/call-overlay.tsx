@@ -127,7 +127,13 @@ function Tile({
     <div
       className={cn(
         'relative flex min-h-0 items-center justify-center overflow-hidden rounded-[var(--radius-card)]',
-        'bg-[var(--surface-sunken)] ring-2 transition-colors duration-150',
+        // Fondo y borde propios en vez de `--surface-sunken`, que en tema
+        // oscuro es translúcido: pensado para posarse sobre el lienzo de la
+        // aplicación, no sobre el negro de una llamada. Encima del overlay
+        // dejaba el recuadro invisible y la conversación transparentándose por
+        // detrás — una llamada con la cámara apagada parecía un fallo de
+        // pintado en vez de dos personas hablando.
+        'border border-white/10 bg-white/[0.06] ring-2 transition-colors duration-150',
         speaking && micOn ? 'ring-[var(--accent)]' : 'ring-transparent',
       )}
     >
@@ -299,7 +305,11 @@ function ActiveCall() {
   const columns = total <= 1 ? 1 : total <= 4 ? 2 : 3;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black/95">
+    // Opaco y no `bg-black/95`: ese 5% dejaba ver la barra lateral, los
+    // mensajes y la caja de escribir por debajo de la llamada. Una llamada
+    // ocupa la pantalla entera; enseñar lo que hay detrás no da contexto, da
+    // ruido.
+    <div className="fixed inset-0 z-50 flex flex-col bg-black">
       <div className="flex items-center justify-between gap-3 p-4 text-white">
         <div className="min-w-0">
           <p className="truncate text-[14px] font-medium">{conversationName ?? 'Call'}</p>
