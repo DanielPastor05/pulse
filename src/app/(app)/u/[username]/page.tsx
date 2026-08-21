@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/server/auth';
 import { publicUserSelect, toPublicUser } from '@/server/repositories/selectors';
 import { ProfileCard } from '@/features/profile/components/profile-card';
+import { getMessages } from '@/i18n/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,11 +13,12 @@ type Props = { params: Promise<{ username: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { username } = await params;
+  const t = await getMessages();
   const user = await prisma.user.findUnique({
     where: { username },
     select: { displayName: true },
   });
-  return { title: user ? `${user.displayName} (@${username})` : 'Profile' };
+  return { title: user ? `${user.displayName} (@${username})` : t.nav.profile };
 }
 
 export default async function ProfilePage({ params }: Props) {

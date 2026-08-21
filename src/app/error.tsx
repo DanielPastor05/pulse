@@ -5,6 +5,7 @@ import { AlertTriangle, RotateCcw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useT } from '@/i18n/provider';
 
 export default function ErrorBoundary({
   error,
@@ -13,6 +14,7 @@ export default function ErrorBoundary({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const t = useT();
   useEffect(() => {
     console.error('[app] render error', error);
   }, [error]);
@@ -22,14 +24,14 @@ export default function ErrorBoundary({
       <div className="panel w-full max-w-md rounded-[var(--radius-panel)] shadow-[var(--shadow-overlay)]">
         <EmptyState
           icon={<AlertTriangle />}
-          title="That did not go to plan"
+          title={t.common.errorTitle}
           description={
-            error.message || 'An unexpected error interrupted the page. Trying again usually helps.'
+            error.message || t.common.errorHint
           }
           action={
             <Button onClick={reset}>
               <RotateCcw />
-              Try again
+              {t.common.retry}
             </Button>
           }
         />

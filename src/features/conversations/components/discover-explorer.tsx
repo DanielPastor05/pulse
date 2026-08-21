@@ -127,7 +127,7 @@ export function DiscoverExplorer() {
                       {t.nav.approval}
                     </Badge>
                   ) : (
-                    <Badge tone="success">Open</Badge>
+                    <Badge tone="success">{t.nav.open}</Badge>
                   )}
 
                   {group.isMember ? (

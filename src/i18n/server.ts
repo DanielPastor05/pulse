@@ -4,8 +4,11 @@ import { cookies, headers } from 'next/headers';
 import type { Locale } from '@prisma/client';
 
 import { LOCALE_COOKIE } from '@/i18n/provider';
+import { messages as en, type Messages } from '@/i18n/en';
+import { messages as es } from '@/i18n/es';
 
 const SUPPORTED: Locale[] = ['EN', 'ES'];
+const BUNDLES: Record<Locale, Messages> = { EN: en, ES: es };
 
 /**
  * Qué idioma pintar en el servidor, antes de que exista sesión.
@@ -37,4 +40,15 @@ export async function resolveLocale(): Promise<Locale> {
     .find((codigo) => codigo && SUPPORTED.includes(codigo as Locale));
 
   return (primero as Locale) ?? 'EN';
+}
+
+/**
+ * Los textos, para lo que se pinta en el servidor.
+ *
+ * El equivalente de `useT()` donde no hay hooks: la página de error, la de
+ * «no existe» y el marco de las pantallas de entrada son componentes de
+ * servidor, y hasta ahora eso las condenaba a quedarse en inglés.
+ */
+export async function getMessages(): Promise<Messages> {
+  return BUNDLES[await resolveLocale()] ?? en;
 }

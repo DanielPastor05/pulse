@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { MessageDTO } from '@/types/dto';
+import { useT } from '@/i18n/provider';
 
 export function PinnedPanel({
   conversationId,
@@ -20,6 +21,7 @@ export function PinnedPanel({
   onJumpTo: (messageId: string) => void;
   onUnpin: (message: MessageDTO) => void;
 }) {
+  const t = useT();
   const { data: messages, isLoading } = usePinnedMessages(conversationId);
 
   if (isLoading) {
@@ -36,8 +38,8 @@ export function PinnedPanel({
     return (
       <EmptyState
         icon={<Pin />}
-        title="Nothing pinned yet"
-        description="Pin the messages worth coming back to — links, decisions, house rules."
+        title={t.message.nothingPinned}
+        description={t.message.nothingPinnedHint}
       />
     );
   }
@@ -58,7 +60,7 @@ export function PinnedPanel({
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline justify-between gap-2">
                 <p className="truncate text-[12px] font-semibold">
-                  {message.author?.displayName ?? 'Unknown'}
+                  {message.author?.displayName ?? t.message.unknown}
                 </p>
                 <time className="shrink-0 text-[10.5px] text-[var(--text-3)]">
                   {formatFullTimestamp(message.createdAt)}
@@ -79,7 +81,7 @@ export function PinnedPanel({
               variant="ghost"
               className="opacity-0 transition-opacity group-hover:opacity-100"
               onClick={() => onUnpin(message)}
-              aria-label="Unpin message"
+              aria-label={t.message.unpinMessage}
             >
               <PinOff />
             </Button>

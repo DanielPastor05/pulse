@@ -96,8 +96,7 @@ export function AccountDangerZone() {
       </div>
 
       <p className="mt-3 text-[12px] text-[var(--text-3)]">
-        The export contains what you wrote. Messages other people sent stay with them, even in
-        conversations you were part of.
+        {t.settings.exportNote}
       </p>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -105,8 +104,7 @@ export function AccountDangerZone() {
           <DialogHeader>
             <DialogTitle>{t.settings.deleteTitle}</DialogTitle>
             <DialogDescription>
-              Your messages, reactions and memberships go with it, and this cannot be undone.
-              {t.settings.deleteHintExport}
+              {t.settings.deleteHint} {t.settings.deleteHintExport}
             </DialogDescription>
           </DialogHeader>
 

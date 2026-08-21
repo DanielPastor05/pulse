@@ -10,6 +10,7 @@ import { MessageBubble, type MessageActions } from '@/features/messages/componen
 import { MessageSkeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import type { MemberDTO, MessageDTO } from '@/types/dto';
+import { useT } from '@/i18n/provider';
 
 const GROUP_WINDOW_MS = 5 * 60_000;
 const NEAR_BOTTOM_PX = 120;
@@ -56,6 +57,7 @@ export function MessageList({
   emptyDescription,
   floatingComposer,
 }: Props) {
+  const t = useT();
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const topSentinelRef = React.useRef<HTMLDivElement>(null);
   const bottomRef = React.useRef<HTMLDivElement>(null);
@@ -147,7 +149,7 @@ export function MessageList({
         )}
         role="log"
         aria-live="polite"
-        aria-label="Messages"
+        aria-label={t.search.messages}
       >
         <div ref={topSentinelRef} aria-hidden />
 
@@ -159,7 +161,7 @@ export function MessageList({
 
         {!hasOlder && messages.length > 0 ? (
           <p className="py-4 text-center text-[11px] text-[var(--text-3)]">
-            This is the beginning of the conversation.
+            {t.conversation.beginning}
           </p>
         ) : null}
 
@@ -225,7 +227,7 @@ export function MessageList({
             )}
           >
             <ArrowDown className="size-3.5" />
-            {unseen > 0 ? `${unseen} new message${unseen === 1 ? '' : 's'}` : 'Jump to latest'}
+            {unseen > 0 ? `${unseen} new message${unseen === 1 ? '' : 's'}` : t.message.jumpToLatest}
           </motion.button>
         ) : null}
       </AnimatePresence>

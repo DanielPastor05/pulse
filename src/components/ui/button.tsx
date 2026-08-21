@@ -6,6 +6,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { Loader2 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n/provider';
 
 const buttonVariants = cva(
   [
@@ -62,6 +63,7 @@ export function Button({
   children,
   ...props
 }: ButtonProps) {
+  const t = useT();
   const Comp = asChild ? Slot : 'button';
   const isIconOnly = size === 'icon' || size === 'icon-sm';
 
@@ -79,7 +81,7 @@ export function Button({
       ) : (
         <>
           {loading ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}
-          {loading && isIconOnly ? <span className="sr-only">Working…</span> : children}
+          {loading && isIconOnly ? <span className="sr-only">{t.common.working}</span> : children}
         </>
       )}
     </Comp>

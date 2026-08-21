@@ -5,6 +5,7 @@ import { useTheme } from 'next-themes';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useT } from '@/i18n/provider';
 
 const EmojiPickerReact = dynamic(() => import('emoji-picker-react'), {
   ssr: false,
@@ -24,13 +25,14 @@ export function ReactionPickerDialog({
   onOpenChange: (open: boolean) => void;
   onSelect: (emoji: string) => void;
 }) {
+  const t = useT();
   const { resolvedTheme } = useTheme();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="sm" className="p-4">
         <DialogHeader className="mb-3">
-          <DialogTitle>Pick a reaction</DialogTitle>
+          <DialogTitle>{t.message.pickReaction}</DialogTitle>
         </DialogHeader>
         <div className="flex justify-center">
           <EmojiPickerReact

@@ -9,6 +9,7 @@ import { cn, formatBytes } from '@/lib/utils';
 import { VoicePlayer } from '@/features/media/components/voice-player';
 import { Button } from '@/components/ui/button';
 import type { AttachmentDTO } from '@/types/dto';
+import { useT } from '@/i18n/provider';
 
 function documentIcon(mimeType: string) {
   if (mimeType.includes('pdf')) return FileType;
@@ -27,6 +28,7 @@ function Lightbox({
   index: number;
   onClose: () => void;
 }) {
+  const t = useT();
   const attachment = attachments[index];
   if (!attachment) return null;
 
@@ -61,11 +63,11 @@ function Lightbox({
               <Button asChild size="sm" variant="secondary">
                 <a href={attachment.url} download={attachment.name} target="_blank" rel="noreferrer">
                   <Download />
-                  Download
+                  {t.message.download}
                 </a>
               </Button>
               <DialogPrimitive.Close asChild>
-                <Button size="icon-sm" variant="secondary" aria-label="Close">
+                <Button size="icon-sm" variant="secondary" aria-label={t.common.close}>
                   <X />
                 </Button>
               </DialogPrimitive.Close>

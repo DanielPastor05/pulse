@@ -364,7 +364,7 @@ function ActiveCall() {
           return (
             <Tile
               key={participant.userId}
-              name={person?.displayName ?? 'Someone'}
+              name={person?.displayName ?? t.message.someone}
               avatarUrl={person?.avatarUrl ?? null}
               stream={participant.stream}
               sinkId={sinkId || undefined}

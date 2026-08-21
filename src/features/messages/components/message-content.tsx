@@ -9,8 +9,10 @@ import { Check, Copy } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { isEmojiOnly, linkifyMentions } from '@/features/messages/markdown';
+import { useT } from '@/i18n/provider';
 
 function CodeBlock({ children, ...props }: React.ComponentProps<'pre'>) {
+  const t = useT();
   const [copied, setCopied] = React.useState(false);
   const ref = React.useRef<HTMLPreElement>(null);
 
@@ -39,7 +41,7 @@ function CodeBlock({ children, ...props }: React.ComponentProps<'pre'>) {
           'opacity-0 transition-all duration-150 group-hover/code:opacity-100',
           'hover:text-[var(--text-1)] focus-visible:opacity-100',
         )}
-        aria-label={copied ? 'Copied' : 'Copy code'}
+        aria-label={copied ? 'Copied' : t.message.copyCode}
       >
         {copied ? <Check className="size-3.5 text-[var(--success)]" /> : <Copy className="size-3.5" />}
       </button>

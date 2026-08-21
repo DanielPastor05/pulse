@@ -5,8 +5,11 @@ import { Eye, EyeOff, Lock } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Input, type InputProps } from '@/components/ui/input';
+import { useT } from '@/i18n/provider';
+import type { Messages } from '@/i18n/en';
 
 export function PasswordInput({ className, ...props }: InputProps) {
+  const t = useT();
   const [visible, setVisible] = React.useState(false);
 
   return (
@@ -24,7 +27,7 @@ export function PasswordInput({ className, ...props }: InputProps) {
           'absolute inset-y-0 right-1.5 my-auto grid size-8 place-items-center rounded-lg',
           'text-[var(--text-3)] transition-colors hover:bg-[var(--surface-sunken)] hover:text-[var(--text-1)]',
         )}
-        aria-label={visible ? 'Hide password' : 'Show password'}
+        aria-label={visible ? t.auth.hidePassword : t.auth.showPassword}
       >
         {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
       </button>
@@ -33,13 +36,17 @@ export function PasswordInput({ className, ...props }: InputProps) {
 }
 
 const RULES = [
-  { test: (value: string) => value.length >= 8, label: '8+ characters' },
-  { test: (value: string) => /[a-z]/.test(value) && /[A-Z]/.test(value), label: 'Upper & lower' },
-  { test: (value: string) => /[0-9]/.test(value), label: 'A number' },
-];
+  { test: (value: string) => value.length >= 8, label: 'eightChars' },
+  { test: (value: string) => /[a-z]/.test(value) && /[A-Z]/.test(value), label: 'upperLower' },
+  { test: (value: string) => /[0-9]/.test(value), label: 'aNumber' },
+] as const satisfies ReadonlyArray<{
+  test: (value: string) => boolean;
+  label: keyof Messages['auth'];
+}>;
 
 /** Live strength meter — reassurance while typing, not a gate. */
 export function PasswordStrength({ value }: { value: string }) {
+  const t = useT();
   const passed = RULES.filter((rule) => rule.test(value)).length;
   const tone = ['bg-[var(--danger)]', 'bg-[var(--warning)]', 'bg-[var(--success)]'];
 
@@ -65,7 +72,7 @@ export function PasswordStrength({ value }: { value: string }) {
               rule.test(value) ? 'text-[var(--success)]' : 'text-[var(--text-3)]',
             )}
           >
-            {rule.test(value) ? '✓' : '○'} {rule.label}
+            {rule.test(value) ? '✓' : '○'} {t.auth[rule.label]}
           </li>
         ))}
       </ul>

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Zap } from 'lucide-react';
 
 import { APP_NAME } from '@/lib/constants';
+import { getMessages } from '@/i18n/server';
 
 /**
  * Split view: a quiet editorial column on the left, the form on the right.
@@ -9,7 +10,9 @@ import { APP_NAME } from '@/lib/constants';
  * icon tiles, no gradient. Three benefit cards is what a landing page does when
  * it has nothing to say.
  */
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+export default async function AuthLayout({ children }: { children: React.ReactNode }) {
+  const t = await getMessages();
+
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-2">
       <aside className="relative hidden flex-col justify-between overflow-hidden p-10 lg:flex xl:p-14">
@@ -23,13 +26,12 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </Link>
 
         <div className="max-w-[26rem]">
-          <p className="label-caps mb-5 text-[var(--accent)]">Encrypted channel</p>
+          <p className="label-caps mb-5 text-[var(--accent)]">{t.auth.encryptedChannel}</p>
           <h1 className="text-[3.1rem] font-bold leading-[1.05] tracking-tight glow-text">
-            Everything you said, exactly where you left it.
+            {t.auth.tagline}
           </h1>
           <p className="mt-5 max-w-[34ch] text-[14px] leading-relaxed text-[var(--text-2)]">
-            Direct messages, group spaces and public communities. Fast enough that you forget it is
-            there.
+            {t.auth.taglineHint}
           </p>
         </div>
 

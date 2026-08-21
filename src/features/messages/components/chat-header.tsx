@@ -26,7 +26,7 @@ import { useUiStore } from '@/stores/ui-store';
 import { useConversationPreferences, useMemberMutations } from '@/features/conversations/hooks';
 import { useCallApi } from '@/features/calls/call-provider';
 import { useT } from '@/i18n/provider';
-import { Avatar, PRESENCE_LABEL } from '@/components/ui/avatar';
+import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@/components/ui/menu';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -61,7 +61,7 @@ export function ChatHeader({
     }
     if (!conversation.peer) return null;
     return peerPresence === 'ONLINE'
-      ? PRESENCE_LABEL.ONLINE
+      ? t.common.online
       : formatLastSeen(conversation.peer.lastSeenAt);
   })();
 

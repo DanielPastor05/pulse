@@ -5,6 +5,7 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/avatar';
 import type { MemberDTO } from '@/types/dto';
+import { useT } from '@/i18n/provider';
 
 type Props = {
   members: MemberDTO[];
@@ -18,6 +19,7 @@ type Props = {
  * here (the composer defers to this list while it is open).
  */
 export function MentionSuggestions({ members, query, onSelect, onDismiss }: Props) {
+  const t = useT();
   const [index, setIndex] = React.useState(0);
 
   const matches = React.useMemo(() => {
@@ -62,7 +64,7 @@ export function MentionSuggestions({ members, query, onSelect, onDismiss }: Prop
   return (
     <ul
       role="listbox"
-      aria-label="Mention someone"
+      aria-label={t.message.mentionSomeone}
       className={cn(
         'absolute bottom-full left-0 z-30 mb-2 w-64 overflow-hidden rounded-[var(--radius-card)] p-1.5',
         'surface-overlay border border-[var(--hairline)] shadow-[var(--shadow-overlay)]',

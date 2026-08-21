@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import type { PublicUser } from '@/types/dto';
+import { useT } from '@/i18n/provider';
 
 type Props = {
   selected: PublicUser[];
@@ -25,9 +26,10 @@ export function UserPicker({
   selected,
   onChange,
   excludeIds = [],
-  placeholder = 'Search by name or @username',
+  placeholder,
   max = 50,
 }: Props) {
+  const t = useT();
   const [term, setTerm] = React.useState('');
   const { data: users, isFetching } = useUserSearch(term);
 
@@ -54,7 +56,7 @@ export function UserPicker({
       <Input
         value={term}
         onChange={(event) => setTerm(event.target.value)}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t.settings.searchPeople}
         icon={<Search />}
         autoComplete="off"
       />
@@ -97,8 +99,8 @@ export function UserPicker({
           <EmptyState
             compact
             icon={<UserRoundSearch />}
-            title="Find people"
-            description="Type at least two characters to search."
+            title={t.settings.findPeople}
+            description={t.settings.twoCharacters}
           />
         ) : isFetching && results.length === 0 ? (
           <div className="space-y-2 p-2">

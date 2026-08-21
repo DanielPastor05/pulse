@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { uploadFile } from '@/features/media/upload';
 import { Avatar } from '@/components/ui/avatar';
+import { useT } from '@/i18n/provider';
 
 type AvatarPickerProps = {
   value: string | null;
@@ -16,13 +17,14 @@ type AvatarPickerProps = {
 };
 
 export function AvatarPicker({ value, name, onChange, size = 'xl' }: AvatarPickerProps) {
+  const t = useT();
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = React.useState(false);
 
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      toast.error('Pick an image file');
+      toast.error(t.settings.pickImage);
       return;
     }
 
@@ -31,7 +33,7 @@ export function AvatarPicker({ value, name, onChange, size = 'xl' }: AvatarPicke
       const uploaded = await uploadFile(file, { bucket: 'avatars' });
       onChange(uploaded.url);
     } catch (error) {
-      toast.error('Upload failed', {
+      toast.error(t.settings.uploadFailed, {
         description: error instanceof Error ? error.message : undefined,
       });
     } finally {
@@ -50,7 +52,7 @@ export function AvatarPicker({ value, name, onChange, size = 'xl' }: AvatarPicke
           'group relative rounded-full outline-none transition-transform',
           'hover:scale-[1.03] active:scale-95 focus-visible:ring-2 focus-visible:ring-[var(--accent)]',
         )}
-        aria-label="Upload a profile picture"
+        aria-label={t.settings.uploadPicture}
       >
         <Avatar src={value} name={name || 'You'} size={size} />
         <span
@@ -65,8 +67,8 @@ export function AvatarPicker({ value, name, onChange, size = 'xl' }: AvatarPicke
       </button>
 
       <div className="space-y-1">
-        <p className="text-[13px] font-medium">Profile picture</p>
-        <p className="text-[12px] text-[var(--text-2)]">PNG, JPG or GIF. Up to 50 MB.</p>
+        <p className="text-[13px] font-medium">{t.settings.profilePicture}</p>
+        <p className="text-[12px] text-[var(--text-2)]">{t.settings.pictureHint}</p>
         {value ? (
           <button
             type="button"
@@ -74,7 +76,7 @@ export function AvatarPicker({ value, name, onChange, size = 'xl' }: AvatarPicke
             className="inline-flex items-center gap-1 text-[12px] font-medium text-[var(--danger)] hover:underline"
           >
             <Trash2 className="size-3" />
-            Remove
+            {t.settings.removePicture}
           </button>
         ) : null}
       </div>

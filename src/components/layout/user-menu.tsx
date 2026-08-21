@@ -66,7 +66,7 @@ export function UserMenu({ align = 'start' }: { align?: 'start' | 'center' | 'en
         {PRESENCE_OPTIONS.map((option) => (
           <MenuItem key={option} onSelect={() => setPresence.mutate(option)}>
             <Circle className={cn('size-2.5 rounded-full border-0', PRESENCE_COLOR[option])} fill="currentColor" />
-            <span className="flex-1">{PRESENCE_LABEL[option]}</span>
+            <span className="flex-1">{t.common[PRESENCE_LABEL[option]]}</span>
             {me.presence === option ? <Check className="size-3.5" /> : null}
           </MenuItem>
         ))}

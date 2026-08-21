@@ -4,8 +4,12 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser } from '@/server/auth';
 import { OnboardingFlow } from '@/features/profile/components/onboarding-flow';
+import { getMessages } from '@/i18n/server';
 
-export const metadata: Metadata = { title: 'Set up your profile' };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getMessages();
+  return { title: t.auth.setUpProfile };
+}
 export const dynamic = 'force-dynamic';
 
 /** Derives a legal, likely-free handle from whatever the provider gave us. */
@@ -21,6 +25,8 @@ export default async function OnboardingPage() {
   const authUser = await getAuthUser();
   if (!authUser) redirect('/login');
 
+  const t = await getMessages();
+
   const existing = await prisma.user.findUnique({
     where: { id: authUser.id },
     select: { onboardedAt: true, username: true, displayName: true, avatarUrl: true },
@@ -33,7 +39,7 @@ export default async function OnboardingPage() {
     (metadata.name as string | undefined) ??
     existing?.displayName ??
     authUser.email?.split('@')[0] ??
-    'New member';
+    t.auth.newMember;
 
   return (
     <main className="grid min-h-dvh place-items-center p-5">

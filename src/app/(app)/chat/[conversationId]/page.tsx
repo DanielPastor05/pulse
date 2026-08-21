@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/server/auth';
 import { ConversationView } from '@/features/messages/components/conversation-view';
 import { MessageSkeleton } from '@/components/ui/skeleton';
+import { getMessages } from '@/i18n/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,7 @@ type Props = { params: Promise<{ conversationId: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { conversationId } = await params;
   const user = await requireUser();
+  const t = await getMessages();
 
   const membership = await prisma.conversationMember.findUnique({
     where: { conversationId_userId: { conversationId, userId: user.id } },
@@ -28,11 +30,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
   });
 
-  if (!membership) return { title: 'Conversation' };
+  if (!membership) return { title: t.search.conversations };
 
   const { conversation } = membership;
   const title =
-    conversation.name ?? conversation.members[0]?.user.displayName ?? 'Direct message';
+    conversation.name ?? conversation.members[0]?.user.displayName ?? t.conversation.directMessage;
 
   return { title };
 }

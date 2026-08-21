@@ -4,8 +4,12 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser, getSessionUser } from '@/server/auth';
 import { InviteCard } from '@/features/conversations/components/invite-card';
+import { getMessages } from '@/i18n/server';
 
-export const metadata: Metadata = { title: 'You are invited' };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getMessages();
+  return { title: t.conversation.invited };
+}
 export const dynamic = 'force-dynamic';
 
 type Props = { params: Promise<{ code: string }> };

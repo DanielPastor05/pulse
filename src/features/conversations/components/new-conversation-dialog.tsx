@@ -174,7 +174,7 @@ export function NewConversationDialog({ open, onOpenChange, defaultTab = 'direct
                   <span className="flex-1">
                     <span className="flex items-center gap-1.5 text-[13px] font-medium">
                       {values.isPublic ? <Globe className="size-3.5" /> : <Lock className="size-3.5" />}
-                      {values.isPublic ? t.conversation.publicGroup : 'Private group'}
+                      {values.isPublic ? t.conversation.publicGroup : t.conversation.privateGroup}
                     </span>
                     <span className="mt-0.5 block text-[12px] text-[var(--text-2)]">
                       {values.isPublic

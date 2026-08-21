@@ -5,12 +5,14 @@ import { Pause, Play } from 'lucide-react';
 
 import { cn, formatDuration } from '@/lib/utils';
 import type { AttachmentDTO } from '@/types/dto';
+import { useT } from '@/i18n/provider';
 
 /**
  * Voice note player. The waveform captured at record time is replayed as bars
  * that fill as playback advances; clicking a bar seeks there.
  */
 export function VoicePlayer({ attachment, mine }: { attachment: AttachmentDTO; mine: boolean }) {
+  const t = useT();
   const audioRef = React.useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = React.useState(false);
   const [progress, setProgress] = React.useState(0);
@@ -45,7 +47,7 @@ export function VoicePlayer({ attachment, mine }: { attachment: AttachmentDTO; m
           'grid size-9 shrink-0 place-items-center rounded-full transition-transform active:scale-90',
           mine ? 'bg-white/20 text-white' : 'bg-[var(--accent)] text-[var(--on-accent)]',
         )}
-        aria-label={playing ? 'Pause voice note' : 'Play voice note'}
+        aria-label={playing ? t.message.pauseVoice : t.message.playVoice}
       >
         {playing ? <Pause className="size-4" /> : <Play className="size-4 translate-x-px" />}
       </button>
@@ -53,7 +55,7 @@ export function VoicePlayer({ attachment, mine }: { attachment: AttachmentDTO; m
       <div
         className="flex h-8 flex-1 items-center gap-[2px]"
         role="slider"
-        aria-label="Seek"
+        aria-label={t.message.seek}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(progress * 100)}

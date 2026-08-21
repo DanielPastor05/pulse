@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/i18n/provider';
 
 const COOLDOWN_SECONDS = 60;
 
@@ -18,6 +19,7 @@ const COOLDOWN_SECONDS = 60;
  * this just stops people hammering the button and collecting error toasts.
  */
 export function ResendConfirmation({ email }: { email: string }) {
+  const t = useT();
   const [pending, setPending] = React.useState(false);
   const [cooldown, setCooldown] = React.useState(0);
 
@@ -43,12 +45,12 @@ export function ResendConfirmation({ email }: { email: string }) {
     setPending(false);
 
     if (error) {
-      toast.error('Could not resend', { description: error.message });
+      toast.error(t.auth.resendFailed, { description: error.message });
       return;
     }
 
     setCooldown(COOLDOWN_SECONDS);
-    toast.success('Confirmation email sent again', { description: `Check ${email}.` });
+    toast.success(t.auth.resent, { description: `Check ${email}.` });
   };
 
   return (
@@ -60,7 +62,7 @@ export function ResendConfirmation({ email }: { email: string }) {
       loading={pending}
       disabled={cooldown > 0}
     >
-      {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend confirmation email'}
+      {cooldown > 0 ? `Resend in ${cooldown}s` : t.auth.resend}
     </Button>
   );
 }

@@ -49,7 +49,7 @@ export function ForgotPasswordForm() {
     return (
       <AuthCard
         title={t.auth.resetSent}
-        description="If that address has an account, a reset link is on its way. It stays valid for one hour."
+        description={t.auth.resetSentHint}
         footer={
           <Link href="/login" className="font-semibold text-[var(--accent)] hover:underline">
             {t.auth.backToSignIn}

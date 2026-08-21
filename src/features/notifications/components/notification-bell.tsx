@@ -23,6 +23,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
+import { useT } from '@/i18n/provider';
 
 const KIND_ICON: Record<NotificationKind, typeof Bell> = {
   MESSAGE: MessageSquare,
@@ -36,6 +37,7 @@ const KIND_ICON: Record<NotificationKind, typeof Bell> = {
 };
 
 export function NotificationBell({ side = 'right' }: { side?: 'right' | 'top' | 'bottom' }) {
+  const t = useT();
   const [open, setOpen] = React.useState(false);
   const { data, isLoading } = useNotifications();
   const { markAllRead, markRead } = useNotificationActions();
@@ -45,7 +47,7 @@ export function NotificationBell({ side = 'right' }: { side?: 'right' | 'top' | 
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip content="Notifications" side={side === 'right' ? 'right' : 'top'}>
+      <Tooltip content={t.settings.notifications} side={side === 'right' ? 'right' : 'top'}>
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -55,7 +57,7 @@ export function NotificationBell({ side = 'right' }: { side?: 'right' | 'top' | 
               'hover:bg-[var(--surface-hover)] hover:text-[var(--accent-mint)]',
               open && 'bg-[var(--surface-active)] text-[var(--text-1)]',
             )}
-            aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+            aria-label={unread > 0 ? `Notifications, ${unread} unread` : t.settings.notifications}
           >
             <Bell className="size-[18px]" />
             {/* A dot, not a springing pill. The count is one click away. */}
@@ -75,7 +77,7 @@ export function NotificationBell({ side = 'right' }: { side?: 'right' | 'top' | 
         className="w-[22rem] p-0"
       >
         <header className="flex items-center justify-between border-b border-[var(--hairline)] px-4 py-3">
-          <h2 className="label-caps">Notifications</h2>
+          <h2 className="label-caps">{t.settings.notifications}</h2>
           {unread > 0 ? (
             <Button
               variant="ghost"
@@ -84,7 +86,7 @@ export function NotificationBell({ side = 'right' }: { side?: 'right' | 'top' | 
               loading={markAllRead.isPending}
             >
               <CheckCheck />
-              Mark all read
+              {t.nav.markAllRead}
             </Button>
           ) : null}
         </header>
@@ -106,8 +108,8 @@ export function NotificationBell({ side = 'right' }: { side?: 'right' | 'top' | 
             <EmptyState
               compact
               icon={<BellOff />}
-              title="All quiet"
-              description="Mentions, reactions and new messages land here."
+              title={t.nav.allQuiet}
+              description={t.nav.allQuietHint}
             />
           ) : (
             <ul className="space-y-0.5">

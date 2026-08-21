@@ -8,7 +8,7 @@ import { formatLastSeen } from '@/lib/date';
 import { usePresenceOf } from '@/stores/presence-store';
 import { useOpenDirectConversation } from '@/features/conversations/hooks';
 import { useRelationshipActions, useSetBlocked } from '@/features/profile/hooks';
-import { Avatar, PRESENCE_LABEL } from '@/components/ui/avatar';
+import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import type { PublicUser } from '@/types/dto';
 import { useT } from '@/i18n/provider';
@@ -49,7 +49,7 @@ export function ProfileCard({ user, isMe, relationship, blockedByMe }: Props) {
               </h2>
               <p className="text-[14px] text-[var(--text-2)]">@{user.username}</p>
               <p className="text-[12.5px] text-[var(--text-3)]">
-                {presence === 'ONLINE' ? PRESENCE_LABEL.ONLINE : formatLastSeen(user.lastSeenAt)}
+                {presence === 'ONLINE' ? t.common.online : formatLastSeen(user.lastSeenAt)}
               </p>
             </div>
 

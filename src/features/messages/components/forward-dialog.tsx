@@ -18,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { ConversationSkeleton } from '@/components/ui/skeleton';
 import type { MessageDTO } from '@/types/dto';
+import { useT } from '@/i18n/provider';
 
 type Props = {
   message: MessageDTO | null;
@@ -27,6 +28,7 @@ type Props = {
 };
 
 export function ForwardDialog({ message, onClose, onConfirm, pending }: Props) {
+  const t = useT();
   const [term, setTerm] = React.useState('');
   const [selected, setSelected] = React.useState<string[]>([]);
   const { data: conversations, isLoading } = useConversations();
@@ -52,16 +54,16 @@ export function ForwardDialog({ message, onClose, onConfirm, pending }: Props) {
     <Dialog open={Boolean(message)} onOpenChange={(open) => !open && onClose()}>
       <DialogContent size="sm">
         <DialogHeader>
-          <DialogTitle>Forward message</DialogTitle>
+          <DialogTitle>{t.message.forwardTitle}</DialogTitle>
           <DialogDescription>
-            Pick up to ten conversations. The original author is credited.
+            {t.message.forwardHint}
           </DialogDescription>
         </DialogHeader>
 
         {message ? (
           <div className="mb-4 rounded-[var(--radius-card)] bg-[var(--surface-sunken)] p-3">
             <p className="text-[11px] font-semibold text-[var(--text-3)]">
-              {message.author?.displayName ?? 'Unknown'}
+              {message.author?.displayName ?? t.message.unknown}
             </p>
             <p className="mt-0.5 text-[13px] text-[var(--text-2)]">
               {message.content
@@ -74,7 +76,7 @@ export function ForwardDialog({ message, onClose, onConfirm, pending }: Props) {
         <Input
           value={term}
           onChange={(event) => setTerm(event.target.value)}
-          placeholder="Filter conversations"
+          placeholder={t.sidebar.filter}
           icon={<Search />}
           className="h-10 text-[13px]"
         />
@@ -84,7 +86,7 @@ export function ForwardDialog({ message, onClose, onConfirm, pending }: Props) {
             <ConversationSkeleton count={4} />
           ) : results.length === 0 ? (
             <p className="px-3 py-8 text-center text-[13px] text-[var(--text-3)]">
-              Nothing matched that filter.
+              {t.message.noMatchFilter}
             </p>
           ) : (
             <ul className="space-y-0.5">
@@ -135,7 +137,7 @@ export function ForwardDialog({ message, onClose, onConfirm, pending }: Props) {
 
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button
             onClick={() => onConfirm(selected.slice(0, 10))}

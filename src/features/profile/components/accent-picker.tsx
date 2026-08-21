@@ -2,6 +2,7 @@
 
 import { ACCENTS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n/provider';
 
 type AccentPickerProps = {
   value: string;
@@ -10,8 +11,9 @@ type AccentPickerProps = {
 
 /** Swatches, not gradient chips. The selection is a ring, not a checkmark. */
 export function AccentPicker({ value, onChange }: AccentPickerProps) {
+  const t = useT();
   return (
-    <div role="radiogroup" aria-label="Accent colour" className="flex flex-wrap gap-2">
+    <div role="radiogroup" aria-label={t.auth.accentColour} className="flex flex-wrap gap-2">
       {ACCENTS.map((accent) => {
         const selected = accent.id === value;
         return (

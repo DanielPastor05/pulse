@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import type { MessageDTO, PollDTO } from '@/types/dto';
+import { useT } from '@/i18n/provider';
 
 /**
  * A poll inside a message bubble.
@@ -16,12 +17,13 @@ import type { MessageDTO, PollDTO } from '@/types/dto';
  * the point; hiding it belongs to surveys, not chats.
  */
 export function PollCard({ messageId, poll }: { messageId: string; poll: PollDTO }) {
+  const t = useT();
   const vote = useMutation({
     mutationFn: (optionId: string) =>
       api<MessageDTO>(`/messages/${messageId}/poll`, { method: 'POST', body: { optionId } }),
     // The realtime broadcast updates every client including this one, so there
     // is nothing to write into the cache here.
-    onError: (error) => toast.error('Could not vote', { description: error.message }),
+    onError: (error) => toast.error(t.message.voteFailed, { description: error.message }),
   });
 
   return (

@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { GifResult } from '@/app/api/gifs/route';
+import { useT } from '@/i18n/provider';
 
 type Props = {
   onSelect: (gif: GifResult) => void;
@@ -21,6 +22,7 @@ type Props = {
 };
 
 export function GifPicker({ onSelect, children, open, onOpenChange }: Props) {
+  const t = useT();
   const [term, setTerm] = React.useState('');
   const query = useDebouncedValue(term.trim(), 280);
 
@@ -38,7 +40,7 @@ export function GifPicker({ onSelect, children, open, onOpenChange }: Props) {
         <Input
           value={term}
           onChange={(event) => setTerm(event.target.value)}
-          placeholder="Search GIFs"
+          placeholder={t.message.searchGifs}
           icon={<Search />}
           className="h-10 text-[13px]"
           autoFocus
@@ -49,8 +51,8 @@ export function GifPicker({ onSelect, children, open, onOpenChange }: Props) {
             <EmptyState
               compact
               icon={<ImageOff />}
-              title="GIFs are not configured"
-              description="Add a TENOR_API_KEY to the environment to enable this picker."
+              title={t.message.gifsOff}
+              description={t.message.gifsOffHint}
             />
           ) : isLoading ? (
             <div className="grid grid-cols-2 gap-2">
@@ -59,7 +61,7 @@ export function GifPicker({ onSelect, children, open, onOpenChange }: Props) {
               ))}
             </div>
           ) : (data?.gifs.length ?? 0) === 0 ? (
-            <EmptyState compact icon={<ImageOff />} title="No GIFs found" />
+            <EmptyState compact icon={<ImageOff />} title={t.message.noGifs} />
           ) : (
             <div className="grid grid-cols-2 gap-2">
               {data?.gifs.map((gif) => (

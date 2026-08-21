@@ -5,6 +5,8 @@ import * as AvatarPrimitive from '@radix-ui/react-avatar';
 import type { Presence } from '@prisma/client';
 
 import { cn, hashHue, initials } from '@/lib/utils';
+import { useT } from '@/i18n/provider';
+import type { Messages } from '@/i18n/en';
 
 const SIZES = {
   xs: 'size-6 rounded-md text-[9px]',
@@ -29,12 +31,12 @@ export const PRESENCE_COLOR: Record<Presence, string> = {
   OFFLINE: 'bg-transparent border-2 border-[var(--hairline-strong)]',
 };
 
-export const PRESENCE_LABEL: Record<Presence, string> = {
-  ONLINE: 'Online',
-  IDLE: 'Away',
-  DND: 'Do not disturb',
-  OFFLINE: 'Offline',
-};
+export const PRESENCE_LABEL = {
+  ONLINE: 'online',
+  IDLE: 'away',
+  DND: 'doNotDisturb',
+  OFFLINE: 'offline',
+} as const satisfies Record<Presence, keyof Messages['common']>;
 
 export type AvatarProps = {
   src?: string | null;
@@ -51,6 +53,7 @@ export type AvatarProps = {
  * rather than social.
  */
 export function Avatar({ src, name, size = 'md', presence, className, ring }: AvatarProps) {
+  const t = useT();
   const hue = hashHue(name);
 
   return (
@@ -79,9 +82,9 @@ export function Avatar({ src, name, size = 'md', presence, className, ring }: Av
             DOT_SIZES[size],
             PRESENCE_COLOR[presence],
           )}
-          title={PRESENCE_LABEL[presence]}
+          title={t.common[PRESENCE_LABEL[presence]]}
         >
-          <span className="sr-only">{PRESENCE_LABEL[presence]}</span>
+          <span className="sr-only">{t.common[PRESENCE_LABEL[presence]]}</span>
         </span>
       ) : null}
     </span>

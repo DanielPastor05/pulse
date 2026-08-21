@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useSession, useUpdateSessionCache } from '@/components/providers/session-provider';
 import { Avatar, PRESENCE_LABEL } from '@/components/ui/avatar';
 import { Tooltip } from '@/components/ui/tooltip';
+import { useT } from '@/i18n/provider';
 
 /**
  * The identity card that anchors the left column: who you are, your live state,
@@ -17,6 +18,7 @@ import { Tooltip } from '@/components/ui/tooltip';
  * controls that do exist — notification mute and settings.
  */
 export function UserWidget() {
+  const t = useT();
   const me = useSession();
   const patchSession = useUpdateSessionCache();
 
@@ -50,13 +52,13 @@ export function UserWidget() {
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] font-semibold glow-text-mint">{me.displayName}</p>
           <p className="truncate text-[10px] font-bold uppercase tracking-widest text-[var(--accent-mint)] opacity-80">
-            {PRESENCE_LABEL[me.presence]}
+            {t.common[PRESENCE_LABEL[me.presence]]}
           </p>
         </div>
       </Link>
 
       <div className="relative mt-2 flex items-center justify-around">
-        <Tooltip content={muted ? 'Unmute message alerts' : 'Mute message alerts'}>
+        <Tooltip content={muted ? t.nav.unmuteAlerts : t.nav.muteAlerts}>
           <button
             type="button"
             onClick={() => toggleNotifications.mutate(muted)}
@@ -64,14 +66,14 @@ export function UserWidget() {
             aria-pressed={muted}
           >
             {muted ? <BellOff className="size-[18px]" /> : <Bell className="size-[18px]" />}
-            <span className="sr-only">{muted ? 'Unmute message alerts' : 'Mute message alerts'}</span>
+            <span className="sr-only">{muted ? t.nav.unmuteAlerts : t.nav.muteAlerts}</span>
           </button>
         </Tooltip>
 
-        <Tooltip content="Settings">
+        <Tooltip content={t.settings.title}>
           <Link href="/settings" className={iconButton}>
             <Settings className="size-[18px]" />
-            <span className="sr-only">Settings</span>
+            <span className="sr-only">{t.settings.title}</span>
           </Link>
         </Tooltip>
       </div>

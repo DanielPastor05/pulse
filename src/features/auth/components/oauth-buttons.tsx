@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/i18n/provider';
 
 function GoogleMark() {
   return (
@@ -43,6 +44,7 @@ const PROVIDERS = [
 ] as const;
 
 export function OAuthButtons({ next }: { next?: string }) {
+  const t = useT();
   const [pending, setPending] = React.useState<string | null>(null);
 
   const signIn = async (provider: 'google' | 'github') => {
@@ -59,7 +61,7 @@ export function OAuthButtons({ next }: { next?: string }) {
 
     if (error) {
       setPending(null);
-      toast.error('Could not start sign-in', { description: error.message });
+      toast.error(t.auth.signInFailed, { description: error.message });
     }
   };
 

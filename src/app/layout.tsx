@@ -7,7 +7,7 @@ import { ThemeProvider } from '@/components/providers/theme-provider';
 import { Toaster } from '@/components/providers/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { LocaleProvider } from '@/i18n/provider';
-import { resolveLocale } from '@/i18n/server';
+import { getMessages, resolveLocale } from '@/i18n/server';
 
 import './globals.css';
 
@@ -26,22 +26,30 @@ const jetbrains = JetBrains_Mono({
   display: 'swap',
 });
 
-export const metadata: Metadata = {
-  title: { default: `${APP_NAME} — ${APP_TAGLINE}`, template: `%s · ${APP_NAME}` },
-  description:
-    'A realtime messaging workspace with threads, groups, presence and search — fast, private and beautiful.',
-  applicationName: APP_NAME,
-  appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: 'black-translucent' },
-  formatDetection: { telephone: false },
-  icons: {
-    icon: [
-      { url: '/icons/favicon.png', sizes: '48x48', type: 'image/png' },
-      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-    ],
-    // iOS ignores the manifest icons for the home screen and looks for this.
-    apple: '/icons/apple-touch-icon.png',
-  },
-};
+/**
+ * Una función y no una constante: la descripción depende del idioma, y el
+ * idioma depende de la petición. `metadata` se evalúa al construir, cuando
+ * todavía no hay nadie mirando.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getMessages();
+
+  return {
+    title: { default: `${APP_NAME} — ${APP_TAGLINE}`, template: `%s · ${APP_NAME}` },
+    description: t.common.tagline,
+    applicationName: APP_NAME,
+    appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: 'black-translucent' },
+    formatDetection: { telephone: false },
+    icons: {
+      icon: [
+        { url: '/icons/favicon.png', sizes: '48x48', type: 'image/png' },
+        { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      ],
+      // iOS ignores the manifest icons for the home screen and looks for this.
+      apple: '/icons/apple-touch-icon.png',
+    },
+  };
+}
 
 export const viewport: Viewport = {
   width: 'device-width',

@@ -5,6 +5,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { useT } from '@/i18n/provider';
 
 export const Dialog = DialogPrimitive.Root;
 export const DialogTrigger = DialogPrimitive.Trigger;
@@ -20,6 +21,7 @@ export function DialogContent({
   size = 'md',
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & { size?: 'sm' | 'md' | 'lg' }) {
+  const t = useT();
   const widths = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl' } as const;
 
   return (
@@ -47,7 +49,7 @@ export function DialogContent({
           )}
         >
           <X className="size-4" />
-          <span className="sr-only">Close</span>
+          <span className="sr-only">{t.common.close}</span>
         </DialogPrimitive.Close>
       </DialogPrimitive.Content>
     </DialogPrimitive.Portal>

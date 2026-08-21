@@ -6,6 +6,7 @@ import { Mic, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { cn, formatDuration } from '@/lib/utils';
+import { useT } from '@/i18n/provider';
 
 export type VoiceRecording = { blob: Blob; duration: number; waveform: number[] };
 
@@ -22,6 +23,7 @@ export function VoiceRecorder({
   onComplete: (recording: VoiceRecording) => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const recorderRef = React.useRef<MediaRecorder | null>(null);
   const chunksRef = React.useRef<Blob[]>([]);
   const levelsRef = React.useRef<number[]>([]);
@@ -93,8 +95,8 @@ export function VoiceRecorder({
         recorder.start(200);
         sample();
       } catch {
-        toast.error('Microphone unavailable', {
-          description: 'Grant microphone access to record a voice note.',
+        toast.error(t.message.micUnavailable, {
+          description: t.message.micUnavailableHint,
         });
         onCancel();
       }
@@ -107,7 +109,7 @@ export function VoiceRecorder({
       cancelledRef.current = true;
       stopEverything();
     };
-  }, [onComplete, onCancel, stopEverything]);
+  }, [onComplete, onCancel, stopEverything, t.message]);
 
   const finish = () => {
     cancelledRef.current = false;
@@ -153,7 +155,7 @@ export function VoiceRecorder({
           'grid size-9 shrink-0 place-items-center rounded-full text-[var(--text-3)]',
           'transition-colors hover:bg-[var(--hairline)] hover:text-[var(--danger)]',
         )}
-        aria-label="Discard recording"
+        aria-label={t.message.discardRecording}
       >
         <Trash2 className="size-4" />
       </button>
@@ -162,7 +164,7 @@ export function VoiceRecorder({
         type="button"
         onClick={finish}
         className="bg-[var(--accent)] grid size-9 shrink-0 place-items-center rounded-full text-white transition-transform active:scale-90"
-        aria-label="Send voice note"
+        aria-label={t.message.sendVoice}
       >
         <Send className="size-4" />
       </button>

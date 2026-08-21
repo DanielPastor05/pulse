@@ -8,6 +8,7 @@ import { api } from '@/lib/api-client';
 import { cn, formatBytes } from '@/lib/utils';
 import { EmptyState } from '@/components/ui/empty-state';
 import type { GalleryItem, Paginated } from '@/types/dto';
+import { useT } from '@/i18n/provider';
 
 type Tab = 'media' | 'files';
 
@@ -36,6 +37,7 @@ export function GalleryPanel({
   conversationId: string;
   onJumpTo: (messageId: string) => void;
 }) {
+  const t = useT();
   const [tab, setTab] = React.useState<Tab>('media');
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useGallery(
     conversationId,
@@ -73,8 +75,8 @@ export function GalleryPanel({
         ) : items.length === 0 ? (
           <EmptyState
             icon={tab === 'media' ? <Images /> : <FileText />}
-            title={tab === 'media' ? 'No photos yet' : 'No files yet'}
-            description="Anything shared here shows up in this panel."
+            title={tab === 'media' ? t.message.noPhotos : t.message.noFiles}
+            description={t.message.noFilesHint}
           />
         ) : tab === 'media' ? (
           <div className="grid grid-cols-3 gap-1.5">
@@ -133,7 +135,7 @@ export function GalleryPanel({
             disabled={isFetchingNextPage}
             className="mt-3 w-full rounded-[var(--radius-field)] py-2 text-[12px] text-[var(--text-3)] hover:bg-[var(--surface-sunken)]"
           >
-            {isFetchingNextPage ? 'Loading…' : 'Load more'}
+            {isFetchingNextPage ? t.common.loading : t.search.loadMore}
           </button>
         ) : null}
       </div>
