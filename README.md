@@ -45,6 +45,10 @@ everything you have written and close the account for good — and if you own a
 group with people in it, it asks you to hand it over first rather than leaving
 them without an owner.
 
+The interface is in English and Spanish, picked from your account, your browser,
+or a switch in settings — decided on the server so the first paint is already
+right.
+
 It is deployed, and the guarantees below are verified against the deployed
 instance, not against mocks.
 
@@ -626,6 +630,40 @@ drafts and file names are redacted, query strings are dropped whole rather than
 filtered key by key, and only the user id survives. Session Replay is off — it
 records the DOM, which here is somebody's private conversation.
 
+### The language picker did nothing, and everything said it worked
+
+The app ships in English and Spanish. The dictionaries are plain typed objects —
+`es.ts` is declared `satisfies Messages`, so a missing or misspelled translation
+is a **compile error** rather than a screen that quietly shows a key name. That
+is the entire reason they are not JSON: a JSON bundle cannot tell you at build
+time that a translation is missing. 513 entries per language across 11 groups,
+consumed by 70 files.
+
+The locale resolves server-side — cookie, then `Accept-Language`, then English —
+so the first paint is already in the right language rather than flashing English
+at somebody who does not read it.
+
+Then the picker itself did nothing.
+
+`LOCALE_COOKIE` was exported from the provider, which carries `'use client'`. A
+client module does not hand values to the server; it hands it *references* the
+client will resolve later. So `cookies().get(LOCALE_COOKIE)` was not looking for
+`"pulse-locale"`, it was looking for an object, finding nothing, and falling back
+to `Accept-Language` in silence. On a Spanish browser that produces Spanish —
+which looks exactly like success.
+
+Typecheck, lint and build all passed. They had to: the code is well typed on both
+sides of a boundary the type system does not model. Moving the constant to a
+module with no directive fixes it, and the fix is one line.
+
+What earns its place here is the check, not the fix. `tests/smoke/locale.spec.ts`
+drives a real browser through four cases — cookie against browser language,
+browser language alone, an unsupported language, and the tab title, which is
+resolved separately from the page body and can lag it. It asserts the `lang`
+attribute rather than any particular sentence, so rewording a screen does not
+break it. Verified with a positive control: reintroducing the bug fails exactly
+the cookie test and leaves the other three green.
+
 ---
 
 ## Architecture
@@ -675,13 +713,13 @@ no second round trip to render a new message.
 
 ## Testing
 
-199 checks, in five layers.
+203 checks, in five layers.
 
 ```bash
-npm test                  # 41 unit tests — pure logic, no I/O
+npm test                  # 47 unit tests — pure logic, no I/O
 npm run test:component    # 6 component tests in a DOM
 npm run test:integration  # 46 tests against a real Postgres, four of them a perf gate
-npm run test:smoke        # 6 browser checks against the production build
+npm run test:smoke        # 10 browser checks against the production build
 npm run test:e2e          # 94 checks against a running server + real Supabase
 ```
 
@@ -697,6 +735,11 @@ of times per screen. No snapshots — a snapshot fails when a CSS class changes
 and passes when the "message deleted" notice disappears, which protects the
 appearance instead of the promise. The one that earns its place asserts that a
 soft-deleted message never ships its original text to the browser.
+
+The smoke layer answers a question no other layer can: does this come alive in a
+browser? Four of its ten checks are there because of the language bug above —
+that class of failure is invisible to a type system by construction, since the
+mistake is on a boundary the type system does not model.
 
 The unit tests cover the things where an edge case is the whole point: URL
 protocol validation, the SSRF address rules including the `172.16/12` boundary
@@ -866,6 +909,21 @@ Written down rather than glossed over:
 - **The latency alert has no error budget behind it.** A p95 over budget raises
   a warning; nothing counts how long it stayed there or decides what that should
   cost.
+- **Server-side messages are still English.** Everything rendered in the browser
+  is translated; the validation and error strings the API returns are not. They
+  reach the user through a toast, so this is visible, not theoretical. Fixing it
+  means resolving a locale per request inside the API layer rather than per page,
+  which is a different piece of plumbing from the one that is built.
+- **Translating the sign-in pages cost their static prerendering.** Reading the
+  locale means reading a cookie, and a page that reads a cookie is rendered on
+  demand. The four auth screens used to be static. That is the price of the login
+  form appearing in the visitor's language, and it is the right trade here — but
+  it is a real one, not a free win.
+- **Search quality is not equal in both languages.** The `simple` text search
+  config does not stem either language, and the embedding model (`gte-small`) is
+  English-biased: recall@5 is 70% in English and 50% in Spanish, measured on the
+  same corpus. A multilingual embedding model would close most of that gap and is
+  the next thing worth measuring.
 
 ---
 
