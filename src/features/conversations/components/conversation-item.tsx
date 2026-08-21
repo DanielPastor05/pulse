@@ -29,6 +29,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/menu';
 import type { ConversationSummary } from '@/types/dto';
+import { useT } from '@/i18n/provider';
 
 type Props = {
   conversation: ConversationSummary;
@@ -37,6 +38,7 @@ type Props = {
 };
 
 function Preview({ conversation }: { conversation: ConversationSummary }) {
+  const t = useT();
   if (conversation.draft) {
     return (
       <span className="flex items-center gap-1 text-[var(--warning)]">
@@ -47,10 +49,10 @@ function Preview({ conversation }: { conversation: ConversationSummary }) {
   }
 
   const last = conversation.lastMessage;
-  if (!last) return <span className="italic text-[var(--text-3)]">No messages yet</span>;
+  if (!last) return <span className="italic text-[var(--text-3)]">{t.sidebar.noMessages}</span>;
 
   const prefix = conversation.type === 'GROUP' && last.authorName ? `${last.authorName}: ` : '';
-  const body = last.content || (last.hasAttachments ? 'Attachment' : '');
+  const body = last.content || (last.hasAttachments ? t.composer.attachment : '');
 
   return (
     <span className="flex items-center gap-1 truncate">
@@ -68,6 +70,7 @@ export const ConversationItem = React.memo(function ConversationItem({
   active,
   onNavigate,
 }: Props) {
+  const t = useT();
   const preferences = useConversationPreferences(conversation.id);
   const livePresence = usePresenceOf(conversation.peer?.id, conversation.peer?.presence ?? 'OFFLINE');
   const unread = conversation.unreadCount > 0;
@@ -156,22 +159,22 @@ export const ConversationItem = React.memo(function ConversationItem({
           onSelect={() => preferences.mutate({ favorite: !conversation.favorite })}
         >
           {conversation.favorite ? <StarOff /> : <Star />}
-          {conversation.favorite ? 'Remove from favourites' : 'Add to favourites'}
+          {conversation.favorite ? t.conversation.favoriteRemove : t.conversation.favoriteAdd}
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => preferences.mutate({ muted: !conversation.muted })}>
           {conversation.muted ? <Bell /> : <BellOff />}
-          {conversation.muted ? 'Unmute' : 'Mute notifications'}
+          {conversation.muted ? 'Unmute' : t.conversation.muteNotifications}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => preferences.mutate({ archived: !conversation.archived })}>
           {conversation.archived ? <ArchiveRestore /> : <Archive />}
-          {conversation.archived ? 'Move to inbox' : 'Archive'}
+          {conversation.archived ? t.conversation.toInbox : t.conversation.archive}
         </ContextMenuItem>
         {conversation.lastMessage && unread ? (
           <ContextMenuItem asChild>
             <Link href={`/chat/${conversation.id}`}>
               <CheckCheck />
-              Open and mark read
+              {t.message.openMarkRead}
             </Link>
           </ContextMenuItem>
         ) : null}

@@ -46,6 +46,8 @@ import { Input, Textarea } from '@/components/ui/input';
 import { Badge, Switch } from '@/components/ui/misc';
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from '@/components/ui/menu';
 import type { ConversationDetail, PublicUser, ReportDTO } from '@/types/dto';
+import { useT } from '@/i18n/provider';
+import type { Messages } from '@/i18n/en';
 
 const ROLE_ICON: Record<MemberRole, typeof Crown | null> = {
   OWNER: Crown,
@@ -54,24 +56,34 @@ const ROLE_ICON: Record<MemberRole, typeof Crown | null> = {
   MEMBER: null,
 };
 
-const REPORT_LABEL: Record<ReportDTO['reason'], string> = {
-  SPAM: 'Spam or scam',
-  HARASSMENT: 'Harassment or bullying',
-  HATE: 'Hate speech',
-  VIOLENCE: 'Violence or threats',
-  SEXUAL: 'Sexual content',
-  SELF_HARM: 'Self-harm',
-  OTHER: 'Something else',
+/**
+ * Sólo las claves cuyo valor es texto. El grupo también guarda funciones
+ * —`members(count)`, `sayHello(name)`— y una tabla que apuntase a una de ellas
+ * pintaría la función en pantalla en vez de la frase.
+ */
+type TextoDe = {
+  [K in keyof Messages['conversation']]: Messages['conversation'][K] extends string ? K : never;
+}[keyof Messages['conversation']];
+
+const REPORT_LABEL: Record<ReportDTO['reason'], TextoDe> = {
+  SPAM: 'spam',
+  HARASSMENT: 'harassment',
+  HATE: 'hate',
+  VIOLENCE: 'violence',
+  SEXUAL: 'sexual',
+  SELF_HARM: 'selfHarm',
+  OTHER: 'other',
 };
 
-const ROLE_LABEL: Record<MemberRole, string> = {
-  OWNER: 'Owner',
-  ADMIN: 'Admin',
-  MODERATOR: 'Moderator',
-  MEMBER: 'Member',
+const ROLE_LABEL: Record<MemberRole, TextoDe> = {
+  OWNER: 'owner',
+  ADMIN: 'admin',
+  MODERATOR: 'moderator',
+  MEMBER: 'member',
 };
 
 function InviteLink({ conversationId }: { conversationId: string }) {
+  const t = useT();
   const [copied, setCopied] = React.useState(false);
 
   const create = useMutation({
@@ -85,23 +97,24 @@ function InviteLink({ conversationId }: { conversationId: string }) {
         await navigator.clipboard.writeText(url);
         setCopied(true);
         setTimeout(() => setCopied(false), 2200);
-        toast.success('Invite link copied', { description: 'Valid for 7 days.' });
+        toast.success(t.conversation.inviteCopied, { description: t.conversation.inviteValid });
       } catch {
-        toast.success('Invite link created', { description: url });
+        toast.success(t.conversation.inviteCreated, { description: url });
       }
     },
-    onError: (error) => toast.error('Could not create an invite', { description: error.message }),
+    onError: (error) => toast.error(t.conversation.inviteFailed, { description: error.message }),
   });
 
   return (
     <Button variant="secondary" block onClick={() => create.mutate()} loading={create.isPending}>
       {copied ? <Check /> : <Link2 />}
-      {copied ? 'Copied to clipboard' : 'Create invite link'}
+      {copied ? t.conversation.copied : t.conversation.createInviteLink}
     </Button>
   );
 }
 
 function GroupSettings({ conversation }: { conversation: ConversationDetail }) {
+  const t = useT();
   const update = useUpdateConversation(conversation.id);
   const [name, setName] = React.useState(conversation.name);
   const [description, setDescription] = React.useState(conversation.description ?? '');
@@ -110,24 +123,24 @@ function GroupSettings({ conversation }: { conversation: ConversationDetail }) {
 
   return (
     <div className="space-y-4">
-      <Field label="Group name" htmlFor="details-name">
+      <Field label={t.conversation.groupName} htmlFor="details-name">
         <Input id="details-name" value={name} onChange={(event) => setName(event.target.value)} />
       </Field>
 
-      <Field label="Description" htmlFor="details-description">
+      <Field label={t.conversation.description} htmlFor="details-description">
         <Textarea
           id="details-description"
           rows={3}
           value={description}
           onChange={(event) => setDescription(event.target.value)}
-          placeholder="What is this space for?"
+          placeholder={t.conversation.descriptionPlaceholder}
         />
       </Field>
 
       <label className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] bg-[var(--surface-sunken)] p-3">
         <span>
-          <span className="block text-[13px] font-medium">Public group</span>
-          <span className="block text-[12px] text-[var(--text-2)]">Listed in Discover.</span>
+          <span className="block text-[13px] font-medium">{t.conversation.publicGroup}</span>
+          <span className="block text-[12px] text-[var(--text-2)]">{t.conversation.publicGroupHintShort}</span>
         </span>
         <Switch
           checked={conversation.isPublic}
@@ -138,8 +151,8 @@ function GroupSettings({ conversation }: { conversation: ConversationDetail }) {
       {conversation.isPublic ? (
         <label className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] bg-[var(--surface-sunken)] p-3">
           <span>
-            <span className="block text-[13px] font-medium">Review join requests</span>
-            <span className="block text-[12px] text-[var(--text-2)]">Approve each new member.</span>
+            <span className="block text-[13px] font-medium">{t.conversation.reviewRequests}</span>
+            <span className="block text-[12px] text-[var(--text-2)]">{t.conversation.approveEach}</span>
           </span>
           <Switch
             checked={conversation.requiresApproval}
@@ -154,7 +167,7 @@ function GroupSettings({ conversation }: { conversation: ConversationDetail }) {
           loading={update.isPending}
           onClick={() => update.mutate({ name, description: description || null })}
         >
-          Save changes
+          {t.common.saveChanges}
         </Button>
       ) : null}
     </div>
@@ -162,6 +175,7 @@ function GroupSettings({ conversation }: { conversation: ConversationDetail }) {
 }
 
 function JoinRequests({ conversation }: { conversation: ConversationDetail }) {
+  const t = useT();
   const enabled = can.reviewJoinRequests(conversation.role);
   const { data: requests } = useJoinRequests(conversation.id, enabled);
   const { reviewJoinRequest } = useMemberMutations(conversation.id);
@@ -171,7 +185,7 @@ function JoinRequests({ conversation }: { conversation: ConversationDetail }) {
   return (
     <section className="space-y-2">
       <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-3)]">
-        Join requests
+        {t.conversation.joinRequests}
         <Badge tone="accent">{requests.length}</Badge>
       </h3>
       <ul className="space-y-1.5">
@@ -190,7 +204,7 @@ function JoinRequests({ conversation }: { conversation: ConversationDetail }) {
             <Button
               size="icon-sm"
               variant="ghost"
-              aria-label="Reject"
+              aria-label={t.conversation.reject}
               onClick={() =>
                 reviewJoinRequest.mutate({ requestId: request.id, status: 'REJECTED' })
               }
@@ -199,7 +213,7 @@ function JoinRequests({ conversation }: { conversation: ConversationDetail }) {
             </Button>
             <Button
               size="icon-sm"
-              aria-label="Approve"
+              aria-label={t.conversation.approve}
               onClick={() =>
                 reviewJoinRequest.mutate({ requestId: request.id, status: 'APPROVED' })
               }
@@ -215,6 +229,7 @@ function JoinRequests({ conversation }: { conversation: ConversationDetail }) {
 
 /** Same shape as JoinRequests: a queue only moderators ever see. */
 function Reports({ conversation }: { conversation: ConversationDetail }) {
+  const t = useT();
   const enabled = can.moderateMessages(conversation.role);
   const { data: reports } = useReports(conversation.id, enabled);
   const review = useReviewReport(conversation.id);
@@ -224,7 +239,7 @@ function Reports({ conversation }: { conversation: ConversationDetail }) {
   return (
     <section className="space-y-2">
       <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-3)]">
-        Reports
+        {t.conversation.reports}
         <Badge tone="danger">{reports.length}</Badge>
       </h3>
       <ul className="space-y-1.5">
@@ -236,19 +251,19 @@ function Reports({ conversation }: { conversation: ConversationDetail }) {
             <div className="flex items-center gap-2">
               <Flag className="size-3.5 shrink-0 text-[var(--danger)]" />
               <p className="min-w-0 flex-1 truncate text-[12px] font-medium">
-                {REPORT_LABEL[report.reason]}
+                {t.conversation[REPORT_LABEL[report.reason]]}
               </p>
               <Button
                 size="icon-sm"
                 variant="ghost"
-                aria-label="Dismiss report"
+                aria-label={t.conversation.dismissReport}
                 onClick={() => review.mutate({ reportId: report.id, status: 'DISMISSED' })}
               >
                 <X />
               </Button>
               <Button
                 size="icon-sm"
-                aria-label="Mark resolved"
+                aria-label={t.conversation.markResolved}
                 onClick={() => review.mutate({ reportId: report.id, status: 'RESOLVED' })}
               >
                 <Check />
@@ -283,6 +298,7 @@ export function DetailsPanel({
   conversation: ConversationDetail;
   meId: string;
 }) {
+  const t = useT();
   const [addOpen, setAddOpen] = React.useState(false);
   const [invitees, setInvitees] = React.useState<PublicUser[]>([]);
   const { addMembers, updateMember, removeMember, transferOwnership, leave } = useMemberMutations(
@@ -293,8 +309,8 @@ export function DetailsPanel({
     mutationFn: (blocked: boolean) =>
       api('/blocks', { method: 'POST', body: { userId: conversation.peer?.id, blocked } }),
     onSuccess: (_data, blocked) =>
-      toast.success(blocked ? 'Person blocked' : 'Person unblocked'),
-    onError: (error) => toast.error('Could not update', { description: error.message }),
+      toast.success(blocked ? t.conversation.personBlocked : t.conversation.personUnblocked),
+    onError: (error) => toast.error(t.conversation.updateFailed, { description: error.message }),
   });
 
   const isGroup = conversation.type === 'GROUP';
@@ -322,7 +338,7 @@ export function DetailsPanel({
             </Link>
           ) : (
             <p className="text-[13px] text-[var(--text-2)]">
-              {conversation.memberCount} members · {conversation.isPublic ? 'Public' : 'Private'}
+              {conversation.memberCount} members · {conversation.isPublic ? 'Public' : t.conversation.private}
             </p>
           )}
           {conversation.description || conversation.peer?.bio ? (
@@ -372,7 +388,9 @@ export function DetailsPanel({
                           {isMe ? <span className="text-[11px] text-[var(--text-3)]">(you)</span> : null}
                         </p>
                         <p className="truncate text-[11px] text-[var(--text-3)]">
-                          {RoleIcon ? ROLE_LABEL[member.role] : `joined ${formatRelative(member.joinedAt)}`}
+                          {RoleIcon
+                            ? t.conversation[ROLE_LABEL[member.role]]
+                            : t.conversation.joinedAgo(formatRelative(member.joinedAt))}
                         </p>
                       </div>
 
@@ -395,7 +413,7 @@ export function DetailsPanel({
                           <MenuContent align="end">
                             {can.assignRoles(conversation.role) ? (
                               <>
-                                <MenuLabel>Role</MenuLabel>
+                                <MenuLabel>{t.conversation.role}</MenuLabel>
                                 {(['ADMIN', 'MODERATOR', 'MEMBER'] as const).map((role) => (
                                   <MenuItem
                                     key={role}
@@ -403,7 +421,7 @@ export function DetailsPanel({
                                       updateMember.mutate({ userId: member.user.id, role })
                                     }
                                   >
-                                    {ROLE_LABEL[role]}
+                                    {t.conversation[ROLE_LABEL[role]]}
                                     {member.role === role ? <Check className="ml-auto size-3.5" /> : null}
                                   </MenuItem>
                                 ))}
@@ -426,14 +444,14 @@ export function DetailsPanel({
                                   }}
                                 >
                                   <Crown />
-                                  Make owner
+                                  {t.conversation.makeOwner}
                                 </MenuItem>
                                 <MenuSeparator />
                               </>
                             ) : null}
                             <MenuItem danger onSelect={() => removeMember.mutate(member.user.id)}>
                               <UserRoundMinus />
-                              Remove from group
+                              {t.conversation.removeFromGroup}
                             </MenuItem>
                           </MenuContent>
                         </Menu>
@@ -448,7 +466,7 @@ export function DetailsPanel({
           {can.editConversation(conversation.role) ? (
             <section className="space-y-3 border-t border-[var(--hairline)] pt-5">
               <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-3)]">
-                Group settings
+                {t.conversation.groupSettings}
               </h3>
               <GroupSettings conversation={conversation} />
             </section>
@@ -463,7 +481,7 @@ export function DetailsPanel({
               loading={leave.isPending}
             >
               <LogOut />
-              Leave group
+              {t.conversation.leaveGroup}
             </Button>
           </div>
         </>
@@ -477,7 +495,7 @@ export function DetailsPanel({
             loading={blockMutation.isPending}
           >
             <Trash2 />
-            {conversation.blockedByMe ? 'Unblock this person' : 'Block this person'}
+            {conversation.blockedByMe ? t.conversation.unblockPerson : t.conversation.blockPerson}
           </Button>
         </div>
       )}
@@ -485,8 +503,8 @@ export function DetailsPanel({
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent size="sm">
           <DialogHeader>
-            <DialogTitle>Add members</DialogTitle>
-            <DialogDescription>They will see the full message history.</DialogDescription>
+            <DialogTitle>{t.conversation.addMembers}</DialogTitle>
+            <DialogDescription>{t.conversation.addMembersHint}</DialogDescription>
           </DialogHeader>
 
           <UserPicker
@@ -497,7 +515,7 @@ export function DetailsPanel({
 
           <DialogFooter>
             <Button variant="ghost" onClick={() => setAddOpen(false)}>
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button
               disabled={invitees.length === 0}

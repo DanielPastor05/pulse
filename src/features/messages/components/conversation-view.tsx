@@ -38,16 +38,19 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { MessageSkeleton } from '@/components/ui/skeleton';
 import type { MessageDTO } from '@/types/dto';
+import { useT } from '@/i18n/provider';
+import type { Messages } from '@/i18n/en';
 
 const PANEL_TITLES = {
-  details: 'Details',
-  pins: 'Pinned',
-  search: 'Search',
-  gallery: 'Shared',
-  thread: 'Thread',
-} as const;
+  details: 'details',
+  pins: 'panelPins',
+  search: 'panelSearch',
+  gallery: 'panelGallery',
+  thread: 'panelThread',
+} as const satisfies Record<string, keyof Messages['conversation']>;
 
 export function ConversationView({ conversationId }: { conversationId: string }) {
+  const t = useT();
   const me = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -173,11 +176,11 @@ export function ConversationView({ conversationId }: { conversationId: string })
       <div className="panel grid h-full place-items-center rounded-[var(--radius-panel)]">
         <EmptyState
           icon={<Ban />}
-          title="You cannot open this conversation"
-          description="It may have been deleted, or you are no longer a member."
+          title={t.conversation.cannotOpen}
+          description={t.conversation.cannotOpenHint}
           action={
             <Button variant="secondary" onClick={() => router.push('/chat')}>
-              Back to your chats
+              {t.conversation.backToChats}
             </Button>
           }
         />
@@ -226,8 +229,8 @@ export function ConversationView({ conversationId }: { conversationId: string })
               disabled={blocked}
               disabledReason={
                 conversation.blockedByMe
-                  ? 'You blocked this person. Unblock them to write again.'
-                  : 'You cannot reply to this conversation.'
+                  ? t.conversation.youBlocked
+                  : t.conversation.cannotReply
               }
               onTyping={() => sendTyping(me.displayName)}
               onSend={(payload) => {
@@ -251,7 +254,7 @@ export function ConversationView({ conversationId }: { conversationId: string })
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setRightPanel('none')}
-              aria-label="Close panel"
+              aria-label={t.conversation.closePanel}
               className="absolute inset-0 z-10 bg-black/40  xl:hidden"
             />
             <motion.aside
@@ -270,13 +273,13 @@ export function ConversationView({ conversationId }: { conversationId: string })
                 {rightPanel === 'details' ? <Info className="size-4" /> : null}
                 {rightPanel === 'pins' ? <Pin className="size-4" /> : null}
                 {rightPanel === 'search' ? <Search className="size-4" /> : null}
-                {PANEL_TITLES[rightPanel]}
+                {t.conversation[PANEL_TITLES[rightPanel]]}
               </h2>
               <Button
                 size="icon-sm"
                 variant="ghost"
                 onClick={() => setRightPanel('none')}
-                aria-label="Close panel"
+                aria-label={t.conversation.closePanel}
               >
                 <X />
               </Button>

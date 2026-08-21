@@ -19,6 +19,7 @@ import {
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { useSession } from '@/components/providers/session-provider';
+import { useT } from '@/i18n/provider';
 
 type OwnedGroup = { id: string; name: string | null; memberCount: number };
 
@@ -30,6 +31,7 @@ type OwnedGroup = { id: string; name: string | null; memberCount: number };
  * marche sin ella.
  */
 export function AccountDangerZone() {
+  const t = useT();
   const me = useSession();
   const [open, setOpen] = React.useState(false);
   const [confirmation, setConfirmation] = React.useState('');
@@ -48,7 +50,7 @@ export function AccountDangerZone() {
 
     try {
       await api('/me', { method: 'DELETE', body: { confirmation } });
-      toast.success('Your account is gone. Take care.');
+      toast.success(t.settings.accountGone);
       // Sin sesión ya no hay nada que renderizar aquí, y una navegación real
       // vuelve a pasar por el middleware con la cookie ya invalidada.
       hardNavigate('/login');
@@ -57,7 +59,7 @@ export function AccountDangerZone() {
         const groups = (error.details as { groups?: OwnedGroup[] } | undefined)?.groups;
         setBlockedBy(groups ?? []);
       } else {
-        toast.error('Could not delete your account', {
+        toast.error(t.settings.deleteFailed, {
           description: error instanceof Error ? error.message : undefined,
         });
       }
@@ -71,17 +73,17 @@ export function AccountDangerZone() {
       <div className="mb-4 space-y-1">
         <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-tight">
           <TriangleAlert className="size-4 text-[var(--danger)]" aria-hidden />
-          Your data
+          {t.settings.yourData}
         </h2>
         <p className="text-[13px] text-[var(--text-2)]">
-          Take a copy with you, or close the account for good.
+          {t.settings.yourDataHint}
         </p>
       </div>
 
       <div className="flex flex-wrap gap-3">
         <Button variant="secondary" onClick={download}>
           <Download />
-          Download my data
+          {t.settings.downloadData}
         </Button>
 
         <Button
@@ -89,7 +91,7 @@ export function AccountDangerZone() {
           className="text-[var(--danger)] hover:bg-[var(--danger)]/10"
           onClick={() => setOpen(true)}
         >
-          Delete my account
+          {t.settings.deleteMyAccount}
         </Button>
       </div>
 
@@ -101,16 +103,16 @@ export function AccountDangerZone() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete your account?</DialogTitle>
+            <DialogTitle>{t.settings.deleteTitle}</DialogTitle>
             <DialogDescription>
               Your messages, reactions and memberships go with it, and this cannot be undone.
-              Download your data first if you want a copy.
+              {t.settings.deleteHintExport}
             </DialogDescription>
           </DialogHeader>
 
           {blockedBy && blockedBy.length > 0 ? (
             <div className="rounded-[var(--radius-field)] border border-[var(--warning)]/40 bg-[var(--warning)]/10 p-3 text-[13px]">
-              <p className="font-medium">Hand these over first</p>
+              <p className="font-medium">{t.settings.handOver}</p>
               <p className="mt-1 text-[var(--text-2)]">
                 You own {blockedBy.length === 1 ? 'a group' : 'groups'} with other people in{' '}
                 {blockedBy.length === 1 ? 'it' : 'them'}. Leaving without an owner would strand
@@ -119,7 +121,7 @@ export function AccountDangerZone() {
               <ul className="mt-2 space-y-1">
                 {blockedBy.map((group) => (
                   <li key={group.id} className="text-[var(--text-2)]">
-                    · {group.name ?? 'Untitled group'} — {group.memberCount} members
+                    · {group.name ?? t.settings.untitledGroup} — {group.memberCount} members
                   </li>
                 ))}
               </ul>
@@ -129,7 +131,7 @@ export function AccountDangerZone() {
           <Field
             label={`Type ${me.username} to confirm`}
             htmlFor="delete-confirmation"
-            hint="Exactly as written, so this can never be an accident."
+            hint={t.settings.exactlyAsWritten}
           >
             <Input
               id="delete-confirmation"
@@ -142,7 +144,7 @@ export function AccountDangerZone() {
 
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="ghost">Keep my account</Button>
+              <Button variant="ghost">{t.settings.keepAccount}</Button>
             </DialogClose>
             <Button
               className="bg-[var(--danger)] text-white hover:bg-[var(--danger)]"
@@ -150,7 +152,7 @@ export function AccountDangerZone() {
               loading={working}
               onClick={() => void remove()}
             >
-              Delete for good
+              {t.settings.deleteForGood}
             </Button>
           </DialogFooter>
         </DialogContent>

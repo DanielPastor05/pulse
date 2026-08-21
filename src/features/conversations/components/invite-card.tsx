@@ -10,6 +10,7 @@ import { hardNavigate } from '@/lib/navigate';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useT } from '@/i18n/provider';
 
 type InviteSummary = {
   invitedBy: string;
@@ -29,6 +30,7 @@ export function InviteCard({
   invite: InviteSummary | null;
   expired: boolean;
 }) {
+  const t = useT();
   const router = useRouter();
 
   const accept = useMutation({
@@ -36,7 +38,7 @@ export function InviteCard({
     onSuccess: ({ conversationId }) => {
       hardNavigate(`/chat/${conversationId}`);
     },
-    onError: (error) => toast.error('Could not join', { description: error.message }),
+    onError: (error) => toast.error(t.nav.joinFailed, { description: error.message }),
   });
 
   if (!invite || expired) {
@@ -44,11 +46,11 @@ export function InviteCard({
       <div className="panel w-full max-w-md rounded-[var(--radius-panel)] shadow-[var(--shadow-overlay)]">
         <EmptyState
           icon={<LinkIcon />}
-          title={expired ? 'This invite has expired' : 'Invite not found'}
-          description="Ask whoever sent it for a fresh link."
+          title={expired ? t.conversation.inviteExpired : t.conversation.inviteNotFound}
+          description={t.conversation.inviteGone}
           action={
             <Button variant="secondary" onClick={() => router.push('/chat')}>
-              Go to your chats
+              {t.conversation.goToChats}
             </Button>
           }
         />
@@ -91,10 +93,10 @@ export function InviteCard({
 
         <div className="mt-7 flex flex-col gap-2">
           <Button size="lg" block loading={accept.isPending} onClick={() => accept.mutate()}>
-            Accept invite
+            {t.conversation.acceptInvite}
           </Button>
           <Button variant="ghost" block onClick={() => router.push('/chat')}>
-            Not now
+            {t.conversation.notNow}
           </Button>
         </div>
       </div>

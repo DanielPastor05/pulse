@@ -17,12 +17,18 @@ import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Input, Textarea } from '@/components/ui/input';
 import type { CurrentUser } from '@/types/dto';
+import { useT } from '@/i18n/provider';
+import type { Messages } from '@/i18n/en';
 
 const STEPS = [
-  { id: 'identity', title: 'Claim your handle', blurb: 'This is how people find and mention you.' },
-  { id: 'look', title: 'Make it yours', blurb: 'A face and a colour. Both are easy to change later.' },
-  { id: 'done', title: 'You are all set', blurb: 'Everything below can be edited from settings.' },
-] as const;
+  { id: 'identity', title: 'claimHandle', blurb: 'claimHandleHint' },
+  { id: 'look', title: 'makeItYours', blurb: 'makeItYoursHint' },
+  { id: 'done', title: 'allSet', blurb: 'allSetHint' },
+] as const satisfies ReadonlyArray<{
+  id: string;
+  title: keyof Messages['auth'];
+  blurb: keyof Messages['auth'];
+}>;
 
 type Props = {
   suggestedUsername: string;
@@ -31,6 +37,7 @@ type Props = {
 };
 
 export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvatar }: Props) {
+  const t = useT();
   const [step, setStep] = React.useState(0);
   const [direction, setDirection] = React.useState(1);
 
@@ -77,7 +84,7 @@ export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvat
         setStep(0);
         return;
       }
-      toast.error('Could not save your profile', {
+      toast.error(t.auth.saveFailed, {
         description: error instanceof Error ? error.message : undefined,
       });
     }
@@ -108,8 +115,8 @@ export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvat
         <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--accent)]">
           Step {step + 1} of {STEPS.length}
         </p>
-        <h1 className="text-2xl font-semibold tracking-[-0.02em]">{current.title}</h1>
-        <p className="text-sm text-[var(--text-2)]">{current.blurb}</p>
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">{t.auth[current.title]}</h1>
+        <p className="text-sm text-[var(--text-2)]">{t.auth[current.blurb]}</p>
       </div>
 
       <form onSubmit={onSubmit}>
@@ -127,10 +134,10 @@ export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvat
               {step === 0 ? (
                 <>
                   <Field
-                    label="Username"
+                    label={t.settings.username}
                     htmlFor="username"
                     error={formState.errors.username?.message}
-                    hint="Lowercase, no spaces"
+                    hint={t.auth.usernameHint}
                   >
                     <Input
                       id="username"
@@ -138,7 +145,7 @@ export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvat
                       autoCapitalize="none"
                       autoCorrect="off"
                       spellCheck={false}
-                      placeholder="ada"
+                      placeholder={t.auth.usernamePlaceholder}
                       aria-invalid={Boolean(formState.errors.username)}
                       {...register('username', {
                         setValueAs: (value: string) => value.toLowerCase().replace(/[^a-z0-9_]/g, ''),
@@ -147,13 +154,13 @@ export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvat
                   </Field>
 
                   <Field
-                    label="Display name"
+                    label={t.settings.displayName}
                     htmlFor="displayName"
                     error={formState.errors.displayName?.message}
                   >
                     <Input
                       id="displayName"
-                      placeholder="Ada Lovelace"
+                      placeholder={t.auth.displayNamePlaceholder}
                       aria-invalid={Boolean(formState.errors.displayName)}
                       {...register('displayName')}
                     />
@@ -169,7 +176,7 @@ export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvat
                     onChange={(url) => setValue('avatarUrl', url, { shouldDirty: true })}
                   />
 
-                  <Field label="Accent colour">
+                  <Field label={t.auth.accentColour}>
                     <AccentPicker
                       value={values.accent}
                       onChange={(accent) => setValue('accent', accent, { shouldDirty: true })}
@@ -177,7 +184,7 @@ export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvat
                   </Field>
 
                   <Field
-                    label="Bio"
+                    label={t.settings.bio}
                     htmlFor="bio"
                     hint={`${values.bio?.length ?? 0}/280`}
                     error={formState.errors.bio?.message}
@@ -186,7 +193,7 @@ export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvat
                       id="bio"
                       rows={3}
                       maxLength={280}
-                      placeholder="Building things that talk to each other."
+                      placeholder={t.auth.bioPlaceholder}
                       {...register('bio')}
                     />
                   </Field>
@@ -234,18 +241,18 @@ export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvat
             className={cn(step === 0 && 'invisible')}
           >
             <ArrowLeft />
-            Back
+            {t.auth.back}
           </Button>
 
           {step < STEPS.length - 1 ? (
             <Button type="button" onClick={() => void go(step + 1)}>
-              Continue
+              {t.auth.continueStep}
               <ArrowRight />
             </Button>
           ) : (
             <Button type="submit" loading={formState.isSubmitting}>
               <PartyPopper />
-              Enter Pulse
+              {t.auth.enterPulse}
             </Button>
           )}
         </div>

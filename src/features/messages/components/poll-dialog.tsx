@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import type { MessageDTO } from '@/types/dto';
+import { useT } from '@/i18n/provider';
 
 const MAX_OPTIONS = 10;
 
@@ -23,6 +24,7 @@ export function PollDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const [question, setQuestion] = React.useState('');
   // Two blanks up front: a poll needs at least two answers, so starting with
   // one and making people find the add button gets the shape wrong.
@@ -44,7 +46,7 @@ export function PollDialog({
         body: { question: question.trim(), options: options.map((o) => o.trim()), multiple },
       }),
     onSuccess: () => onOpenChange(false),
-    onError: (error) => toast.error('Could not create the poll', { description: error.message }),
+    onError: (error) => toast.error(t.message.pollFailed, { description: error.message }),
   });
 
   const filled = options.map((o) => o.trim()).filter(Boolean);
@@ -53,14 +55,14 @@ export function PollDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        <DialogTitle>New poll</DialogTitle>
-        <DialogDescription>Everyone in the conversation can vote.</DialogDescription>
+        <DialogTitle>{t.message.poll}</DialogTitle>
+        <DialogDescription>{t.message.pollHint}</DialogDescription>
 
-        <Field label="Question" className="mt-4">
+        <Field label={t.message.pollQuestion} className="mt-4">
           <Input
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
-            placeholder="Where do we eat?"
+            placeholder={t.message.pollPlaceholder}
             maxLength={300}
             autoFocus
           />
@@ -101,7 +103,7 @@ export function PollDialog({
             onClick={() => setOptions((current) => [...current, ''])}
           >
             <Plus />
-            Add option
+            {t.message.pollAddOption}
           </Button>
         ) : null}
 
@@ -111,15 +113,15 @@ export function PollDialog({
             checked={multiple}
             onChange={(event) => setMultiple(event.target.checked)}
           />
-          Allow picking more than one
+          {t.message.pollMulti}
         </label>
 
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button onClick={() => create.mutate()} disabled={!ready || create.isPending}>
-            {create.isPending ? 'Creating…' : 'Create poll'}
+            {create.isPending ? t.message.pollCreating : t.message.pollCreate}
           </Button>
         </div>
       </DialogContent>

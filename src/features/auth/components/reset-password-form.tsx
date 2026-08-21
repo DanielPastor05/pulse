@@ -12,8 +12,10 @@ import { AuthCard } from '@/features/auth/components/auth-card';
 import { PasswordInput, PasswordStrength } from '@/features/auth/components/password-input';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
+import { useT } from '@/i18n/provider';
 
 export function ResetPasswordForm() {
+  const t = useT();
 
   const {
     register,
@@ -37,17 +39,17 @@ export function ResetPasswordForm() {
       return;
     }
 
-    toast.success('Password updated');
+    toast.success(t.auth.passwordUpdated);
     hardNavigate('/chat');
   });
 
   return (
     <AuthCard
-      title="Choose a new password"
-      description="Pick something you have not used anywhere else. You will stay signed in on this device."
+      title={t.auth.resetTitle}
+      description={t.auth.resetHint}
     >
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
-        <Field label="New password" htmlFor="password" error={errors.password?.message}>
+        <Field label={t.auth.newPassword} htmlFor="password" error={errors.password?.message}>
           <PasswordInput
             id="password"
             autoComplete="new-password"
@@ -58,7 +60,7 @@ export function ResetPasswordForm() {
           <PasswordStrength value={password ?? ''} />
         </Field>
 
-        <Field label="Confirm password" htmlFor="confirmPassword" error={errors.confirmPassword?.message}>
+        <Field label={t.auth.confirmPassword} htmlFor="confirmPassword" error={errors.confirmPassword?.message}>
           <PasswordInput
             id="confirmPassword"
             autoComplete="new-password"
@@ -69,7 +71,7 @@ export function ResetPasswordForm() {
         </Field>
 
         <Button type="submit" size="lg" block loading={isSubmitting}>
-          Update password
+          {t.auth.updatePassword}
         </Button>
       </form>
     </AuthCard>

@@ -13,7 +13,20 @@ export const LOCALE_LABELS: Record<Locale, string> = { EN: 'English', ES: 'Espa�
 
 export const LOCALE_COOKIE = 'pulse-locale';
 
-const LocaleContext = React.createContext<{ locale: Locale; t: Messages } | null>(null);
+/**
+ * Por defecto, inglés.
+ *
+ * No es un `null` que obligue a comprobar el proveedor en cada uso: un texto
+ * sin proveedor es un fallo de composición, no una emergencia, y romper la
+ * pantalla entera por eso cambia un desperfecto pequeño por uno grande. Con
+ * este valor por defecto el peor caso es el idioma que ya era el de reserva.
+ *
+ * De paso, un componente se puede montar solo en una prueba sin envolverlo.
+ */
+const LocaleContext = React.createContext<{ locale: Locale; t: Messages }>({
+  locale: 'EN',
+  t: en,
+});
 
 /**
  * El idioma de la interfaz.
@@ -55,13 +68,9 @@ export function LocaleProvider({
  * descubre en pantalla. `t.settings.language` se descubre al compilar.
  */
 export function useT(): Messages {
-  const value = React.useContext(LocaleContext);
-  if (!value) throw new Error('useT necesita estar dentro de <LocaleProvider>.');
-  return value.t;
+  return React.useContext(LocaleContext).t;
 }
 
 export function useLocale(): Locale {
-  const value = React.useContext(LocaleContext);
-  if (!value) throw new Error('useLocale necesita estar dentro de <LocaleProvider>.');
-  return value.locale;
+  return React.useContext(LocaleContext).locale;
 }

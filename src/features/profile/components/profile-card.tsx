@@ -11,6 +11,7 @@ import { useRelationshipActions, useSetBlocked } from '@/features/profile/hooks'
 import { Avatar, PRESENCE_LABEL } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import type { PublicUser } from '@/types/dto';
+import { useT } from '@/i18n/provider';
 
 type Props = {
   user: PublicUser;
@@ -20,6 +21,7 @@ type Props = {
 };
 
 export function ProfileCard({ user, isMe, relationship, blockedByMe }: Props) {
+  const t = useT();
   const router = useRouter();
   const openDirect = useOpenDirectConversation();
   const { send, respond } = useRelationshipActions();
@@ -30,10 +32,10 @@ export function ProfileCard({ user, isMe, relationship, blockedByMe }: Props) {
   return (
     <div className="panel flex h-full flex-col overflow-hidden rounded-[var(--radius-panel)] shadow-[var(--shadow-raised)]">
       <div className="flex items-center gap-2 border-b border-[var(--hairline)] px-3 py-2.5">
-        <Button size="icon-sm" variant="ghost" onClick={() => router.back()} aria-label="Go back">
+        <Button size="icon-sm" variant="ghost" onClick={() => router.back()} aria-label={t.nav.goBack}>
           <ArrowLeft />
         </Button>
-        <h1 className="text-[15px] font-semibold">Profile</h1>
+        <h1 className="text-[15px] font-semibold">{t.nav.profile}</h1>
       </div>
 
       <div className="scroll-area flex-1 overflow-y-auto pb-24 lg:pb-6">
@@ -69,13 +71,13 @@ export function ProfileCard({ user, isMe, relationship, blockedByMe }: Props) {
                   disabled={blockedByMe}
                 >
                   <MessageSquare />
-                  Message
+                  {t.nav.message}
                 </Button>
 
                 {relationship?.status === 'ACCEPTED' ? (
                   <Button variant="secondary" disabled>
                     <UserRoundCheck />
-                    Friends
+                    {t.nav.friends}
                   </Button>
                 ) : relationship?.status === 'PENDING' && relationship.direction === 'incoming' ? (
                   <Button
@@ -84,11 +86,11 @@ export function ProfileCard({ user, isMe, relationship, blockedByMe }: Props) {
                     loading={respond.isPending}
                   >
                     <UserRoundCheck />
-                    Accept request
+                    {t.nav.acceptRequest}
                   </Button>
                 ) : relationship?.status === 'PENDING' ? (
                   <Button variant="secondary" disabled>
-                    Request sent
+                    {t.nav.requestSent}
                   </Button>
                 ) : (
                   <Button
@@ -98,7 +100,7 @@ export function ProfileCard({ user, isMe, relationship, blockedByMe }: Props) {
                     disabled={blockedByMe}
                   >
                     <UserRoundPlus />
-                    Add friend
+                    {t.nav.addFriend}
                   </Button>
                 )}
 
@@ -109,13 +111,13 @@ export function ProfileCard({ user, isMe, relationship, blockedByMe }: Props) {
                   loading={setBlocked.isPending}
                 >
                   <ShieldBan />
-                  {blockedByMe ? 'Unblock' : 'Block'}
+                  {blockedByMe ? t.nav.unblock : 'Block'}
                 </Button>
               </div>
             ) : (
               <div className="mt-6">
                 <Button variant="secondary" onClick={() => router.push('/settings')}>
-                  Edit your profile
+                  {t.nav.editProfile}
                 </Button>
               </div>
             )}

@@ -13,8 +13,10 @@ import { AuthCard } from '@/features/auth/components/auth-card';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { useT } from '@/i18n/provider';
 
 export function ForgotPasswordForm() {
+  const t = useT();
   const [sent, setSent] = React.useState(false);
 
   const {
@@ -46,11 +48,11 @@ export function ForgotPasswordForm() {
   if (sent) {
     return (
       <AuthCard
-        title="Reset link sent"
+        title={t.auth.resetSent}
         description="If that address has an account, a reset link is on its way. It stays valid for one hour."
         footer={
           <Link href="/login" className="font-semibold text-[var(--accent)] hover:underline">
-            Back to sign in
+            {t.auth.backToSignIn}
           </Link>
         }
       >
@@ -68,25 +70,25 @@ export function ForgotPasswordForm() {
 
   return (
     <AuthCard
-      title="Forgot your password?"
-      description="Give us the email on the account and we will send a link to set a new one."
+      title={t.auth.forgotTitle}
+      description={t.auth.forgotHint}
       footer={
         <Link
           href="/login"
           className="inline-flex items-center gap-1.5 font-semibold text-[var(--accent)] hover:underline"
         >
           <ArrowLeft className="size-3.5" />
-          Back to sign in
+          {t.auth.backToSignIn}
         </Link>
       }
     >
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
-        <Field label="Email" htmlFor="email" error={errors.email?.message}>
+        <Field label={t.auth.email} htmlFor="email" error={errors.email?.message}>
           <Input
             id="email"
             type="email"
             autoComplete="email"
-            placeholder="you@example.com"
+            placeholder={t.auth.emailPlaceholder}
             icon={<Mail />}
             aria-invalid={Boolean(errors.email)}
             {...register('email')}
@@ -94,7 +96,7 @@ export function ForgotPasswordForm() {
         </Field>
 
         <Button type="submit" size="lg" block loading={isSubmitting}>
-          Send reset link
+          {t.auth.sendResetLink}
         </Button>
       </form>
     </AuthCard>

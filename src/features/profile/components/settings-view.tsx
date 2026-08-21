@@ -115,6 +115,7 @@ function ProfileTab() {
     },
   });
 
+  const t = useT();
   const values = watch();
 
   return (
@@ -123,7 +124,7 @@ function ProfileTab() {
         onSubmit={handleSubmit((input) => update.mutate(input, { onSuccess: () => reset(input) }))}
         className="space-y-5"
       >
-        <Section title="Profile" description="How you appear across every conversation.">
+        <Section title={t.settings.profile} description={t.settings.profileHint}>
           <div className="space-y-5">
             <AvatarPicker
               value={values.avatarUrl ?? null}
@@ -133,10 +134,10 @@ function ProfileTab() {
             />
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Display name" htmlFor="displayName" error={errors.displayName?.message}>
+              <Field label={t.settings.displayName} htmlFor="displayName" error={errors.displayName?.message}>
                 <Input id="displayName" {...register('displayName')} />
               </Field>
-              <Field label="Username" htmlFor="username" error={errors.username?.message}>
+              <Field label={t.settings.username} htmlFor="username" error={errors.username?.message}>
                 <Input
                   id="username"
                   {...register('username', {
@@ -146,12 +147,16 @@ function ProfileTab() {
               </Field>
             </div>
 
-            <Field label="Status" htmlFor="statusText" hint="Shown next to your name">
-              <Input id="statusText" placeholder="Heads down until 4pm" {...register('statusText')} />
+            <Field label={t.settings.status} htmlFor="statusText" hint={t.settings.statusHint}>
+              <Input
+                id="statusText"
+                placeholder={t.settings.statusPlaceholder}
+                {...register('statusText')}
+              />
             </Field>
 
             <Field
-              label="Bio"
+              label={t.settings.bio}
               htmlFor="bio"
               hint={`${values.bio?.length ?? 0}/280`}
               error={errors.bio?.message}
@@ -163,7 +168,7 @@ function ProfileTab() {
 
         <div className="flex justify-end">
           <Button type="submit" disabled={!isDirty} loading={update.isPending}>
-            Save changes
+            {t.common.saveChanges}
           </Button>
         </div>
       </form>
@@ -183,14 +188,14 @@ function AppearanceTab() {
   const { theme, setTheme } = useTheme();
 
   const options = [
-    { id: 'light', icon: Sun, label: 'Light' },
-    { id: 'dark', icon: Moon, label: 'Dark' },
-    { id: 'system', icon: Monitor, label: 'System' },
+    { id: 'light', icon: Sun, label: t.settings.themeLight },
+    { id: 'dark', icon: Moon, label: t.settings.themeDark },
+    { id: 'system', icon: Monitor, label: t.settings.themeSystem },
   ] as const;
 
   return (
     <div className="space-y-5">
-      <Section title="Theme" description="Applies immediately and syncs to your account.">
+      <Section title={t.settings.theme} description={t.settings.themeHint}>
         <div className="grid gap-3 sm:grid-cols-3">
           {options.map((option) => (
             <button
@@ -220,7 +225,7 @@ function AppearanceTab() {
         </div>
       </Section>
 
-      <Section title="Accent" description="Recolours gradients, badges and highlights everywhere.">
+      <Section title={t.settings.accent} description={t.settings.accentHint}>
         <AccentPicker value={me.accent} onChange={(accent) => update.mutate({ accent })} />
       </Section>
 
@@ -228,11 +233,11 @@ function AppearanceTab() {
         <LanguagePicker />
       </Section>
 
-      <Section title="Motion" description="Respected on top of your operating system setting.">
+      <Section title={t.settings.motion} description={t.settings.motionHint}>
         <ToggleRow
           icon={<Palette />}
-          title="Reduce motion"
-          description="Turns off springs, slides and the animated background."
+          title={t.settings.reducedMotion}
+          description={t.settings.reducedMotionHint}
           checked={me.reducedMotion}
           onChange={(reducedMotion) => update.mutate({ reducedMotion })}
         />
@@ -242,37 +247,38 @@ function AppearanceTab() {
 }
 
 function NotificationsTab() {
+  const t = useT();
   const me = useSession();
   const update = useUpdateProfile();
 
   return (
-    <Section title="Notifications" description="Choose what is worth interrupting you for.">
+    <Section title={t.settings.notifications} description={t.settings.notificationsHint}>
       <div className="space-y-1">
         <ToggleRow
           icon={<Bell />}
-          title="New messages"
-          description="Notify me for every message in unmuted conversations."
+          title={t.settings.onMessage}
+          description={t.settings.onMessageHint}
           checked={me.notifications.onMessage}
           onChange={(value) => update.mutate({ notifyOnMessage: value })}
         />
         <ToggleRow
           icon={<UserRound />}
-          title="Mentions"
-          description="Always notify me when someone writes @my handle."
+          title={t.settings.onMention}
+          description={t.settings.onMentionHint}
           checked={me.notifications.onMention}
           onChange={(value) => update.mutate({ notifyOnMention: value })}
         />
         <ToggleRow
           icon={<Check />}
-          title="Reactions"
-          description="Tell me when someone reacts to something I wrote."
+          title={t.settings.onReaction}
+          description={t.settings.onReactionHint}
           checked={me.notifications.onReaction}
           onChange={(value) => update.mutate({ notifyOnReaction: value })}
         />
         <ToggleRow
           icon={<Volume2 />}
-          title="Sound"
-          description="Play a short chime for incoming and outgoing messages."
+          title={t.settings.sound}
+          description={t.settings.soundHint}
           checked={me.notifications.sounds}
           onChange={(value) => {
             update.mutate({ notifySounds: value });
@@ -281,8 +287,8 @@ function NotificationsTab() {
         />
         <ToggleRow
           icon={<Monitor />}
-          title="Notifications"
-          description="Reach this device even when Pulse is closed."
+          title={t.settings.desktopPush}
+          description={t.settings.desktopHint}
           checked={me.notifications.desktopPush}
           onChange={async (value) => {
             if (!value) {
@@ -296,15 +302,14 @@ function NotificationsTab() {
             if (result === 'needs-install') {
               // Not a permission problem and not fixable in settings: on iOS
               // Safari exposes no push at all outside the installed app.
-              toast.error('Add Pulse to your home screen first', {
-                description:
-                  'On iPhone, notifications only work once the app is installed. Share → Add to Home Screen.',
+              toast.error(t.settings.needsInstall, {
+                description: t.settings.needsInstallHint,
               });
               return;
             }
             if (result === 'denied') {
-              toast.error('Permission denied', {
-                description: 'Allow notifications for this site in your browser settings.',
+              toast.error(t.settings.permissionDenied, {
+                description: t.settings.permissionDeniedHint,
               });
               return;
             }
@@ -313,13 +318,13 @@ function NotificationsTab() {
               // the tab is open.
               const granted = await ensureNotificationPermission();
               if (!granted) {
-                toast.error('Permission denied', {
-                  description: 'Allow notifications for this site in your browser settings.',
+                toast.error(t.settings.permissionDenied, {
+                  description: t.settings.permissionDeniedHint,
                 });
                 return;
               }
-              toast.message('Notifications on, but only while Pulse is open', {
-                description: 'This browser cannot deliver them with the app closed.',
+              toast.message(t.settings.openOnly, {
+                description: t.settings.openOnlyHint,
               });
             }
 
@@ -332,6 +337,7 @@ function NotificationsTab() {
 }
 
 function PeopleTab() {
+  const t = useT();
   const { data: relationships, isLoading } = useRelationships();
   const { respond, remove } = useRelationshipActions();
   const { data: blocked } = useBlockedUsers();
@@ -347,7 +353,7 @@ function PeopleTab() {
 
   return (
     <div className="space-y-5">
-      <Section title="Friend requests" description="People waiting on an answer from you.">
+      <Section title={t.settings.friendRequests} description={t.settings.friendRequestsHint}>
         {isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 2 }).map((_, index) => (
@@ -355,7 +361,7 @@ function PeopleTab() {
             ))}
           </div>
         ) : incoming.length === 0 && outgoing.length === 0 ? (
-          <EmptyState compact icon={<UserRoundCheck />} title="No pending requests" />
+          <EmptyState compact icon={<UserRoundCheck />} title={t.settings.noPending} />
         ) : (
           <ul className="space-y-1.5">
             {incoming.map((item) => (
@@ -371,14 +377,14 @@ function PeopleTab() {
                 <Button
                   size="icon-sm"
                   variant="ghost"
-                  aria-label="Decline"
+                  aria-label={t.common.decline}
                   onClick={() => respond.mutate({ id: item.id, accept: false })}
                 >
                   <X />
                 </Button>
                 <Button
                   size="icon-sm"
-                  aria-label="Accept"
+                  aria-label={t.common.accept}
                   onClick={() => respond.mutate({ id: item.id, accept: true })}
                 >
                   <Check />
@@ -393,10 +399,10 @@ function PeopleTab() {
                 <Avatar src={item.user.avatarUrl} name={item.user.displayName} size="sm" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-medium">{item.user.displayName}</p>
-                  <p className="text-[11px] text-[var(--text-3)]">Request sent</p>
+                  <p className="text-[11px] text-[var(--text-3)]">{t.settings.requestSent}</p>
                 </div>
                 <Button size="sm" variant="ghost" onClick={() => remove.mutate(item.id)}>
-                  Cancel
+                  {t.common.cancel}
                 </Button>
               </li>
             ))}
@@ -404,13 +410,13 @@ function PeopleTab() {
         )}
       </Section>
 
-      <Section title="Friends" description="People you have both agreed to connect with.">
+      <Section title={t.settings.friends} description={t.settings.friendsHint}>
         {friends.length === 0 ? (
           <EmptyState
             compact
             icon={<UserRoundCheck />}
-            title="No friends yet"
-            description="Open someone's profile and send a request."
+            title={t.settings.noFriends}
+            description={t.settings.noFriendsHint}
           />
         ) : (
           <ul className="grid gap-1.5 sm:grid-cols-2">
@@ -441,9 +447,9 @@ function PeopleTab() {
         )}
       </Section>
 
-      <Section title="Blocked" description="They cannot message you, and you will not see theirs.">
+      <Section title={t.settings.blocked} description={t.settings.blockedHint}>
         {!blocked || blocked.length === 0 ? (
-          <EmptyState compact icon={<ShieldBan />} title="Nobody is blocked" />
+          <EmptyState compact icon={<ShieldBan />} title={t.settings.nobodyBlocked} />
         ) : (
           <ul className="space-y-1.5">
             {blocked.map((user) => (
@@ -462,7 +468,7 @@ function PeopleTab() {
                   onClick={() => setBlocked.mutate({ userId: user.id, blocked: false })}
                 >
                   <UserRoundX />
-                  Unblock
+                  {t.settings.unblock}
                 </Button>
               </li>
             ))}
@@ -474,12 +480,14 @@ function PeopleTab() {
 }
 
 export function SettingsView() {
+  const t = useT();
+
   return (
     <div className="panel flex h-full flex-col overflow-hidden rounded-[var(--radius-panel)] shadow-[var(--shadow-raised)]">
       <header className="border-b border-[var(--hairline)] p-5 pb-4">
-        <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
+        <h1 className="text-xl font-semibold tracking-tight">{t.settings.title}</h1>
         <p className="mt-1 text-[13px] text-[var(--text-2)]">
-          Everything here saves to your account and follows you between devices.
+          {t.settings.intro}
         </p>
       </header>
 
@@ -487,10 +495,10 @@ export function SettingsView() {
         <div className="mx-auto max-w-3xl">
           <Tabs defaultValue="profile">
             <TabsList className="mb-5 flex-wrap">
-              <TabsTrigger value="profile">Profile</TabsTrigger>
-              <TabsTrigger value="appearance">Appearance</TabsTrigger>
-              <TabsTrigger value="notifications">Notifications</TabsTrigger>
-              <TabsTrigger value="people">People</TabsTrigger>
+              <TabsTrigger value="profile">{t.settings.profile}</TabsTrigger>
+              <TabsTrigger value="appearance">{t.settings.appearance}</TabsTrigger>
+              <TabsTrigger value="notifications">{t.settings.notifications}</TabsTrigger>
+              <TabsTrigger value="people">{t.settings.people}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="profile">

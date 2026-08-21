@@ -21,10 +21,12 @@ import { cn } from '@/lib/utils';
 import { Avatar, PRESENCE_COLOR, PRESENCE_LABEL } from '@/components/ui/avatar';
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from '@/components/ui/menu';
 import { useSession, useUpdateSessionCache } from '@/components/providers/session-provider';
+import { useT } from '@/i18n/provider';
 
 const PRESENCE_OPTIONS: Presence[] = ['ONLINE', 'IDLE', 'DND', 'OFFLINE'];
 
 export function UserMenu({ align = 'start' }: { align?: 'start' | 'center' | 'end' }) {
+  const t = useT();
   const me = useSession();
   const patchSession = useUpdateSessionCache();
   const { theme, setTheme } = useTheme();
@@ -42,7 +44,7 @@ export function UserMenu({ align = 'start' }: { align?: 'start' | 'center' | 'en
             'rounded-full outline-none transition-transform duration-200',
             'hover:scale-105 active:scale-95 focus-visible:ring-2 focus-visible:ring-[var(--accent)]',
           )}
-          aria-label="Your account"
+          aria-label={t.auth.yourAccount}
         >
           <Avatar src={me.avatarUrl} name={me.displayName} presence={me.presence} size="md" />
         </button>
@@ -60,7 +62,7 @@ export function UserMenu({ align = 'start' }: { align?: 'start' | 'center' | 'en
         </div>
 
         <MenuSeparator />
-        <MenuLabel>Presence</MenuLabel>
+        <MenuLabel>{t.auth.presence}</MenuLabel>
         {PRESENCE_OPTIONS.map((option) => (
           <MenuItem key={option} onSelect={() => setPresence.mutate(option)}>
             <Circle className={cn('size-2.5 rounded-full border-0', PRESENCE_COLOR[option])} fill="currentColor" />
@@ -70,7 +72,7 @@ export function UserMenu({ align = 'start' }: { align?: 'start' | 'center' | 'en
         ))}
 
         <MenuSeparator />
-        <MenuLabel>Appearance</MenuLabel>
+        <MenuLabel>{t.settings.appearance}</MenuLabel>
         <div className="flex gap-1 px-1 pb-1">
           {(
             [
@@ -102,13 +104,13 @@ export function UserMenu({ align = 'start' }: { align?: 'start' | 'center' | 'en
         <MenuItem asChild>
           <Link href={`/u/${me.username}`}>
             <UserRound />
-            View profile
+            {t.auth.viewProfile}
           </Link>
         </MenuItem>
         <MenuItem asChild>
           <Link href="/settings">
             <Settings />
-            Settings
+            {t.settings.title}
           </Link>
         </MenuItem>
 
@@ -117,7 +119,7 @@ export function UserMenu({ align = 'start' }: { align?: 'start' | 'center' | 'en
           <form action="/auth/sign-out" method="post" className="w-full">
             <button type="submit" className="flex w-full items-center gap-2.5">
               <LogOut />
-              Sign out
+              {t.auth.signOut}
             </button>
           </form>
         </MenuItem>

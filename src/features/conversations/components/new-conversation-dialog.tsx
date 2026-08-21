@@ -24,6 +24,7 @@ import { Field } from '@/components/ui/field';
 import { Input, Textarea } from '@/components/ui/input';
 import { Switch, Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/misc';
 import type { PublicUser } from '@/types/dto';
+import { useT } from '@/i18n/provider';
 
 type Props = {
   open: boolean;
@@ -32,6 +33,7 @@ type Props = {
 };
 
 export function NewConversationDialog({ open, onOpenChange, defaultTab = 'direct' }: Props) {
+  const t = useT();
   const [directTarget, setDirectTarget] = React.useState<PublicUser[]>([]);
   const [groupMembers, setGroupMembers] = React.useState<PublicUser[]>([]);
 
@@ -78,9 +80,9 @@ export function NewConversationDialog({ open, onOpenChange, defaultTab = 'direct
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
       <DialogContent size="md">
         <DialogHeader>
-          <DialogTitle>Start something new</DialogTitle>
+          <DialogTitle>{t.conversation.createTitle}</DialogTitle>
           <DialogDescription>
-            Message one person directly, or spin up a group with a name and a vibe.
+            {t.conversation.createHint}
           </DialogDescription>
         </DialogHeader>
 
@@ -89,13 +91,13 @@ export function NewConversationDialog({ open, onOpenChange, defaultTab = 'direct
             <TabsTrigger value="direct" className="flex-1">
               <span className="flex items-center justify-center gap-1.5">
                 <MessageSquarePlus className="size-4" />
-                Direct
+                {t.conversation.direct}
               </span>
             </TabsTrigger>
             <TabsTrigger value="group" className="flex-1">
               <span className="flex items-center justify-center gap-1.5">
                 <Hash className="size-4" />
-                Group
+                {t.conversation.group}
               </span>
             </TabsTrigger>
           </TabsList>
@@ -105,11 +107,11 @@ export function NewConversationDialog({ open, onOpenChange, defaultTab = 'direct
               selected={directTarget}
               onChange={(users) => setDirectTarget(users.slice(-1))}
               max={1}
-              placeholder="Who do you want to talk to?"
+              placeholder={t.conversation.whoTalkTo}
             />
             <DialogFooter>
               <Button variant="ghost" onClick={close}>
-                Cancel
+                {t.common.cancel}
               </Button>
               <Button
                 onClick={startDirect}
@@ -117,7 +119,7 @@ export function NewConversationDialog({ open, onOpenChange, defaultTab = 'direct
                 loading={openDirect.isPending}
               >
                 <UserRoundPlus />
-                Open chat
+                {t.conversation.openChat}
               </Button>
             </DialogFooter>
           </TabsContent>
@@ -127,36 +129,36 @@ export function NewConversationDialog({ open, onOpenChange, defaultTab = 'direct
               <div className="flex items-start gap-5">
                 <AvatarPicker
                   value={values.avatarUrl ?? null}
-                  name={values.name || 'New group'}
+                  name={values.name || t.conversation.newGroup}
                   onChange={(url) => setValue('avatarUrl', url)}
                   size="lg"
                 />
               </div>
 
-              <Field label="Group name" htmlFor="group-name" error={formState.errors.name?.message}>
+              <Field label={t.conversation.groupName} htmlFor="group-name" error={formState.errors.name?.message}>
                 <Input
                   id="group-name"
-                  placeholder="Design guild"
+                  placeholder={t.conversation.groupNamePlaceholder}
                   aria-invalid={Boolean(formState.errors.name)}
                   {...register('name')}
                 />
               </Field>
 
               <Field
-                label="Description"
+                label={t.conversation.description}
                 htmlFor="group-description"
-                hint="Optional"
+                hint={t.conversation.optional}
                 error={formState.errors.description?.message}
               >
                 <Textarea
                   id="group-description"
                   rows={2}
-                  placeholder="What is this space for?"
+                  placeholder={t.conversation.descriptionPlaceholder}
                   {...register('description')}
                 />
               </Field>
 
-              <Field label="Accent">
+              <Field label={t.settings.accent}>
                 <AccentPicker
                   value={values.accent}
                   onChange={(accent) => setValue('accent', accent)}
@@ -172,12 +174,12 @@ export function NewConversationDialog({ open, onOpenChange, defaultTab = 'direct
                   <span className="flex-1">
                     <span className="flex items-center gap-1.5 text-[13px] font-medium">
                       {values.isPublic ? <Globe className="size-3.5" /> : <Lock className="size-3.5" />}
-                      {values.isPublic ? 'Public group' : 'Private group'}
+                      {values.isPublic ? t.conversation.publicGroup : 'Private group'}
                     </span>
                     <span className="mt-0.5 block text-[12px] text-[var(--text-2)]">
                       {values.isPublic
-                        ? 'Anyone can find this group in Discover.'
-                        : 'Only people you invite can join.'}
+                        ? t.conversation.publicHint
+                        : t.conversation.privateHint}
                     </span>
                   </span>
                 </label>
@@ -197,10 +199,10 @@ export function NewConversationDialog({ open, onOpenChange, defaultTab = 'direct
                       <span className="flex-1">
                         <span className="flex items-center gap-1.5 text-[13px] font-medium">
                           <ShieldCheck className="size-3.5" />
-                          Review join requests
+                          {t.conversation.reviewRequests}
                         </span>
                         <span className="mt-0.5 block text-[12px] text-[var(--text-2)]">
-                          Moderators approve each person before they can post.
+                          {t.conversation.reviewRequestsHint}
                         </span>
                       </span>
                     </label>
@@ -208,17 +210,17 @@ export function NewConversationDialog({ open, onOpenChange, defaultTab = 'direct
                 </div>
               </div>
 
-              <Field label="Invite people" hint="Optional">
+              <Field label={t.conversation.invitePeople} hint={t.conversation.optional}>
                 <UserPicker selected={groupMembers} onChange={setGroupMembers} />
               </Field>
 
               <DialogFooter>
                 <Button type="button" variant="ghost" onClick={close}>
-                  Cancel
+                  {t.common.cancel}
                 </Button>
                 <Button type="submit" loading={createGroup.isPending}>
                   <Hash />
-                  Create group
+                  {t.conversation.createGroup}
                 </Button>
               </DialogFooter>
             </form>

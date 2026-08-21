@@ -10,23 +10,25 @@ import { MessageContent } from '@/features/messages/components/message-content';
 import { PollCard } from '@/features/messages/components/poll-card';
 import { AttachmentGrid } from '@/features/media/components/attachment-grid';
 import type { MessageDTO } from '@/types/dto';
+import { useT } from '@/i18n/provider';
 
 type Thread = { root: MessageDTO; replies: MessageDTO[]; nextCursor: string | null };
 
 function ThreadMessage({ message }: { message: MessageDTO }) {
+  const t = useT();
   const deleted = Boolean(message.deletedAt);
 
   return (
     <li className="flex gap-2.5">
       <Avatar
         src={message.author?.avatarUrl ?? null}
-        name={message.author?.displayName ?? 'Someone'}
+        name={message.author?.displayName ?? t.message.someone}
         size="sm"
       />
       <div className="min-w-0 flex-1">
         <p className="flex items-baseline gap-2">
           <span className="truncate text-[13px] font-medium">
-            {message.author?.displayName ?? 'Someone'}
+            {message.author?.displayName ?? t.message.someone}
           </span>
           <span className="shrink-0 text-[11px] text-[var(--text-3)]">
             {formatRelative(message.createdAt)}
@@ -34,7 +36,7 @@ function ThreadMessage({ message }: { message: MessageDTO }) {
         </p>
 
         {deleted ? (
-          <p className="text-[13px] italic text-[var(--text-3)]">Message deleted</p>
+          <p className="text-[13px] italic text-[var(--text-3)]">{t.message.deletedShort}</p>
         ) : (
           <>
             {message.attachments.length > 0 ? (
@@ -62,6 +64,7 @@ function ThreadMessage({ message }: { message: MessageDTO }) {
  * without making a single reply easy to miss.
  */
 export function ThreadPanel({ rootId }: { rootId: string }) {
+  const t = useT();
   // Paginado y no un `take` grande: antes traia doscientas respuestas y ahi se
   // acababa, sin decir que faltaban. Un tope que trunca en silencio es lo peor
   // de las dos opciones — ni lo enseña entero ni avisa.
@@ -88,7 +91,7 @@ export function ThreadPanel({ rootId }: { rootId: string }) {
   }
 
   if (isError || !root) {
-    return <p className="p-4 text-[13px] text-[var(--text-3)]">This thread is not available.</p>;
+    return <p className="p-4 text-[13px] text-[var(--text-3)]">{t.message.threadUnavailable}</p>;
   }
 
   return (
@@ -104,7 +107,7 @@ export function ThreadPanel({ rootId }: { rootId: string }) {
 
       {replies.length === 0 ? (
         <p className="text-[13px] text-[var(--text-3)]">
-          Reply to this message and it will show up here.
+          {t.message.threadEmpty}
         </p>
       ) : (
         <ul className="space-y-3">
@@ -121,7 +124,7 @@ export function ThreadPanel({ rootId }: { rootId: string }) {
           disabled={isFetchingNextPage}
           className="mt-3 w-full rounded-[var(--radius-field)] border border-[var(--hairline)] py-2 text-[12px] text-[var(--text-2)] transition-colors hover:border-[var(--hairline-strong)] disabled:opacity-60"
         >
-          {isFetchingNextPage ? 'Loading…' : 'Load older replies'}
+          {isFetchingNextPage ? t.common.loading : t.message.loadOlder}
         </button>
       ) : null}
     </div>

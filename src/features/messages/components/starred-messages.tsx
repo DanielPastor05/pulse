@@ -15,8 +15,10 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { MessageDTO } from '@/types/dto';
+import { useT } from '@/i18n/provider';
 
 export function StarredMessages() {
+  const t = useT();
   const queryClient = useQueryClient();
 
   const { data: messages, isLoading } = useQuery({
@@ -45,9 +47,9 @@ export function StarredMessages() {
   return (
     <div className="panel flex h-full flex-col overflow-hidden rounded-[var(--radius-panel)] shadow-[var(--shadow-raised)]">
       <header className="border-b border-[var(--hairline)] p-5 pb-4">
-        <h1 className="text-xl font-semibold tracking-tight">Starred</h1>
+        <h1 className="text-xl font-semibold tracking-tight">{t.message.starred}</h1>
         <p className="mt-1 text-[13px] text-[var(--text-2)]">
-          Your private shortlist. Only you can see what you star.
+          {t.message.starredHint}
         </p>
       </header>
 
@@ -61,8 +63,8 @@ export function StarredMessages() {
         ) : !messages || messages.length === 0 ? (
           <EmptyState
             icon={<Star />}
-            title="Nothing starred yet"
-            description="Star a message from its context menu to keep it here for later."
+            title={t.message.nothingStarred}
+            description={t.message.nothingStarredHint}
           />
         ) : (
           <ul className="mx-auto grid max-w-2xl gap-3">
@@ -83,7 +85,7 @@ export function StarredMessages() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
                       <p className="truncate text-[13px] font-semibold">
-                        {message.author?.displayName ?? 'Unknown'}
+                        {message.author?.displayName ?? t.message.unknown}
                       </p>
                       <time className="shrink-0 text-[11px] text-[var(--text-3)]">
                         {formatFullTimestamp(message.createdAt)}
@@ -104,7 +106,7 @@ export function StarredMessages() {
                       <Button asChild size="sm" variant="ghost">
                         <Link href={`/chat/${message.conversationId}?m=${message.id}`}>
                           <ArrowUpRight />
-                          Jump to message
+                          {t.message.jumpTo}
                         </Link>
                       </Button>
                       <Button
@@ -114,7 +116,7 @@ export function StarredMessages() {
                         className="opacity-0 transition-opacity group-hover:opacity-100"
                       >
                         <StarOff />
-                        Remove
+                        {t.message.remove}
                       </Button>
                     </div>
                   </div>

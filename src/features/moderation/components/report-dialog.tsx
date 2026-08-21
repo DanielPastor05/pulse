@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { useReportMessage } from '@/features/moderation/hooks';
 import { REPORT_REASONS } from '@/features/moderation/validators';
 import type { MessageDTO } from '@/types/dto';
+import { useT } from '@/i18n/provider';
 
 type Reason = (typeof REPORT_REASONS)[number]['value'];
 
@@ -21,6 +22,7 @@ export function ReportDialog({
   message: MessageDTO | null;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const [reason, setReason] = React.useState<Reason>('SPAM');
   const [note, setNote] = React.useState('');
   const report = useReportMessage();
@@ -46,10 +48,10 @@ export function ReportDialog({
       <DialogContent className="max-w-md">
         <DialogTitle className="flex items-center gap-2">
           <Flag className="size-4 text-[var(--danger)]" />
-          Report message
+          {t.message.reportTitle}
         </DialogTitle>
         <DialogDescription>
-          Only moderators of this conversation see reports. The author is not told who reported them.
+          {t.message.reportHint}
         </DialogDescription>
 
         <div className="mt-4 space-y-1.5">
@@ -72,21 +74,21 @@ export function ReportDialog({
           ))}
         </div>
 
-        <Field label="Anything to add?" className="mt-4">
+        <Field label={t.message.reportMore} className="mt-4">
           <Input
             value={note}
             onChange={(event) => setNote(event.target.value)}
-            placeholder="Optional context for the moderator"
+            placeholder={t.message.reportPlaceholder}
             maxLength={500}
           />
         </Field>
 
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button onClick={submit} disabled={report.isPending}>
-            {report.isPending ? 'Sending…' : 'Send report'}
+            {report.isPending ? t.message.reportSending : t.message.reportSend}
           </Button>
         </div>
       </DialogContent>
