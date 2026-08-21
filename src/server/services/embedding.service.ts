@@ -1,22 +1,32 @@
 import { Prisma } from '@prisma/client';
 
 import { prisma } from '@/lib/prisma';
-import { publicEnv, serverEnv } from '@/lib/env';
+import { serverEnv } from '@/lib/env';
 import { describeError, log } from '@/server/logger';
 
 /**
  * Embeddings de mensajes y de consultas.
  *
- * El modelo es `gte-small` corriendo dentro de una Edge Function de Supabase.
- * No hay API de terceros, ni clave que rotar, ni coste por token — que es lo
- * que hace posible indexar cada mensaje en vez de dejar esto en demostración.
+ * El modelo es `bge-m3` en Workers AI de Cloudflare. Antes era `gte-small`
+ * dentro de una Edge Function de Supabase, que no necesitaba clave ninguna —
+ * una propiedad que se pierde aquí y que hay que decir en voz alta.
+ *
+ * Lo que se compra a cambio está medido, no supuesto: `npm run bench:models`
+ * enfrenta a los dos contra el mismo corpus etiquetado y da recall@5 del 58% al
+ * 75% **en español**, sin mover el inglés. Que sólo mejore el idioma que
+ * mejoraba es la señal de que el cambio hace lo que dice: `gte-small` está
+ * entrenado en inglés y, con una consulta en español, agrupa por idioma antes
+ * que por significado.
+ *
+ * Coste: 1075 neuronas por millón de tokens de entrada, con 10 000 gratis al
+ * día. El corpus entero de este proyecto son 22 neuronas.
  *
  * Los vectores no pasan por Prisma: no sabe leer ni escribir `vector`, así que
  * todo va por SQL crudo con un cast explícito.
  */
 
-/** 384 es lo que devuelve gte-small; se comprueba porque un vector corto rompe el índice. */
-const DIMENSIONS = 384;
+/** 1024 es lo que devuelve bge-m3; se comprueba porque un vector corto rompe el índice. */
+const DIMENSIONS = 1024;
 
 /**
  * Por debajo de esto el vector es ruido.
@@ -30,10 +40,11 @@ export const MIN_EMBED_LENGTH = 15;
 /**
  * Cuántos textos van en cada invocación.
  *
- * Medido: con 16 textos de ~120 caracteres la función devuelve 546
- * WORKER_RESOURCE_LIMIT. Se queda en 8 y además se corta por caracteres, porque
- * el coste real va con los tokens y un lote de mensajes largos revienta antes
- * que uno de mensajes cortos.
+ * El límite de la Edge Function ya no aplica —el modelo corre en Cloudflare y
+ * su ventana es de 60 000 tokens—, pero el lote se queda en 8 igualmente: es lo
+ * que estaba medido, y subirlo sin volver a medir es cambiar un número por
+ * corazonada. El corte por caracteres se mantiene porque el coste va con los
+ * tokens y un lote de mensajes largos pesa mucho más que uno de cortos.
  */
 const BATCH = 8;
 const BATCH_CHARS = 3_000;
@@ -85,24 +96,48 @@ function chunk(texts: string[]): string[][] {
   return chunks;
 }
 
-/** Llama a la función. Lanza: quien la use decide si eso importa o no. */
+/**
+ * Llama al modelo. Lanza: quien la use decide si eso importa o no.
+ *
+ * Sin credenciales lanza también, y a propósito: la alternativa es devolver
+ * vectores vacíos y que la búsqueda ordene por una distancia calculada sobre
+ * nada. Los que llaman ya tratan el fallo como «esta búsqueda no tiene mitad
+ * vectorial», que es honesto; un vector inventado no lo sería.
+ */
 async function callEmbed(texts: string[]): Promise<number[][]> {
-  const response = await fetch(`${publicEnv.supabaseUrl}/functions/v1/embed`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${serverEnv.serviceRoleKey}`,
+  const account = serverEnv.cloudflareAccountId;
+  const token = serverEnv.cloudflareAiToken;
+  if (!account || !token) throw new Error('embed -> faltan credenciales de Workers AI');
+
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${account}/ai/run/@cf/baai/bge-m3`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ text: texts }),
+      cache: 'no-store',
     },
-    body: JSON.stringify({ input: texts }),
-    cache: 'no-store',
-  });
+  );
 
   if (!response.ok) {
     throw new Error(`embed -> ${response.status} ${(await response.text()).slice(0, 200)}`);
   }
 
-  const body = (await response.json()) as { embeddings?: number[][] };
-  const embeddings = body.embeddings ?? [];
+  // La API envuelve todo en `{success, result, errors}` y responde 200 aunque
+  // haya fallado, así que el código HTTP por sí solo no dice nada.
+  const body = (await response.json()) as {
+    success?: boolean;
+    errors?: unknown;
+    result?: { data?: number[][]; response?: number[][] };
+  };
+  if (!body.success) {
+    throw new Error(`embed -> ${JSON.stringify(body.errors).slice(0, 200)}`);
+  }
+
+  const embeddings = body.result?.data ?? body.result?.response ?? [];
 
   if (embeddings.length !== texts.length) {
     throw new Error(`embed devolvió ${embeddings.length} vectores para ${texts.length} textos`);

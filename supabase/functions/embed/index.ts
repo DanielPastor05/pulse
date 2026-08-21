@@ -1,9 +1,18 @@
 /**
- * Embeddings para la búsqueda híbrida.
+ * `gte-small`, el modelo que la búsqueda usaba antes.
  *
- * `gte-small` corre dentro de la propia Edge Function: no hay API de terceros,
- * ni clave que rotar, ni coste por token. Eso es lo que hace viable indexar
- * cada mensaje en vez de reservar la función para una demostración.
+ * **La aplicación ya no llama aquí.** Desde el 21/08/2026 los embeddings salen
+ * de `bge-m3` en Workers AI, porque en español recuperaba 58% contra 75% y esta
+ * aplicación se usa en dos idiomas.
+ *
+ * Sigue desplegada a propósito, y no es código muerto: `npm run bench:models`
+ * la necesita para reproducir esa comparación. Una medición que ya no se puede
+ * volver a ejecutar deja de ser una medición y pasa a ser una afirmación —
+ * borrarla convertiría la tabla del README en algo que hay que creerse.
+ *
+ * Corre dentro de la propia Edge Function: no hay API de terceros, ni clave que
+ * rotar, ni coste por token. Esa propiedad es justo la que se perdió al
+ * cambiar, y por eso conviene tenerla escrita al lado.
  *
  * Acepta un texto o una lista. La lista existe por el relleno: recorrer
  * cuatrocientos mensajes de uno en uno son cuatrocientas invocaciones, y el

@@ -177,9 +177,11 @@ mean the same thing or live on the same scale. Normalising them into one number
 means picking a range, and the right range changes with every query. RRF only
 compares **positions**, which is the one thing both arms express identically.
 
-Embeddings come from `gte-small` running inside a Supabase Edge Function — no
-third-party API, no key to rotate, no per-token cost. That is what makes it
-affordable to index every message rather than keep the feature as a demo.
+Embeddings come from `bge-m3` on Cloudflare Workers AI. They used to come from
+`gte-small` inside a Supabase Edge Function, which needed no third-party API and
+no key at all — a genuinely nicer property, and one this gave up on purpose.
+
+What it bought is in [the next section](#the-model-that-was-sorting-by-language).
 
 #### What the measurements actually said
 
@@ -250,6 +252,56 @@ Broken out by query type, recall@5:
 cross-lingual retrieval, which it cannot do — the same limitation already
 documented for the `simple` text search config, sharper. Within one language it
 holds up; across two it does not.
+
+That is the row that drove the model change below.
+
+### The model that was sorting by language
+
+Once the interface shipped in two languages, "search does not work in Spanish"
+stopped being a footnote. The obvious move is a multilingual embedding model.
+The unobvious part is proving it is worth it, because the current one is free
+and needs no credentials, and giving that up should cost more than a hunch.
+
+So: `npm run bench:models`. It compares two models against the same labelled
+corpus with **no database and no application in the way** — plain cosine over an
+in-memory haystack. Putting the HNSW index, the RRF fusion and the lexical arm
+in between would blend four variables into one number. If the new model does not
+win under clean conditions, it will not win with more machinery on top.
+
+| | dims | overall | en | **es** | exact | opaque |
+| --- | --- | --- | --- | --- | --- | --- |
+| `gte-small` | 384 | 68% | 58% | **58%** | 100% | 100% |
+| `bge-m3` | 1024 | 74% | 58% | **75%** | 100% | 100% |
+
+MRR 0.590 → 0.702. **English does not move at all.** Only Spanish does, which is
+exactly what a multilingual model should do and the reason the change is
+defensible. A model that improved everything by the same amount would be a
+suspicious result, not a better one.
+
+The mechanism is visible in a single triple. For the query *«lo del servidor
+lento»*, `gte-small` scores an **unrelated** Spanish message (*«quién trae las
+cervezas el viernes»*) at 0.837 — above both correct answers. It is not merely
+weak at Spanish; given Spanish input it clusters by language before meaning, so
+its vector arm actively works against a Spanish query. `bge-m3` puts the same
+unrelated message last, at 0.361.
+
+**Two things worth not glossing over.** The first run of this benchmark measured
+against only the 28 labelled messages and handed `gte-small` 100% on opaque
+identifiers — impossible for an embedding, which by construction cannot
+represent `7f3a91c`. With 28 candidates the top-5 is 18% of the pile and almost
+anything lands in it. That is the exact mistake `search-quality.mjs` already
+documents having made, made again; the fix was the same 175 distractors. And the
+Spanish bucket is 12 queries, so 75% against 58% is nine hits against seven. The
+MRR shift is the sturdier of the two numbers.
+
+The cost: 1075 neurons per million input tokens against a free allowance of
+10,000 a day. Re-embedding this project's entire corpus — 1,828 messages — came
+to 22 neurons. The price is not money, it is a third-party dependency and one
+more credential to rotate.
+
+The old Edge Function stays deployed on purpose. `bench:models` needs it to
+reproduce that table, and a measurement you can no longer re-run stops being a
+measurement.
 
 #### The threshold that does not exist
 
@@ -919,11 +971,18 @@ Written down rather than glossed over:
   demand. The four auth screens used to be static. That is the price of the login
   form appearing in the visitor's language, and it is the right trade here — but
   it is a real one, not a free win.
-- **Search quality is not equal in both languages.** The `simple` text search
-  config does not stem either language, and the embedding model (`gte-small`) is
-  English-biased: recall@5 is 70% in English and 50% in Spanish, measured on the
-  same corpus. A multilingual embedding model would close most of that gap and is
-  the next thing worth measuring.
+- **Search quality is still not equal in both languages.** Moving to `bge-m3`
+  took Spanish recall@5 from 58% to 75% against an unchanged 58% in English, so
+  Spanish is now the better-served of the two on the vector arm — but the
+  `simple` text search config still stems neither language, so the lexical arm
+  helps both equally little. The Spanish figure rests on twelve labelled
+  queries; it is a direction, not a decimal.
+- **The embedding model is now a third-party dependency.** It used to run inside
+  a Supabase Edge Function with no key at all. It now needs a Cloudflare account
+  and a token to rotate, and if that token is missing the vector arm returns
+  nothing and search silently falls back to lexical-only. That fallback is
+  logged, and it is degradation rather than failure — but it is a new way for
+  the feature to get quietly worse.
 
 ---
 

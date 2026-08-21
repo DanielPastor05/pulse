@@ -73,6 +73,21 @@ export const serverEnv = {
   get turnApiToken(): string | undefined {
     return process.env.CLOUDFLARE_TURN_API_TOKEN || undefined;
   },
+  /**
+   * Workers AI, para los embeddings de la búsqueda. También server-only, y por
+   * el mismo motivo que el de TURN: el token gasta la cuota de neuronas de la
+   * cuenta, así que en el navegador sería la cuota de cualquiera.
+   *
+   * Opcionales los dos: sin ellos la rama vectorial se apaga y la búsqueda
+   * sigue funcionando sólo con la léxica, que es degradarse, no romperse. Un
+   * clon del repositorio arranca sin tener cuenta de Cloudflare.
+   */
+  get cloudflareAccountId(): string | undefined {
+    return process.env.CLOUDFLARE_ACCOUNT_ID || undefined;
+  },
+  get cloudflareAiToken(): string | undefined {
+    return process.env.CLOUDFLARE_AI_TOKEN || undefined;
+  },
 } as const;
 
 export const isProduction = process.env.NODE_ENV === 'production';

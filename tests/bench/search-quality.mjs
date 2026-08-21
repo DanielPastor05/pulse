@@ -38,7 +38,10 @@ const env = Object.fromEntries(
 );
 
 const prisma = new PrismaClient();
-const EMBED_URL = `${env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/embed`;
+// El mismo modelo que la aplicacion. Antes esto apuntaba a la Edge Function
+// de Supabase; desde el cambio a bge-m3 medir con `gte-small` seria medir un
+// modelo que ya no esta en produccion.
+const EMBED_URL = `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/baai/bge-m3`;
 const K = 5;
 
 
@@ -53,25 +56,22 @@ async function embedBatch(texts) {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+      authorization: `Bearer ${env.CLOUDFLARE_AI_TOKEN}`,
     },
-    body: JSON.stringify({ input: texts }),
+    body: JSON.stringify({ text: texts }),
   });
-  if (!response.ok) throw new Error(`embed -> ${response.status} ${await response.text()}`);
-  return (await response.json()).embeddings;
+  const body = await response.json();
+  // Workers AI responde 200 con `success: false`, asi que el codigo HTTP por si
+  // solo no basta para saber si hay vectores.
+  if (!response.ok || !body.success) {
+    throw new Error(`embed -> ${response.status} ${JSON.stringify(body.errors ?? body)}`);
+  }
+  return body.result.data ?? body.result.response;
 }
 
 async function embed(text) {
-  const response = await fetch(EMBED_URL, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-    },
-    body: JSON.stringify({ input: text }),
-  });
-  if (!response.ok) throw new Error(`embed -> ${response.status}`);
-  return (await response.json()).embeddings[0];
+  const [vector] = await embedBatch([text]);
+  return vector;
 }
 
 function prefixQuery(query) {

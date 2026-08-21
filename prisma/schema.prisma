@@ -253,7 +253,7 @@ model Message {
   /// se calcula sola: la escribe `embedding.service` fuera del camino de la
   /// respuesta, y lo que quede a NULL lo recoge la tarea programada. Prisma no
   /// sabe leer ni escribir `vector`, asi que ambas cosas van por SQL crudo.
-  embedding Unsupported("vector(384)")?
+  embedding Unsupported("vector(1024)")?
 
   replyToId String?   @db.Uuid
   replyTo   Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
@@ -720,7 +720,7 @@ model RateLimit {
 /// La clave es el texto normalizado, no el original.
 model QueryEmbedding {
   query     String                     @id
-  embedding Unsupported("vector(384)")
+  embedding Unsupported("vector(1024)")
   createdAt DateTime                   @default(now())
   usedAt    DateTime                   @default(now())
 
