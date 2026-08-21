@@ -14,7 +14,7 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 | **Coverage** | 36.2% of statements and 74.2% of branches across `src/server` and `src/lib` ([what that gap means](#thirty-six-percent-and-why-branches-are-double-that)) |
 | **Row Level Security** | 20 policies, one per table, enforced independently of the API |
 | **Search latency** | 6035 ms → **343-434 ms p50**, three runs, unchanged by the vector arm ([how](#making-search-nineteen-times-faster)) |
-| **Search quality** | recall@5 30% → 70% by adding a vector arm, measured on a hand-labelled set ([how](#the-half-of-search-that-was-missing)) |
+| **Search quality** | recall@5 23% → 74% by adding a vector arm, and 58% → 75% in Spanish by changing the model, both on a hand-labelled set ([how](#the-half-of-search-that-was-missing)) |
 | **Database round trip** | 1230 ms → 16 ms, after moving the functions to the database's region |
 | **Concurrent sending** | 13.5 s → 1.48 s → **590 ms p50** with ten people writing at once, three runs ([how](#the-hypothesis-that-was-not-wrong-just-hidden)) |
 | **Realtime delivery** | 3.8 s p95 end to end at ten concurrent senders, 100% delivered |
@@ -191,9 +191,17 @@ neighbouring topics, and scores all three configurations:
 
 | | recall@1 | recall@5 | MRR |
 | --- | --- | --- | --- |
-| lexical only | 30% | 30% | 0.304 |
-| vector only | 61% | 70% | 0.644 |
-| **hybrid** | **61%** | **70%** | 0.642 |
+| lexical only | 23% | 23% | 0.226 |
+| vector only | 68% | 74% | 0.711 |
+| **hybrid** | **68%** | **74%** | 0.710 |
+
+Measured against the deployed instance, not a local stub.
+
+**The lexical row went down**, from 30% to 23%, and not because anything got
+worse: the query set grew from 23 to 31 with eight more Spanish questions, and
+lexical scores zero on every one of them. Same arm, harder exam. Comparing a
+percentage across a changed denominator is how a table quietly lies, so the
+number moved and the reason is written next to it.
 
 The win is real and large. **It does not come from the fusion.** On this corpus
 the vector arm alone matches hybrid, and the lexical arm never contributes a
@@ -246,14 +254,15 @@ Broken out by query type, recall@5:
 | paraphrase (en) | 0% | 58% | 58% |
 | exact terms | 100% | 100% | 100% |
 | opaque ids | 100% | 100% | 100% |
-| Spanish query, English corpus | 0% | 50% | 50% |
+| Spanish query, English corpus | 0% | 75% | 75% |
 
-`gte-small` is an English model. A Spanish question against English messages is
-cross-lingual retrieval, which it cannot do — the same limitation already
-documented for the `simple` text search config, sharper. Within one language it
-holds up; across two it does not.
+The lexical arm is at **zero** on both paraphrase rows, in either language, and
+that is the honest shape of the thing: `to_tsquery` matches words, and a
+paraphrase shares none. Everything the search does for a question asked in
+different words than the answer, the vector arm does alone.
 
-That is the row that drove the model change below.
+That Spanish row read **50%** until the embedding model changed. What moved it
+is [the next section](#the-model-that-was-sorting-by-language).
 
 ### The model that was sorting by language
 
@@ -277,6 +286,12 @@ MRR 0.590 → 0.702. **English does not move at all.** Only Spanish does, which 
 exactly what a multilingual model should do and the reason the change is
 defensible. A model that improved everything by the same amount would be a
 suspicious result, not a better one.
+
+Running the full pipeline against the deployed instance afterwards returned
+**74% overall and 75% in Spanish** — the isolated measurement predicted the
+integrated one to the point. That agreement is the argument for measuring the
+model on its own first: had the numbers diverged, the difference would have been
+the index, the fusion or the lexical arm, and it would have been findable.
 
 The mechanism is visible in a single triple. For the query *«lo del servidor
 lento»*, `gte-small` scores an **unrelated** Spanish message (*«quién trae las
@@ -302,6 +317,45 @@ more credential to rotate.
 The old Edge Function stays deployed on purpose. `bench:models` needs it to
 reproduce that table, and a measurement you can no longer re-run stops being a
 measurement.
+
+### 95% of the production database was debris
+
+Re-embedding the corpus meant counting it, and the count was wrong: 4,787
+messages in an app with four demo conversations. Of 639 conversations, **616 had
+zero members** — 4,549 messages and 441 attachments in groups nobody could
+reach, some dating back nine days.
+
+The first guess was that the test suites were not cleaning up after themselves.
+That guess was wrong, and worth recording as wrong: `cleanup()` ran fine and
+deleted every account it created. The debris is what deleting an account
+*leaves behind*. Removing a user drops their `conversation_members` row but not
+the conversation, so when the last member goes the group becomes unreachable
+garbage that no query in the application will ever return — because every query
+filters by membership. The bug hid inside the same rule that makes the app
+secure.
+
+Two fixes, because there were two problems:
+
+- `cleanup()` now records which conversations the test accounts belonged to
+  **before** deleting them — afterwards the membership rows are gone and with
+  them the only trace — and deletes the ones left with nobody in them. It will
+  not sweep orphans generally: these suites run against production, and a test
+  harness has no business deleting anything it did not create.
+- Separately, the harness now hooks `uncaughtException` and `unhandledRejection`
+  to run cleanup on the way out. These files are top-level-`await` scripts
+  rather than functions, so there is no body to wrap in `try/finally`; a throw
+  halfway through used to take the process down with the accounts still live.
+  That was a second, real leak — just not this one.
+
+Both were verified by positive control: create the thing, confirm it exists,
+trigger the failure, confirm it is gone. Then `bench:quality` was run against
+production and left the database at exactly 5 users, 4 conversations, 0 orphans.
+
+The uncomfortable part is how long it took to notice. Nothing was broken.
+Nothing was slow enough to complain about. The only symptom was a number in a
+`count(*)` that nobody had reason to run until an unrelated migration forced
+it — and 1,770 of the 1,828 embeddings paid for in that migration were spent on
+messages that should not have existed.
 
 #### The threshold that does not exist
 

@@ -132,10 +132,84 @@ export async function onboard(user) {
   return result.json;
 }
 
+/**
+ * Borra las cuentas de prueba **y las conversaciones que dejan atrás**.
+ *
+ * Borrar un usuario quita su fila de `conversation_members`, pero no toca la
+ * conversación. Cuando se va el último miembro queda un grupo sin nadie
+ * dentro: invisible desde la aplicación, porque todo filtra por pertenencia, y
+ * con todos sus mensajes y adjuntos todavía ahí.
+ *
+ * No es teórico. Al medirlo el 21/08/2026, la base de producción tenía **616
+ * de 639 conversaciones huérfanas** con 4549 mensajes — el 95% de la tabla era
+ * escombro de bancos, acumulado desde el 12 de agosto sin que nadie lo viera.
+ *
+ * Sólo se borran las conversaciones donde estaba una cuenta *de esta
+ * ejecución*, y sólo si se quedan sin nadie. Barrer todas las huérfanas sería
+ * más simple y más peligroso: estas suites se ejecutan contra producción, y un
+ * arnés de pruebas no debe borrar nada que no haya creado él.
+ */
 export async function cleanup() {
-  for (const id of createdUserIds.splice(0)) {
+  const ids = createdUserIds.splice(0);
+  if (ids.length === 0) return;
+
+  // Hay que preguntarlo antes: al borrar las cuentas desaparecen las filas de
+  // pertenencia, y con ellas la única pista de dónde estuvieron.
+  const { data: pertenencias } = await admin
+    .from('conversation_members')
+    .select('conversationId')
+    .in('userId', ids);
+  const tocadas = [...new Set((pertenencias ?? []).map((fila) => fila.conversationId))];
+
+  for (const id of ids) {
     await admin.auth.admin.deleteUser(id).catch(() => {});
   }
+
+  for (const conversationId of tocadas) {
+    const { count } = await admin
+      .from('conversation_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('conversationId', conversationId);
+
+    // `count` nulo significa que la consulta falló, no que no haya nadie. Ante
+    // la duda no se borra: dejar basura es recuperable, borrar de más no.
+    if (count === 0) {
+      await admin.from('conversations').delete().eq('id', conversationId);
+    }
+  }
+}
+
+/**
+ * Las cuentas se borran también cuando algo revienta a mitad.
+ *
+ * Antes sólo se borraban en el camino feliz: cada banco termina con un
+ * `await cleanup()` de nivel superior, y si algo lanzaba antes de llegar ahí,
+ * Node se llevaba el proceso y las cuentas se quedaban — con sus
+ * conversaciones y sus mensajes dentro.
+ *
+ * No es hipotético. Así fue como la base de producción acumuló 525 mensajes de
+ * relleno de bancos que nadie limpió, repartidos en cientos de conversaciones
+ * fantasma. Nadie los veía desde la aplicación, porque la búsqueda filtra por
+ * pertenencia, así que el problema creció en silencio durante semanas.
+ *
+ * Estos ficheros son scripts con `await` de nivel superior y no funciones, así
+ * que no hay un cuerpo donde poner un `try/finally` sin envolver cada uno
+ * entero. Engancharse al fallo del proceso cubre los ocho desde un solo sitio.
+ *
+ * `cleanup()` vacía la lista al recorrerla, así que llamarla dos veces —una
+ * aquí y otra al final del banco— no hace nada la segunda vez.
+ */
+let limpiando = false;
+for (const evento of ['uncaughtException', 'unhandledRejection']) {
+  process.on(evento, async (error) => {
+    if (limpiando) return;
+    limpiando = true;
+
+    console.error(`\n${error?.stack ?? error}`);
+    await cleanup().catch(() => {});
+    console.error('cuentas de prueba borradas pese al fallo');
+    process.exit(1);
+  });
 }
 
 /** Fails the process on a false assertion, so a broken guarantee is a red run. */
