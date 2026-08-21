@@ -18,7 +18,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"src/**/*.test.ts\"",
+    "test": "node --test \"src/**/*.test.ts\" \"tests/unit/*.test.ts\"",
     "test:component": "cross-env TSX_TSCONFIG_PATH=tsconfig.test.json node --import tsx --import ./tests/component/setup.ts --test \"tests/component/*.test.tsx\"",
     "test:integration": "node --conditions=react-server --import tsx --test \"tests/integration/*.test.ts\"",
     "test:covered": "npm test && npm run test:component && npm run test:integration",

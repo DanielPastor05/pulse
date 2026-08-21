@@ -9,24 +9,24 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 | | |
 | --- | --- |
-| **Automated checks** | 199 — 47 unit, 6 component, 46 integration against a real Postgres, 6 browser smoke tests, 94 end-to-end against the deployed instance |
+| **Automated checks** | 208 — 52 unit, 6 component, 46 integration against a real Postgres, 10 browser smoke tests, 94 end-to-end against the deployed instance |
 | **Latency budgets** | p95 per endpoint over a 15-minute window, alerting to Sentry when a budget is missed ([how](#emitting-signal-is-not-watching-it)) |
-| **Coverage** | 36.2% of statements and 74.2% of branches across `src/server` and `src/lib` ([what that gap means](#thirty-six-percent-and-why-branches-are-double-that)) |
-| **Row Level Security** | 20 policies, one per table, enforced independently of the API |
+| **Coverage** | 36.1% of statements and 74.1% of branches across `src/server` and `src/lib` ([what that gap means](#thirty-six-percent-and-why-branches-are-double-that)) |
+| **Row Level Security** | Enabled on all 26 tables; 15 policies grant access on the 14 that need it, the other 12 deny by default — enforced independently of the API |
 | **Search latency** | 6035 ms → **343-434 ms p50**, three runs, unchanged by the vector arm ([how](#making-search-nineteen-times-faster)) |
 | **Search quality** | recall@5 23% → 74% by adding a vector arm, and 58% → 75% in Spanish by changing the model, both on a hand-labelled set ([how](#the-half-of-search-that-was-missing)) |
 | **Database round trip** | 1230 ms → 16 ms, after moving the functions to the database's region |
 | **Concurrent sending** | 13.5 s → 1.48 s → **590 ms p50** with ten people writing at once, three runs ([how](#the-hypothesis-that-was-not-wrong-just-hidden)) |
 | **Realtime delivery** | 3.8 s p95 end to end at ten concurrent senders, 100% delivered |
 | **Where it bends** | Sending stays under 1.2 s p95 at forty concurrent senders; delivery stretches to 10.6 s ([how](#where-it-bends-and-the-number-that-lied)) |
-| **API surface** | 51 endpoints, 47 behind `requireUser`; the other four authorise themselves ([which](#the-four-endpoints-without-requireuser)) |
+| **API surface** | 67 endpoints across 52 route files; 48 of those files call `requireUser`, the other four authorise themselves ([which](#the-four-endpoints-without-requireuser)) |
 
 
 ![Pulse: a group conversation with unread counts, reactions, a quoted reply and a live poll](docs/screenshots/chat.png)
 
-![Searching for «lo del servidor lento» — a Spanish query that shares no words with the English message it finds about Washington and Frankfurt](docs/screenshots/search.png)
+![Searching for «lo del servidor lento» — a Spanish query that returns, as its top result, an English message about a p50 of six seconds in Washington and Frankfurt](docs/screenshots/search.png)
 
-*Asking for «lo del servidor lento» — Spanish for "the thing about the slow server" — returns the message that reads *"search p50 was 6 seconds… Washington… Frankfurt"*. Not one word in common. Lexical search returned nothing for that query; the numbers behind it are [here](#the-half-of-search-that-was-missing).*
+*Asking for «lo del servidor lento» — Spanish for "the thing about the slow server" — puts *"search p50 was 6 seconds… Washington… Frankfurt"* at the **top** of the results. Not one word in common, and not the same language. Lexical search returns nothing at all for that query; the numbers behind it are [here](#the-half-of-search-that-was-missing).*
 
 ---
 
@@ -514,9 +514,9 @@ there. Scope is `src/server` and `src/lib`, the code those suites aim at:
 
 | | |
 | --- | --- |
-| Statements | **36.2%** |
-| Branches | **74.2%** |
-| Functions | 46.7% |
+| Statements | **36.1%** |
+| Branches | **74.1%** |
+| Functions | 44.6% |
 
 The two headline numbers differ by a factor of two, and that is the useful part.
 Statement coverage measures how much of the code is reached; branch coverage
@@ -540,7 +540,7 @@ without changing anything true, so they stay in.
 
 ### The four endpoints without requireUser
 
-Forty-seven of fifty-one route handlers call `requireUser()`. The other four are
+Forty-eight of fifty-two route files call `requireUser()`. The other four are
 each a deliberate answer to "who is calling this?":
 
 | endpoint | who calls it | how it authorises |
@@ -819,10 +819,10 @@ no second round trip to render a new message.
 
 ## Testing
 
-203 checks, in five layers.
+208 checks, in five layers.
 
 ```bash
-npm test                  # 47 unit tests — pure logic, no I/O
+npm test                  # 52 unit tests — pure logic, no I/O
 npm run test:component    # 6 component tests in a DOM
 npm run test:integration  # 46 tests against a real Postgres, four of them a perf gate
 npm run test:smoke        # 10 browser checks against the production build
@@ -841,6 +841,28 @@ of times per screen. No snapshots — a snapshot fails when a CSS class changes
 and passes when the "message deleted" notice disappears, which protects the
 appearance instead of the promise. The one that earns its place asserts that a
 soft-deleted message never ships its original text to the browser.
+
+Five of the unit tests point at this file. An audit found **seven** figures here
+that had drifted — the check total, the coverage, the RLS description, and three
+endpoint counts that contradicted each other: 46 in one place, 51 in another,
+and "the two routes without a session" when there were four. None broke at once.
+Each fell behind on the day somebody added a route and did not reread the front
+page.
+
+In a document whose entire argument is *here is the number, measured*, a stale
+figure does not read as an oversight. It reads as evidence that none of the
+others were checked either. So `tests/unit/readme-claims.test.ts` now reads the
+README and fails when the check total stops equalling its own parts, when the
+route-file and endpoint counts stop matching `src/app/api`, or when it tells you
+to run a script that does not exist.
+
+It only covers what can be known by **reading files**. Coverage percentages and
+latencies come from running things, so they are still maintained by hand — which
+is worth stating, so nobody reads the test as a wider guarantee than it gives.
+
+One trap it had to be built around: counting *mentions* of `requireUser` says
+`/api/metrics` uses it, because the phrase appears in a comment explaining why it
+does not. It counts calls.
 
 The smoke layer answers a question no other layer can: does this come alive in a
 browser? Four of its ten checks are there because of the language bug above —
@@ -938,18 +960,21 @@ trigger.
 ```bash
 npm run dev              npm run build            npm run start
 npm run typecheck        npm run lint             npm test
-npm run test:integration npm run test:e2e         npm run test:smoke
-npm run bench:quality   # recall@k of each retrieval arm
+npm run test:component   npm run test:integration npm run test:smoke
+npm run test:e2e
+npm run bench:quality   # recall@k of each retrieval arm, end to end
+npm run bench:models    # the two embedding models, no database in the way
 npm run bench:breakdown # where search latency actually goes
-npm run coverage        # unit + integration under one counter
+npm run coverage        # unit + component + integration under one counter
 npm run bench:search     npm run bench:load
 npm run db:migrate       npm run db:deploy        npm run db:studio
 ```
 
 ### API
 
-46 endpoints, all JSON, all but `/api/health` requiring a session. Errors share
-one shape: `{ error, code, details? }`.
+67 endpoints across 52 route files, all JSON. All of them require a session
+except the four that [authorise themselves](#the-four-endpoints-without-requireuser).
+Errors share one shape: `{ error, code, details? }`.
 
 | Area | Endpoints |
 | --- | --- |
@@ -964,7 +989,8 @@ one shape: `{ error, code, details? }`.
 | Moderation | `POST /messages/[id]/report`, `GET /conversations/[id]/reports`, `PATCH /reports/[id]`, `GET /conversations/[id]/moderation-log` |
 | Notifications | `GET /notifications`, `PATCH /notifications/[id]`, `POST/DELETE /push/subscriptions` |
 | Calls | `GET /calls/ice`, `POST /conversations/[id]/calls`, `POST /conversations/[id]/calls/[callId]/reject` |
-| Operations | `GET /health` and `GET /cron/cleanup` — the two routes without a session; the cron checks a shared secret of its own |
+| Conversation state | `POST /conversations/[id]/read`, `PATCH /conversations/[id]/preferences`, `GET /conversations/[id]/pins` |
+| Operations | `GET /health`, `GET /cron/cleanup`, `GET /metrics`, `POST /vitals` — `/vitals` needs a session; the other three are the ones that do not, and the cron and metrics each check a shared secret |
 
 ---
 
