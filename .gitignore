@@ -23,3 +23,7 @@ contraseña supabesa.txt
 
 # Informes de cobertura
 coverage/
+
+# Salida de Playwright: trazas y capturas de la ejecución local
+test-results/
+playwright-report/
