@@ -21,7 +21,8 @@ import {
 import { QUICK_REACTIONS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n/provider';
-import { formatBubbleTime, formatFullTimestamp } from '@/lib/date';
+import { formatBubbleTime } from '@/lib/date';
+import { useDates } from '@/i18n/dates';
 import { AttachmentGrid } from '@/features/media/components/attachment-grid';
 import { LinkPreviewCard } from '@/features/messages/components/link-preview-card';
 import { MessageContent } from '@/features/messages/components/message-content';
@@ -127,6 +128,7 @@ export const MessageBubble = React.memo(function MessageBubble({
   actions,
 }: Props) {
   const t = useT();
+  const { formatFullTimestamp } = useDates();
   const deleted = Boolean(message.deletedAt);
 
   if (message.kind === 'SYSTEM') {

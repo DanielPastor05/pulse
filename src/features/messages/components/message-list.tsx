@@ -5,7 +5,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowDown, Loader2, MessagesSquare } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { formatDaySeparator, isSameDayIso } from '@/lib/date';
+import { isSameDayIso } from '@/lib/date';
+import { useDates } from '@/i18n/dates';
 import { MessageBubble, type MessageActions } from '@/features/messages/components/message-bubble';
 import { MessageSkeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -58,6 +59,7 @@ export function MessageList({
   floatingComposer,
 }: Props) {
   const t = useT();
+  const { formatDaySeparator } = useDates();
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const topSentinelRef = React.useRef<HTMLDivElement>(null);
   const bottomRef = React.useRef<HTMLDivElement>(null);

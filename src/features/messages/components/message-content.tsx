@@ -41,7 +41,7 @@ function CodeBlock({ children, ...props }: React.ComponentProps<'pre'>) {
           'opacity-0 transition-all duration-150 group-hover/code:opacity-100',
           'hover:text-[var(--text-1)] focus-visible:opacity-100',
         )}
-        aria-label={copied ? 'Copied' : t.message.copyCode}
+        aria-label={copied ? t.message.copied : t.message.copyCode}
       >
         {copied ? <Check className="size-3.5 text-[var(--success)]" /> : <Copy className="size-3.5" />}
       </button>

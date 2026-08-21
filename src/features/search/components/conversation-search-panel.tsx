@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Loader2, Search, SearchX } from 'lucide-react';
 
 import { truncate } from '@/lib/utils';
-import { formatFullTimestamp } from '@/lib/date';
+import { useDates } from '@/i18n/dates';
 import { useGlobalSearch } from '@/features/search/hooks';
 import { Avatar } from '@/components/ui/avatar';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -23,6 +23,7 @@ export function ConversationSearchPanel({
   onJumpTo: (messageId: string) => void;
 }) {
   const t = useT();
+  const { formatFullTimestamp } = useDates();
   const [term, setTerm] = React.useState('');
   const { data, isFetching } = useGlobalSearch(term, 'messages');
 

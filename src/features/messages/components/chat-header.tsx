@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { formatLastSeen } from '@/lib/date';
+import { useDates } from '@/i18n/dates';
 import { usePresenceOf } from '@/stores/presence-store';
 import { useUiStore } from '@/stores/ui-store';
 import { useConversationPreferences, useMemberMutations } from '@/features/conversations/hooks';
@@ -42,6 +42,7 @@ export function ChatHeader({
   typingCount: number;
 }) {
   const t = useT();
+  const { formatLastSeen } = useDates();
   const preferences = useConversationPreferences(conversation.id);
   const { leave } = useMemberMutations(conversation.id);
   const { startCall, status: callStatus } = useCallApi();

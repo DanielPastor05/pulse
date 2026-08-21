@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 import { cn, truncate } from '@/lib/utils';
-import { formatListTime } from '@/lib/date';
+import { useDates } from '@/i18n/dates';
 import { usePresenceOf } from '@/stores/presence-store';
 import { useConversationPreferences } from '@/features/conversations/hooks';
 import { Avatar } from '@/components/ui/avatar';
@@ -71,6 +71,7 @@ export const ConversationItem = React.memo(function ConversationItem({
   onNavigate,
 }: Props) {
   const t = useT();
+  const { formatListTime } = useDates();
   const preferences = useConversationPreferences(conversation.id);
   const livePresence = usePresenceOf(conversation.peer?.id, conversation.peer?.presence ?? 'OFFLINE');
   const unread = conversation.unreadCount > 0;

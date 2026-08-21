@@ -145,7 +145,8 @@ export function ForwardDialog({ message, onClose, onConfirm, pending }: Props) {
             loading={pending}
           >
             <Forward />
-            Forward{selected.length > 0 ? ` (${selected.length})` : ''}
+            {t.message.forward}
+            {selected.length > 0 ? ` (${selected.length})` : ''}
           </Button>
         </DialogFooter>
       </DialogContent>

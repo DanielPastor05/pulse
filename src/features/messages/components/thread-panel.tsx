@@ -4,7 +4,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 
 import { api } from '@/lib/api-client';
-import { formatRelative } from '@/lib/date';
+import { useDates } from '@/i18n/dates';
 import { Avatar } from '@/components/ui/avatar';
 import { MessageContent } from '@/features/messages/components/message-content';
 import { PollCard } from '@/features/messages/components/poll-card';
@@ -16,6 +16,7 @@ type Thread = { root: MessageDTO; replies: MessageDTO[]; nextCursor: string | nu
 
 function ThreadMessage({ message }: { message: MessageDTO }) {
   const t = useT();
+  const { formatRelative } = useDates();
   const deleted = Boolean(message.deletedAt);
 
   return (

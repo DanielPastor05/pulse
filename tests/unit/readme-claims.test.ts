@@ -31,18 +31,18 @@ const RAIZ = fileURLToPath(new URL('../..', import.meta.url));
 // espere `\n### ` no casa nada sin que quede claro por qué.
 const readme = readFileSync(join(RAIZ, 'README.md'), 'utf8').replace(/\r\n/g, '\n');
 
-/** Todos los `route.ts` bajo `src/app/api`, a cualquier profundidad. */
-function ficherosDeRuta(directorio: string): string[] {
+/** Ficheros que terminen en `sufijo`, a cualquier profundidad. */
+function ficherosPorExtension(directorio: string, sufijo: string): string[] {
   const salida: string[] = [];
   for (const entrada of readdirSync(directorio, { withFileTypes: true })) {
     const ruta = join(directorio, entrada.name);
-    if (entrada.isDirectory()) salida.push(...ficherosDeRuta(ruta));
-    else if (entrada.name === 'route.ts') salida.push(ruta);
+    if (entrada.isDirectory()) salida.push(...ficherosPorExtension(ruta, sufijo));
+    else if (entrada.name.endsWith(sufijo)) salida.push(ruta);
   }
   return salida;
 }
 
-const RUTAS = ficherosDeRuta(join(RAIZ, 'src', 'app', 'api'));
+const RUTAS = ficherosPorExtension(join(RAIZ, 'src', 'app', 'api'), 'route.ts');
 
 /**
  * Extrae el primer número que sigue a un texto en el README.
@@ -68,6 +68,32 @@ test('el total de comprobaciones es la suma de sus sumandos', () => {
     total,
     `la portada dice ${total} pero sus sumandos (${sumandos.join(' + ')}) dan otra cosa`,
   );
+});
+
+test('el número de pruebas unitarias es el que hay', () => {
+  /*
+   * Comprobar sólo que el total cuadre con sus sumandos no basta, y esto lo
+   * demostró dos veces el mismo día: al añadir pruebas, «52 unit» se quedó
+   * atrás mientras la suma seguía siendo internamente coherente. Una cifra
+   * puede ser consistente consigo misma y falsa.
+   *
+   * Se cuentan las declaraciones `test(` a principio de línea. Es un recuento
+   * sintáctico, no una ejecución: si alguien anida `test()` dentro de otro o lo
+   * indenta, este número se queda corto — y entonces esta prueba avisa de algo
+   * que no es. Es el precio de contar sin ejecutar, y por eso está dicho.
+   */
+  const ficheros = [
+    ...ficherosPorExtension(join(RAIZ, 'src'), '.test.ts'),
+    ...ficherosPorExtension(join(RAIZ, 'tests', 'unit'), '.test.ts'),
+  ];
+  const declaradas = ficheros.reduce(
+    (suma, ruta) => suma + [...readFileSync(ruta, 'utf8').matchAll(/^test\(/gm)].length,
+    0,
+  );
+
+  const dicho = cifraTras(/(\d+) unit(?:,| tests)/);
+  assert.ok(dicho !== null, 'el README ya no dice cuántas pruebas unitarias hay');
+  assert.equal(dicho, declaradas, `el README dice ${dicho} pruebas unitarias y hay ${declaradas}`);
 });
 
 test('el número de ficheros de ruta coincide con los que hay', () => {

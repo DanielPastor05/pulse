@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, MessageSquare, ShieldBan, UserRoundCheck, UserRoundPlus } from 'lucide-react';
 import type { RelationshipStatus } from '@prisma/client';
 
-import { formatLastSeen } from '@/lib/date';
+import { useDates } from '@/i18n/dates';
 import { usePresenceOf } from '@/stores/presence-store';
 import { useOpenDirectConversation } from '@/features/conversations/hooks';
 import { useRelationshipActions, useSetBlocked } from '@/features/profile/hooks';
@@ -22,6 +22,7 @@ type Props = {
 
 export function ProfileCard({ user, isMe, relationship, blockedByMe }: Props) {
   const t = useT();
+  const { formatLastSeen } = useDates();
   const router = useRouter();
   const openDirect = useOpenDirectConversation();
   const { send, respond } = useRelationshipActions();
@@ -111,7 +112,7 @@ export function ProfileCard({ user, isMe, relationship, blockedByMe }: Props) {
                   loading={setBlocked.isPending}
                 >
                   <ShieldBan />
-                  {blockedByMe ? t.nav.unblock : 'Block'}
+                  {blockedByMe ? t.nav.unblock : t.nav.block}
                 </Button>
               </div>
             ) : (

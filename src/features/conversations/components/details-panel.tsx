@@ -22,7 +22,7 @@ import type { MemberRole } from '@prisma/client';
 
 import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
-import { formatRelative } from '@/lib/date';
+import { useDates } from '@/i18n/dates';
 import { can } from '@/lib/permissions';
 import {
   useJoinRequests,
@@ -299,6 +299,7 @@ export function DetailsPanel({
   meId: string;
 }) {
   const t = useT();
+  const { formatRelative } = useDates();
   const [addOpen, setAddOpen] = React.useState(false);
   const [invitees, setInvitees] = React.useState<PublicUser[]>([]);
   const { addMembers, updateMember, removeMember, transferOwnership, leave } = useMemberMutations(
@@ -338,7 +339,8 @@ export function DetailsPanel({
             </Link>
           ) : (
             <p className="text-[13px] text-[var(--text-2)]">
-              {conversation.memberCount} members · {conversation.isPublic ? 'Public' : t.conversation.private}
+              {t.conversation.members(conversation.memberCount)} ·{' '}
+              {conversation.isPublic ? t.conversation.public : t.conversation.private}
             </p>
           )}
           {conversation.description || conversation.peer?.bio ? (
@@ -358,12 +360,12 @@ export function DetailsPanel({
           <section className="space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-3)]">
-                Members · {conversation.members.length}
+                {t.conversation.membersHeading} · {conversation.members.length}
               </h3>
               {manages ? (
                 <Button size="sm" variant="ghost" onClick={() => setAddOpen(true)}>
                   <UserRoundPlus />
-                  Add
+                  {t.conversation.add}
                 </Button>
               ) : null}
             </div>
@@ -533,7 +535,7 @@ export function DetailsPanel({
               }
             >
               <UserRoundPlus />
-              Add {invitees.length > 0 ? invitees.length : ''}
+              {t.conversation.add} {invitees.length > 0 ? invitees.length : ''}
             </Button>
           </DialogFooter>
         </DialogContent>

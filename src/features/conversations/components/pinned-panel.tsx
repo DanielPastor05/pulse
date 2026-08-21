@@ -2,7 +2,7 @@
 
 import { Pin, PinOff } from 'lucide-react';
 
-import { formatFullTimestamp } from '@/lib/date';
+import { useDates } from '@/i18n/dates';
 import { truncate } from '@/lib/utils';
 import { usePinnedMessages } from '@/features/conversations/hooks';
 import { Avatar } from '@/components/ui/avatar';
@@ -22,6 +22,7 @@ export function PinnedPanel({
   onUnpin: (message: MessageDTO) => void;
 }) {
   const t = useT();
+  const { formatFullTimestamp } = useDates();
   const { data: messages, isLoading } = usePinnedMessages(conversationId);
 
   if (isLoading) {

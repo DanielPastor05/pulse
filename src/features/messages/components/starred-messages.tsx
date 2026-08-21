@@ -7,7 +7,7 @@ import { ArrowUpRight, Star, StarOff } from 'lucide-react';
 
 import { api } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
-import { formatFullTimestamp } from '@/lib/date';
+import { useDates } from '@/i18n/dates';
 import { MessageContent } from '@/features/messages/components/message-content';
 import { AttachmentGrid } from '@/features/media/components/attachment-grid';
 import { Avatar } from '@/components/ui/avatar';
@@ -19,6 +19,7 @@ import { useT } from '@/i18n/provider';
 
 export function StarredMessages() {
   const t = useT();
+  const { formatFullTimestamp } = useDates();
   const queryClient = useQueryClient();
 
   const { data: messages, isLoading } = useQuery({
