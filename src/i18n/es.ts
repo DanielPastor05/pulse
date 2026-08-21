@@ -511,6 +511,7 @@ export const messages = {
     createTitle: 'Crea tu cuenta',
     createHint: 'Dos campos ahora, el perfil en un momento, y ya estás dentro.',
     orEmail: 'o regístrate con el correo',
+    orContinueEmail: 'o continúa con el correo',
     emailPlaceholder: 'tu@ejemplo.com',
     passwordPlaceholder: 'Algo que sólo sepas tú',
     forgotShort: '¿La olvidaste?',

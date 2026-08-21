@@ -11,7 +11,7 @@ const BUNDLES: Record<Locale, Messages> = { EN: en, ES: es };
 /** El nombre de cada idioma, en su propio idioma. Nunca traducido. */
 export const LOCALE_LABELS: Record<Locale, string> = { EN: 'English', ES: 'Español' };
 
-export const LOCALE_COOKIE = 'pulse-locale';
+export { LOCALE_COOKIE } from '@/i18n/cookie';
 
 /**
  * Por defecto, inglés.

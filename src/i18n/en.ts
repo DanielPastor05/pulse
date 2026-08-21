@@ -508,6 +508,7 @@ export const messages = {
     createTitle: 'Create your account',
     createHint: 'Two fields now, a profile in a moment, and you are in.',
     orEmail: 'or sign up with email',
+    orContinueEmail: 'or continue with email',
     emailPlaceholder: 'you@example.com',
     passwordPlaceholder: 'Something only you know',
     forgotShort: 'Forgot?',

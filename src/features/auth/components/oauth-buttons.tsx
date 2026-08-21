@@ -85,12 +85,14 @@ export function OAuthButtons({ next }: { next?: string }) {
   );
 }
 
-export function AuthDivider({ label = 'or continue with email' }: { label?: string }) {
+export function AuthDivider({ label }: { label?: string }) {
+  const t = useT();
+
   return (
     <div className="my-6 flex items-center gap-3">
       <span className="h-px flex-1 bg-[var(--hairline)]" />
       <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-3)]">
-        {label}
+        {label ?? t.auth.orContinueEmail}
       </span>
       <span className="h-px flex-1 bg-[var(--hairline)]" />
     </div>

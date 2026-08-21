@@ -3,7 +3,7 @@ import 'server-only';
 import { cookies, headers } from 'next/headers';
 import type { Locale } from '@prisma/client';
 
-import { LOCALE_COOKIE } from '@/i18n/provider';
+import { LOCALE_COOKIE } from '@/i18n/cookie';
 import { messages as en, type Messages } from '@/i18n/en';
 import { messages as es } from '@/i18n/es';
 
