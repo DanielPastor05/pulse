@@ -8,8 +8,9 @@ El mapa de la superficie está en [AUDIT_ARCHITECTURE.md](AUDIT_ARCHITECTURE.md)
 
 ## Resumen ejecutivo
 
-**Un hallazgo confirmado, de severidad baja, corregido durante la auditoría.**
-Cero críticos, cero altos, cero medios.
+**Tres hallazgos, todos de severidad baja. Dos corregidos y verificados; el
+tercero necesita un ajuste en el panel de Supabase.** Cero críticos, cero altos,
+cero medios.
 
 Lo importante no es el recuento sino dónde *no* apareció nada. La barrida
 sistemática de autorización —las 31 rutas que aceptan un id, llamadas con tres
@@ -22,11 +23,21 @@ la base de datos no es una segunda capa, es la única—, resistió el ataque de
 cliente hecho a mano: cuatro tipos de canal ajeno rechazados y cero contenido
 filtrado mientras había tráfico real.
 
-El hallazgo real fue de otra clase: un id malformado producía **500 en once de
-trece rutas**. No filtraba nada, pero cada petición basura entraba en el
-reporte de errores como incidencia y en los percentiles como latencia real, así
-que cualquiera con sesión podía agotar la cuota de observabilidad con un bucle.
-Estaba en el manejador compartido, no en un endpoint despistado.
+Los hallazgos fueron de otra clase, todos de disponibilidad y coste, ninguno de
+confidencialidad:
+
+- **AUDIT-01** — un id malformado producía **500 en once de trece rutas**. No
+  filtraba nada, pero cada petición basura entraba en el reporte de errores
+  como incidencia y en los percentiles como latencia real. Estaba en el
+  manejador compartido, no en un endpoint despistado. **Corregido.**
+- **AUDIT-07** — el limitador dejaba pasar **1,88×** lo declarado. Estaba escrito
+  en el README como techo conocido; documentado no es medido, y medido resultó
+  ser casi el peor caso teórico. Ahora es una ventana deslizante y mide
+  **1,00×**. **Corregido.**
+- **AUDIT-06** — el tope de eventos de tiempo real vive **sólo en el cliente**.
+  Un miembro con su propio cliente metió 1.580 eventos a 200/s y llegaron los
+  1.580. No degrada a los demás, pero gasta cuota del proyecto sin pasar por
+  ningún límite. **Abierto**: se arregla en el panel, no en el repositorio.
 
 Tres cosas que conviene decir de esta auditoría antes de leer el resto:
 
@@ -52,6 +63,8 @@ Tres cosas que conviene decir de esta auditoría antes de leer el resto:
 | Abuso | 36 comprobaciones: escalada, mass assignment, bloqueos, entradas hostiles |
 | XSS | 8 pruebas de componente renderizando el markdown de verdad en un DOM |
 | Cabeceras | 22 comprobaciones de CSP, CORS, CSRF, cookies y ficheros expuestos |
+| Abuso desde dentro | Inundación de un canal propio, midiendo si los demás siguen recibiendo |
+| Carga sostenida | Tres minutos continuos, comparando el primer tramo con el último |
 | Tiempo real | 8 comprobaciones atacando los canales con un cliente propio |
 | Base | RLS por tabla consultada directamente en producción |
 | Dependencias | `npm audit` sobre el árbol completo |
@@ -73,6 +86,8 @@ como estaba: 5 usuarios, 4 conversaciones, 0 conversaciones huérfanas.
 | AUDIT-03 | Sesgo de módulo en el alfabeto de los códigos de invitación | INFORMATIONAL | Aceptado | `src/lib/utils.ts` |
 | AUDIT-04 | La validación corre antes que la autorización | INFORMATIONAL | Aceptado | `src/server/http.ts` |
 | AUDIT-05 | `cleanup()` de las pruebas tragaba errores de borrado | LOW (sólo pruebas) | **CORREGIDO** | `tests/e2e/harness.mjs` |
+| AUDIT-06 | El límite de eventos de tiempo real es sólo del lado del cliente | LOW | Abierto — requiere ajuste en el panel | `src/lib/supabase/client.ts` |
+| AUDIT-07 | El limitador de la API dejaba pasar 1,88× lo declarado | LOW | **CORREGIDO** | `src/server/rate-limit.ts` |
 
 ### AUDIT-01 — Un id malformado devuelve 500 · LOW · CORREGIDO
 
@@ -188,6 +203,94 @@ borradas.
 No afecta a la aplicación desplegada, pero es el mismo patrón de prueba que pasa
 sin comprobar nada que estas suites existen para evitar. Corregido: los fallos
 se cuentan, se imprimen y ponen el proceso en rojo.
+
+### AUDIT-06 — El límite de eventos de tiempo real vive en el cliente · LOW
+
+**CVSS 3.1** (`AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:L`)
+
+**Dónde.** `src/lib/supabase/client.ts`: el cliente del navegador se crea con
+`realtime: { params: { eventsPerSecond: 20 } }`.
+
+**Qué pasa.** Ese ajuste es un acelerador **del lado del cliente**. Protege
+contra un bucle mal escrito en la propia aplicación y no contra alguien que se
+fabrique su cliente, que es exactamente lo que hace falta para abusar.
+
+Medido: un miembro legítimo, con un cliente propio que simplemente **no fija ese
+parámetro**, emitió 1.580 eventos `typing` a 200 por segundo y **los 1.580
+llegaron** al otro miembro. Cero recortados por el servicio.
+
+**Impacto.** No es denegación de servicio y no filtra nada — se comprobó que el
+mensaje legítimo sigue llegando durante la inundación, con 1,09-1,37× la
+latencia de referencia. Lo que sí hace es **gastar la cuota de Realtime del
+proyecto**, y la gasta sin pasar por el limitador de la API, porque los eventos
+de tiempo real no van por los endpoints.
+
+Es la ilustración exacta del principio: una restricción que sólo existe en el
+frontend no es una restricción.
+
+**Reproducción.** `node tests/e2e/realtime-flood.mjs`.
+
+**Evidencia.**
+
+```
+inundando: 200/s durante 8 s desde una cuenta legítima
+  eventos emitidos:   1580
+  entrega durante:    763 ms  (llegó)
+  entrega después:    683 ms  (llegó)
+  entrega durante / línea base: 1.37×
+  eventos que llegaron a Bob: 1580 de 1580  (100%)
+```
+
+Una precisión sobre la medida: la primera versión contaba los `send()`
+rechazados en el cliente y daba cero, lo cual no demuestra nada — `send()`
+devuelve `'ok'` en cuanto escribe en el socket, sin acuse del servidor. El
+número que dice algo es cuántos aparecen **al otro lado**, y ése es el 100%.
+
+**Solución recomendada.** El techo tiene que estar donde el cliente no llega:
+el ajuste *Max events per second* de Realtime en el panel de Supabase, por
+proyecto. El `eventsPerSecond` del cliente se queda como está — es útil para no
+saturarse a uno mismo — pero deja de ser lo único.
+
+**Por qué queda abierto.** Es un ajuste de infraestructura en un panel, no una
+línea de código, así que no se puede aplicar desde el repositorio.
+
+### AUDIT-07 — El limitador dejaba pasar 1,88× lo declarado · LOW · CORREGIDO
+
+**Dónde.** `src/server/rate-limit.ts`.
+
+**Qué pasaba.** El limitador era de ventana fija. Quien gasta su cuota al final
+de una ventana y otra vez al principio de la siguiente mete el doble en
+cualquier intervalo de diez segundos. Estaba escrito como techo conocido en el
+README — **documentado, no medido**.
+
+**Medirlo costó dos intentos, y los dos fallos son instructivos.** El primero
+trataba de acertar el borde de la ventana durmiendo la diferencia: falló porque
+cada ráfaga contra el despliegue tarda segundos y la aritmética se desfasa —
+el número que salía dependía del cronómetro, no del limitador. El segundo usó
+goteo constante a cinco por segundo y dio **1,08×**: una cifra honesta que **no
+es el peor caso**, porque repartir la carga es justo lo que no dispara el fallo.
+
+Con ráfagas, que es el patrón patológico: **1,88×**. Cuarenta y siete aceptados
+en diez segundos con un límite declarado de veinticinco.
+
+**Corrección.** Contador de ventana deslizante: se guarda la cuenta de la
+ventana anterior y se pondera por el solape que le queda. Sigue siendo un solo
+viaje a la base — el `upsert` avanza la ventana si toca, incrementa y devuelve
+lo necesario para decidir.
+
+**Medido después: 1,00×.** El pico en cualquier ventana de diez segundos es
+exactamente el límite.
+
+**Lo que cuesta, dicho con número.** Las peticiones rechazadas también cuentan,
+así que quien insiste tarda más en volver. Se midió con una cuenta limpia:
+gastar la cuota entera de golpe y luego pedir a ritmo humano da **13,5 s** hasta
+volver a entrar, frente a los 10 s justos de la ventana fija. Tres segundos y
+medio de más a cambio de eliminar el doble cupo.
+
+**Regresión.** Ocho pruebas unitarias sobre la aritmética del solape —incluidas
+dos de propiedad: el uso crece de forma monótona al llenarse la ventana y
+decrece al alejarse del corte— más `npm run bench:rate`, que mide el pico real
+y el tiempo de recuperación.
 
 ---
 
@@ -363,15 +466,18 @@ el tiempo real estuviera caído o el cliente de Mallory roto:
 reproducir señalización de llamada antigua. Ninguno de los dos cruza la frontera
 de la autorización.
 
-### Límite de peticiones — sin hallazgos
+### Límite de peticiones — un hallazgo (AUDIT-07), corregido
 
 El limitador vive en Postgres, no en memoria del proceso — sin eso, cada
 instancia llevaría su propia cuenta y el límite se multiplicaría por el número
-de instancias. La suite existente verifica aceptados, rechazados con 429 y cero
-errores de servidor bajo carga.
+de instancias.
 
-**Techo conocido**: es una ventana fija, así que el pico real en el borde de dos
-ventanas es el doble del límite.
+El techo del 2× que el README documentaba resultó ser **1,88× al medirlo**, y se
+corrigió con un contador de ventana deslizante. Después: **1,00×**. Los detalles,
+incluido lo que costó medirlo bien, en AUDIT-07.
+
+*Sin probar*: el limitador del login, que es de Supabase y atacarlo sería atacar
+a un tercero.
 
 ### Base de datos — sin hallazgos
 
@@ -382,6 +488,37 @@ las que sólo llega el servidor, no un descuido.
 Ninguna respuesta de la API expone hashes, tokens ni correos ajenos:
 `publicUserSelect` recorta la fila antes de salir. Comprobado leyendo el perfil
 de otra persona y buscando `@probe.test` y `password` en la respuesta.
+
+### Carga sostenida — sin hallazgos
+
+`bench:load` mide el pico y responde otra pregunta. Una fuga de memoria, un
+bucle de eventos atascado o conexiones que no se devuelven **no aparecen en un
+pico**: aparecen cuando el proceso lleva un rato vivo.
+
+Tres minutos de carga continua, seis tramos de treinta segundos con cuatro
+peticiones en paralelo, midiendo el p95 de cada tramo:
+
+| tramo | peticiones | p50 | p95 | p99 |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 460 | 249 | 349 | 700 |
+| 2 | 477 | 244 | 303 | 361 |
+| 3 | 458 | 247 | 324 | 544 |
+| 4 | 465 | 252 | 312 | 407 |
+| 5 | 457 | 256 | 326 | 488 |
+| 6 | 455 | 251 | 339 | 771 |
+
+**2.772 peticiones, cero respuestas distintas de 200.** El p95 del último tramo
+es 0,97× el del primero y el rendimiento 0,99×: el proceso se comporta en el
+minuto tres igual que en el primero. Ni acumulación ni degradación.
+
+Se mide con lecturas y no con envíos a propósito: enviar toparía con el
+limitador a los pocos segundos y el resto del banco mediría la latencia de un
+429, que es rápida y no toca casi nada.
+
+*Sin probar*: no se puede leer la memoria del proceso contra el despliegue, así
+que la ausencia de fuga se infiere del comportamiento. Es menos directo que un
+perfilador y es lo que hay sin montar un entorno que no se parecería a
+producción.
 
 ### Condiciones de carrera — sin hallazgos
 
@@ -415,7 +552,7 @@ malformado da 400, no 500.
 
 ## Cobertura
 
-**Estimación: 78-82% de la superficie.** Calculada así:
+**Estimación: 84-88% de la superficie.** Calculada así:
 
 | dimensión | cubierto | total | cómo |
 | --- | --- | --- | --- |
@@ -423,19 +560,18 @@ malformado da 400, no 500.
 | Métodos HTTP | ~55 | 67 | los no cubiertos son GET de lectura propia |
 | Rutas con id (IDOR) | 31 | 31 | las tres identidades contra todas |
 | Categorías OWASP API Top 10 | 8 | 10 | faltan inventario de activos y consumo ilimitado |
-| Superficie de tiempo real | ~70% | | atacada con cliente propio; falta inundación |
+| Superficie de tiempo real | ~90% | | autorización atacada e inundación medida |
 | Componentes de frontend | ~15% | | sólo el renderizado de mensajes |
 
 El número está deliberadamente por debajo de lo que sugieren los ceros. **Un
 «no encontré nada» sin la lista de lo que no se probó no significa nada**, y
 aquí esa lista es real:
 
-- **Inundación de eventos** en un canal al que sí se tiene acceso. La
-  autorización se atacó y aguanta; el abuso desde dentro no se midió.
 - **Fuerza bruta y enumeración en el login.** Es el limitador de Supabase, y
   atacarlo sería atacar a un tercero.
-- **Carga real.** Se ejecutaron pruebas de concurrencia existentes, no un
-  escenario sostenido buscando fugas de memoria o bloqueo del bucle de eventos.
+- **Perfilado de memoria.** La carga sostenida no mostró degradación en tres
+  minutos, pero contra el despliegue no se puede leer la memoria del proceso: la
+  ausencia de fuga se infiere del comportamiento, no se observa.
 - **Fuzzing.** Se probaron tipos incorrectos y valores extremos a mano, no un
   fuzzer sobre los 67 métodos.
 - **XSS fuera de los mensajes.** Nombres, biografías y nombres de grupo van como
@@ -451,7 +587,7 @@ aquí esa lista es real:
 
 | capa | pruebas | pasan | fallan |
 | --- | ---: | ---: | ---: |
-| Unitarias | 58 | 58 | 0 |
+| Unitarias | 66 | 66 | 0 |
 | Componente (8 de XSS) | 14 | 14 | 0 |
 | Integración (Postgres real) | 46 | 46 | 0 |
 | Navegador | 10 | 10 | 0 |
@@ -459,8 +595,10 @@ aquí esa lista es real:
 | **Autorización (nueva)** | **54** | **54** | **0** |
 | **Abuso (nueva)** | **36** | **36** | **0** |
 | **Tiempo real (nueva)** | **8** | **8** | **0** |
+| **Inundación de canal (nueva)** | **7** | **7** | **0** |
+| **Aritmética del limitador (nueva)** | **8** | **8** | **0** |
 | Cabeceras y CORS | 22 | 22 | 0 |
-| **Total** | **342** | **342** | **0** |
+| **Total** | **357** | **357** | **0** |
 
 Las suites nuevas están en `npm run test:e2e`, así que corren con las demás.
 
@@ -492,7 +630,7 @@ Las suites nuevas están en `npm run test:e2e`, así que corren con las demás.
 | Autenticación | **9/10** |
 | Autorización | **9/10** |
 | Seguridad de la API | **9/10** |
-| Tiempo real | **9/10** |
+| Tiempo real | **8/10** — autorización sólida, tope de eventos sólo en cliente |
 | Calidad del código | **9/10** |
 | Listo para producción | **9/10** |
 
@@ -517,26 +655,36 @@ aguantó: cuatro tipos de canal ajeno rechazados, cero contenido filtrado
 mientras había tráfico real, y dos controles positivos que descartan que el
 resultado venga de tener algo roto.
 
+Y el abuso *desde dentro* también se midió: un miembro inundando su propio canal
+no deja sordos a los demás — el mensaje legítimo sigue llegando a 1,09-1,37× la
+latencia normal. Lo que sí destapó es AUDIT-06, el único punto que queda
+abierto, y se cierra con un ajuste en un panel.
+
 **Lo que impide un diez** no es un fallo conocido, es lo que queda sin medir: no
-hay prueba de carga sostenida buscando fugas de memoria, no se ha hecho fuzzing
-sobre los 67 métodos, y el abuso *desde dentro* —inundar un canal al que sí se
-tiene acceso— no se midió. Ninguno de los tres es un agujero; los tres son
-sitios donde todavía no se ha mirado.
+se ha hecho fuzzing sobre los 67 métodos, no hay perfilado de memoria con acceso
+al proceso —la carga sostenida no mostró degradación en tres minutos, pero eso
+se infiere del comportamiento, no se observa— y la matriz de roles se probó en
+el salto grande, no rol por rol. Ninguno es un agujero; los tres son sitios
+donde todavía no se ha mirado.
 
 ### Los 10 problemas a resolver, por prioridad
 
-1. **Ventana deslizante en el limitador**, o dejar el techo por escrito
-2. **Prueba de carga sostenida** buscando fugas y bloqueo del bucle de eventos
-3. **Inundación de eventos** en un canal propio — el abuso desde dentro
-4. **Validar los ids como uuid antes de consultar** — defensa en profundidad
-5. **XSS por cada superficie de texto**, no sólo mensajes
-6. **Recorrido de directorios en nombres de fichero subidos**
-7. **Matriz completa de roles** — MODERATOR y ADMIN por separado en todas las
+1. **Poner el tope de eventos de Realtime del lado del servidor** (AUDIT-06):
+   *Max events per second* en el panel de Supabase. Es lo único abierto.
+2. **Validar los ids como uuid antes de consultar** — defensa en profundidad
+   sobre el mapeo de errores ya aplicado
+3. **XSS por cada superficie de texto**, no sólo mensajes
+4. **Recorrido de directorios en nombres de fichero subidos**
+5. **Matriz completa de roles** — MODERATOR y ADMIN por separado en todas las
    acciones
-8. **Fuzzing** sobre los 67 métodos
-9. **Autorización antes que validación** en el envoltorio de rutas
-10. **Presupuesto de error detrás del aviso de latencia** — hoy avisa, pero nada
-    cuenta cuánto tiempo lleva fuera de presupuesto
+6. **Fuzzing** sobre los 67 métodos
+7. **Perfilado de memoria** con acceso al proceso, para observar lo que la carga
+   sostenida sólo infiere
+8. **Autorización antes que validación** en el envoltorio de rutas
+9. **Presupuesto de error detrás del aviso de latencia** — hoy avisa, pero nada
+   cuenta cuánto tiempo lleva fuera de presupuesto
+10. **Fuerza bruta y enumeración en el login**, cuando deje de depender de un
+    tercero
 
 Ninguno es un agujero abierto. Son, en orden, las cosas que convertirían «no
 encontré nada» en «se buscó donde había que buscar».

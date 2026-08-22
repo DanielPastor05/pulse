@@ -980,6 +980,7 @@ npm run test:e2e
 npm run bench:quality   # recall@k of each retrieval arm, end to end
 npm run bench:models    # the two embedding models, no database in the way
 npm run bench:rate      # the real burst ceiling of the rate limiter
+npm run bench:sustained # three minutes of load: does it degrade over time?
 npm run bench:breakdown # where search latency actually goes
 npm run coverage        # unit + component + integration under one counter
 npm run bench:search     npm run bench:load

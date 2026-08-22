@@ -113,4 +113,48 @@ if (errores) {
   process.exitCode = 1;
 }
 
+/*
+ * La otra mitad de la historia: cuánto tarda en recuperarse alguien normal.
+ *
+ * La ventana deslizante corrige el 2×, y cambia el comportamiento de una forma
+ * que hay que medir antes de celebrarlo: las peticiones rechazadas también
+ * incrementan el contador, así que quien insiste se queda fuera más tiempo.
+ * Eso está bien para el abuso, y sería un problema si atrapara a quien mandó
+ * veinticinco mensajes seguidos y después se portó bien.
+ *
+ * Se mide con una cuenta nueva, porque la anterior lleva cuarenta segundos de
+ * castigo encima y daría un número que no le ocurre a nadie.
+ */
+console.log('\n---\nrecuperación tras una ráfaga legítima:\n');
+
+const bob = await makeUser('rl2');
+await onboard(bob);
+const suyo = await api('/api/conversations', {
+  actor: bob, method: 'POST', body: { type: 'GROUP', name: 'Recuperación', memberIds: [] },
+});
+const suyoId = suyo.json?.id ?? suyo.json?.conversation?.id;
+
+let m = 0;
+const enviarBob = () => api(`/api/conversations/${suyoId}/messages`, {
+  actor: bob, method: 'POST', body: { content: `r${m}`, clientId: `rc-${m++}` },
+});
+
+const inicial = await Promise.all(Array.from({ length: LIMITE }, enviarBob));
+console.log(`  ráfaga de ${LIMITE}: ${inicial.filter((r) => r.status === 201).length} aceptados`);
+
+const t0 = Date.now();
+let recuperado = null;
+for (let i = 0; i < 12 && recuperado === null; i += 1) {
+  await dormir(2_000);
+  const r = await enviarBob();
+  if (r.status === 201) recuperado = (Date.now() - t0) / 1000;
+}
+
+console.log(
+  recuperado === null
+    ? '  NO se recuperó en 24 s — el limitador es demasiado severo'
+    : `  vuelve a entrar a los ${recuperado.toFixed(1)} s`,
+);
+if (recuperado === null) process.exitCode = 1;
+
 await cleanup();
