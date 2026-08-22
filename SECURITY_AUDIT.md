@@ -84,7 +84,7 @@ como estaba: 5 usuarios, 4 conversaciones, 0 conversaciones huérfanas.
 | AUDIT-01 | Un id malformado devuelve 500 en 11 de 13 rutas | LOW | **CORREGIDO** | `src/server/http.ts` |
 | AUDIT-02 | La idempotencia del envío depende de que el cliente mande la clave | INFORMATIONAL | Documentado | `messages/validators.ts` |
 | AUDIT-03 | Sesgo de módulo en el alfabeto de los códigos de invitación | INFORMATIONAL | Aceptado | `src/lib/utils.ts` |
-| AUDIT-04 | La validación corre antes que la autorización | INFORMATIONAL | Aceptado | `src/server/http.ts` |
+| AUDIT-04 | La validación corre antes que la autorización | INFORMATIONAL | **CORREGIDO** | 9 manejadores + `src/server/request-scope.ts` |
 | AUDIT-05 | `cleanup()` de las pruebas tragaba errores de borrado | LOW (sólo pruebas) | **CORREGIDO** | `tests/e2e/harness.mjs` |
 | AUDIT-06 | El límite de eventos de tiempo real es sólo del lado del cliente | LOW | Abierto — requiere ajuste en el panel | `src/lib/supabase/client.ts` |
 | AUDIT-07 | El limitador de la API dejaba pasar 1,88× lo declarado | LOW | **CORREGIDO** | `src/server/rate-limit.ts` |
@@ -181,7 +181,7 @@ Con 62¹⁰ ≈ 8,4·10¹⁷ combinaciones, el sesgo no acerca un ataque por fue
 a nada practicable. Se anota porque es el tipo de detalle que un revisor busca,
 no porque haya que cambiarlo.
 
-### AUDIT-04 — La validación corre antes que la autorización · INFORMATIONAL
+### AUDIT-04 — La validación corre antes que la autorización · INFORMATIONAL · CORREGIDO
 
 Un no miembro que manda un cuerpo inválido recibe **400 con el detalle del
 esquema** en vez de 403. Aprende la forma del cuerpo de un endpoint al que no
@@ -192,6 +192,53 @@ esquemas están en él. Se anota por un motivo práctico, no defensivo — **dur
 esta misma auditoría hizo que ocho endpoints parecieran probados cuando la
 comprobación de permisos nunca llegó a ejecutarse**. Es una trampa para quien
 audita, más que para quien defiende.
+
+Reproducido contra producción antes de tocar nada, que es lo que lo convirtió de
+sospecha en hallazgo:
+
+```
+PATCH /api/conversations/:id      ajena 400  {"fieldErrors":{"name":["String must contain at least 2 character(s)"]}}
+POST  /api/conversations/:id/members   ajena 400  {"fieldErrors":{"userIds":["Array must contain at least 1 element(s)"]}}
+POST  /api/conversations/:id/read      ajena 400  {"fieldErrors":{"messageId":["Invalid uuid"]}}
+POST  /api/conversations/:id/invites   ajena 400  {"fieldErrors":{"maxUses":["Number must be less than or equal to 1000"]}}
+```
+
+**Lo que hizo falta para corregirlo, que no era lo que parecía.** La comprobación
+de pertenencia se adelantó en los nueve manejadores cuyo servicio ya la exigía.
+Eso, por sí solo, habría añadido una consulta por escritura — salvo que
+`requireMembership` estaba envuelta en `cache()` de React, así que la segunda
+llamada saldría de la caché y el cambio sería gratis.
+
+No lo era. Medido con una ruta de sonda que llama dos veces a la misma función
+memoizada dentro de un route handler: **dos consultas por petición, cuatro en dos
+peticiones**. `cache()` sólo tiene alcance mientras React renderiza, y un route
+handler no renderiza nada. La memoización era decoración, y las rutas que ya
+comprobaban la pertenencia antes de llamar a un servicio que la vuelve a
+comprobar llevaban desde siempre pagando el doble sin que se notara.
+
+Con un alcance de petición de verdad (`AsyncLocalStorage`, que sí existe en el
+runtime de Node): **una consulta por petición, dos en dos peticiones**. El cambio
+de orden sale gratis y de paso se quita una consulta que ya se pagaba.
+
+**El décimo candidato era la ruta de unión a grupos públicos, y adelantarle la
+comprobación la habría roto para siempre**: ahí, por definición, llama quien
+todavía no es miembro. La primera versión del cambio la incluía. No lo detectó
+ningún tipo, ningún lint ni ninguna prueba — lo detectó leer que
+`joinPublicConversation` es el único servicio del grupo que no empieza por
+`requireMembership`. Ahora hay una comprobación que se une desde fuera y lee la
+sala, para que nadie lo descubra en producción.
+
+Verificado tras desplegar, y cada caso con su control positivo al lado, porque un
+403 a secas lo pasaría también un endpoint que respondiera 403 siempre:
+
+```
+PATCH /                ajena 403, miembro 400
+POST  /members         ajena 403, miembro 400
+POST  /read            ajena 403, miembro 400
+POST  /invites         ajena 403, miembro 400
++ el 403 no lleva `details` en ninguno de los cuatro
++ alguien de fuera sigue uniéndose a un grupo público, y lee la sala
+```
 
 ### AUDIT-05 — `cleanup()` tragaba errores de borrado · LOW (sólo pruebas)
 
@@ -585,20 +632,43 @@ aquí esa lista es real:
 
 ## Recuento de pruebas
 
+La versión anterior de esta tabla listaba las suites nuevas **aparte** de «E2E
+existentes», que ya las incluía, y la aritmética del limitador aparte de las
+unitarias, que también. Sus filas sumaban 365 contra un total declarado de 357 —
+un recuento que se contradecía a sí mismo dentro de la misma tabla. Aquí van las
+capas sin solaparse, y las suites de extremo a extremo desglosadas dentro de su
+fila.
+
 | capa | pruebas | pasan | fallan |
 | --- | ---: | ---: | ---: |
-| Unitarias | 66 | 66 | 0 |
+| Unitarias | 75 | 75 | 0 |
 | Componente (8 de XSS) | 14 | 14 | 0 |
-| Integración (Postgres real) | 46 | 46 | 0 |
-| Navegador | 10 | 10 | 0 |
-| E2E existentes | 94 | 94 | 0 |
-| **Autorización (nueva)** | **54** | **54** | **0** |
-| **Abuso (nueva)** | **36** | **36** | **0** |
-| **Tiempo real (nueva)** | **8** | **8** | **0** |
-| **Inundación de canal (nueva)** | **7** | **7** | **0** |
-| **Aritmética del limitador (nueva)** | **8** | **8** | **0** |
-| Cabeceras y CORS | 22 | 22 | 0 |
-| **Total** | **357** | **357** | **0** |
+| Integración (Postgres real) | 46 | — | — |
+| Navegador | 10 | — | — |
+| Extremo a extremo | 212 | 212 | 0 |
+| **Total** | **357** | | |
+
+Las 212 de extremo a extremo, suite por suite, medidas contra el despliegue:
+
+| suite | comprobaciones |
+| --- | ---: |
+| `security` (incluye cabeceras y CORS) | 71 |
+| `authorization` | 54 |
+| `abuse` (11 nuevas de AUDIT-04) | 47 |
+| `push` | 12 |
+| `realtime-authz` | 10 |
+| `realtime-flood` | 7 |
+| `notifications` | 6 |
+| `realtime` | 5 |
+
+Integración y navegador van sin resultado a propósito: **desde este entorno no se
+pueden ejecutar**, y ponerles un «46/46 pasan» copiado de otra vez sería
+exactamente la clase de cifra que este informe existe para no tener. Las de
+integración se niegan solas a correr cuando `DATABASE_URL` apunta a Supabase
+—escriben datos y quieren un Postgres desechable—, y las de navegador necesitan
+una sesión, que aquí no se puede establecer porque el runtime del middleware no
+tiene salida de red hacia Supabase. Sus cifras son declaraciones contadas leyendo
+los ficheros, no ejecuciones, y el guardián del README las vigila como tales.
 
 Las suites nuevas están en `npm run test:e2e`, así que corren con las demás.
 
@@ -606,18 +676,19 @@ Las suites nuevas están en `npm run test:e2e`, así que corren con las demás.
 
 ## Correcciones recomendadas, por prioridad
 
-1. **Considerar una ventana deslizante** en el limitador, o aceptar por escrito
-   que el pico real es el doble del límite. Ya está documentado; es una decisión,
-   no un fallo.
-2. **Validar los ids de ruta como uuid antes de la consulta**, además del mapeo
-   de errores ya aplicado. Sería defensa en profundidad y ahorraría un viaje a
-   la base.
-3. **Prueba de XSS por cada superficie de texto** —nombre, biografía, nombre de
+1. ~~**Considerar una ventana deslizante** en el limitador~~ — hecho (AUDIT-07):
+   el pico real pasó de 1,88× a 1,00× del límite declarado.
+2. ~~**Validar los ids de ruta como uuid antes de la consulta**~~ — hecho: el
+   envoltorio corta antes de ir a la base, y el mapeo de errores sigue debajo
+   como segunda red.
+3. ~~**Mover la autorización antes de la validación**~~ — hecho (AUDIT-04), en
+   los nueve manejadores donde la pertenencia ya era precondición. Salió más
+   barato de lo esperado y más caro de lo que parecía: obligó a descubrir que la
+   memoización que lo hacía gratis no memoizaba nada.
+4. **Prueba de XSS por cada superficie de texto** —nombre, biografía, nombre de
    grupo— aunque React escape por construcción. Barato, y convierte un argumento
    en una comprobación.
-4. **Nombres de fichero con recorrido de directorios** en la subida.
-5. **Mover la autorización antes de la validación** en el envoltorio de rutas.
-   Beneficio pequeño; el motivo real es que no vuelva a engañar a quien audite.
+5. **Nombres de fichero con recorrido de directorios** en la subida.
 
 ---
 

@@ -96,6 +96,58 @@ test('el número de pruebas unitarias es el que hay', () => {
   assert.equal(dicho, declaradas, `el README dice ${dicho} pruebas unitarias y hay ${declaradas}`);
 });
 
+/*
+ * Las otras tres capas que se pueden contar leyendo.
+ *
+ * Esto se añadió el 23/08/2026 después de que la cifra de componente se fuera a
+ * **más del doble** —el README decía 6 y había 14— sin que nada avisara. El
+ * guardián existía desde hacía dos días y cubría sólo las unitarias, así que la
+ * lección no fue «hay que comprobar las cifras»: fue que comprobar una sola
+ * deja creer que están comprobadas todas.
+ *
+ * Las de extremo a extremo se quedan fuera y conviene decir por qué: no son
+ * declaraciones `test(` sino llamadas dentro de bucles, así que contarlas
+ * leyendo daría un número que no es el que sale al ejecutarlas. Esa cifra sigue
+ * dependiendo de medirla.
+ */
+/**
+ * Cuenta declaraciones `test(` a principio de línea bajo un directorio.
+ *
+ * Las tres comprobaciones de abajo están escritas sueltas y no en un bucle a
+ * propósito: un `test()` generado dentro de un `for` va indentado, y entonces
+ * el recuento sintáctico de esta misma prueba no lo ve. El guardián acabaría
+ * exigiendo una cifra en el README que no coincide con la que imprime
+ * `npm test`, que es precisamente el desfase que viene a impedir.
+ */
+function declaradas(directorio: string[], sufijo: string): number {
+  return ficherosPorExtension(join(RAIZ, ...directorio), sufijo).reduce(
+    (suma, ruta) => suma + [...readFileSync(ruta, 'utf8').matchAll(/^test\(/gm)].length,
+    0,
+  );
+}
+
+function afirmaCapa(nombre: string, patron: RegExp, hay: number) {
+  const dicho = cifraTras(patron);
+  assert.ok(dicho !== null, `el README ya no dice cuántas pruebas de ${nombre} hay`);
+  assert.equal(dicho, hay, `el README dice ${dicho} de ${nombre} y hay ${hay}`);
+}
+
+test('el número de pruebas de componente es el que hay', () => {
+  afirmaCapa('componente', /(\d+) component/, declaradas(['tests', 'component'], '.test.tsx'));
+});
+
+test('el número de pruebas de integración es el que hay', () => {
+  afirmaCapa(
+    'integración',
+    /(\d+) (?:integration|tests against a real Postgres)/,
+    declaradas(['tests', 'integration'], '.test.ts'),
+  );
+});
+
+test('el número de pruebas de navegador es el que hay', () => {
+  afirmaCapa('navegador', /(\d+) browser/, declaradas(['tests', 'smoke'], '.spec.ts'));
+});
+
 test('el número de ficheros de ruta coincide con los que hay', () => {
   const dicho = cifraTras(/(\d+) route files/);
   assert.ok(dicho !== null, 'el README ya no dice cuántos ficheros de ruta hay');
