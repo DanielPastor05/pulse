@@ -223,5 +223,83 @@ const roto = await fetch(`${process.env.E2E_APP_URL ?? 'http://localhost:3000'}/
 });
 check('el JSON roto no da 500', roto.status < 500, true);
 
+/*
+ * Regresión de AUDIT-08: la autorización va antes que la validación.
+ *
+ * Un endpoint que valida el cuerpo primero le contesta a un desconocido con un
+ * 400 y el detalle del esquema — le cuenta qué campos acepta una ruta a la que
+ * no tiene acceso. Es información, no una puerta abierta, pero durante la
+ * propia auditoría hizo algo peor: ocho endpoints parecieron probados cuando lo
+ * que respondía era el validador y la comprobación de permisos no llegó a
+ * ejecutarse nunca.
+ *
+ * Cada caso lleva su control positivo al lado, porque «403» a secas no
+ * demuestra el orden: un endpoint que siempre respondiera 403 lo pasaría igual.
+ * Hay que ver las dos respuestas — 403 para quien no es miembro, 400 para quien
+ * sí lo es con el mismo cuerpo malo.
+ */
+console.log('\nquien no es miembro no se entera de la forma del cuerpo:');
+
+const mallory = await makeUser('mallory');
+await onboard(mallory);
+
+const CUERPOS_MALOS = [
+  ['PATCH', '', { name: 'x' }],                            // min 2
+  ['POST', '/members', { userIds: [] }],                   // min 1
+  ['POST', '/read', { messageId: 'no-soy-un-uuid' }],      // no es uuid
+  ['POST', '/invites', { maxUses: 99_999 }],               // max 1000
+];
+
+for (const [metodo, sufijo, body] of CUERPOS_MALOS) {
+  const path = `/api/conversations/${grupoId}${sufijo}`;
+  const ajena = await api(path, { actor: mallory, method: metodo, body });
+  const propia = await api(path, { actor: alice, method: metodo, body });
+
+  const ok = ajena.status === 403 && propia.status === 400;
+  console.log(
+    `  ${ok ? 'ok  ' : 'FAIL'}  ${metodo} ${sufijo || '/'} -> ajena ${ajena.status}, miembro ${propia.status}`,
+  );
+  if (!ok) {
+    process.exitCode = 1;
+    console.log(`        ajena: ${JSON.stringify(ajena.json).slice(0, 160)}`);
+  }
+
+  // Y que el 403 vaya de verdad sin detalles: el `details` de Zod es
+  // exactamente lo que no debe cruzar.
+  check(`el 403 de ${metodo} ${sufijo || '/'} no lleva el esquema`,
+    Boolean(ajena.json?.details), false);
+}
+
+/*
+ * Y el contrario, que es el que casi se rompe.
+ *
+ * Adelantar la comprobación de pertenencia se aplicó a nueve manejadores; el
+ * décimo candidato era `/join`, al que por definición llama **quien todavía no
+ * es miembro**. Con la guarda puesta ahí, unirse a un grupo público habría
+ * devuelto 403 para siempre. Nada lo cubría, así que se habría desplegado.
+ */
+console.log('\ny unirse a un grupo público sigue siendo posible sin ser miembro:');
+
+const publico = await api('/api/conversations', {
+  actor: alice, method: 'POST', body: { type: 'GROUP', name: 'Sala abierta' },
+});
+const publicoId = publico.json?.id ?? publico.json?.conversation?.id;
+
+check('el grupo se abre al público', (await api(`/api/conversations/${publicoId}`, {
+  actor: alice, method: 'PATCH', body: { isPublic: true, requiresApproval: false },
+})).status, 200);
+
+const seUne = await api(`/api/conversations/${publicoId}/join`, {
+  actor: mallory, method: 'POST', body: {},
+});
+check('alguien de fuera se une', seUne.status < 400, true);
+if (seUne.status >= 400) {
+  console.log(`        cuerpo: ${JSON.stringify(seUne.json).slice(0, 200)}`);
+}
+
+// El efecto, no el código de estado: unirse tiene que dejarle leer.
+check('y a partir de ahí puede leer la sala',
+  (await api(`/api/conversations/${publicoId}/messages`, { actor: mallory })).status, 200);
+
 await cleanup();
 console.log('\ncuentas de prueba borradas');

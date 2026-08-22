@@ -1,7 +1,9 @@
+import { cache } from 'react';
 import { Prisma, type ConversationMember } from '@prisma/client';
 
 import { prisma } from '@/lib/prisma';
 import { errors } from '@/server/errors';
+import { memoDePeticion } from '@/server/request-scope';
 import {
   memberInclude,
   publicUserSelect,
@@ -151,15 +153,38 @@ export async function listConversations(
     });
 }
 
-/** Loads a conversation, asserting the viewer is a member of it. */
-export async function requireMembership(conversationId: string, userId: string) {
-  const membership = await prisma.conversationMember.findUnique({
-    where: { conversationId_userId: { conversationId, userId } },
-    include: { conversation: true },
-  });
-  if (!membership) throw errors.forbidden('You are not a member of this conversation.');
-  return membership;
-}
+/**
+ * Carga la conversación afirmando que quien mira es miembro.
+ *
+ * Memoizada por petición, con **dos mecanismos y no uno**, porque ninguno cubre
+ * los dos sitios desde los que se llama:
+ *
+ * - `cache()` de React sólo tiene alcance mientras se renderiza, así que cubre
+ *   los componentes de servidor.
+ * - `memoDePeticion` cubre los route handlers, donde `cache()` no memoiza nada.
+ *   Está medido: con `cache()` a solas, dos llamadas seguidas dentro de un
+ *   manejador ejecutaban la consulta **dos veces**.
+ *
+ * Importa por dos cosas. La primera es que varias rutas ya comprobaban la
+ * pertenencia y llamaban después a un servicio que la vuelve a comprobar: eso
+ * eran dos consultas idénticas por petición, pagadas desde siempre. La segunda
+ * es que permite comprobar la pertenencia **antes** de validar el cuerpo sin
+ * coste, que es lo que evita responder con la forma del esquema a quien no
+ * tiene acceso al endpoint.
+ *
+ * Se memoiza también el rechazo, que es lo que se quiere: si no es miembro, no
+ * lo será dos líneas más abajo.
+ */
+export const requireMembership = cache((conversationId: string, userId: string) =>
+  memoDePeticion(`membership:${conversationId}:${userId}`, async () => {
+    const membership = await prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId, userId } },
+      include: { conversation: true },
+    });
+    if (!membership) throw errors.forbidden('You are not a member of this conversation.');
+    return membership;
+  }),
+);
 
 export async function getConversationDetail(
   conversationId: string,

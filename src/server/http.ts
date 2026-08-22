@@ -7,6 +7,7 @@ import { publicEnv } from '@/lib/env';
 import { AppError, errors } from '@/server/errors';
 import { describeError, log } from '@/server/logger';
 import { checkLatencyBudgets, recordSample } from '@/server/metrics';
+import { conAlcanceDePeticion } from '@/server/request-scope';
 
 export type ApiErrorBody = { error: string; code: string; details?: unknown };
 
@@ -123,6 +124,41 @@ function toErrorResponse(error: unknown): NextResponse<ApiErrorBody> {
 
 type Handler<Context> = (request: Request, context: Context) => Promise<Response> | Response;
 
+const ES_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Un identificador que no es un uuid no llega a la base de datos.
+ *
+ * Ya hay una red debajo —el clasificador de errores traduce el `22P02` de
+ * Postgres a un 404— pero esa red se despliega *después* de haber ido a la base
+ * y haber fallado. Esto corta antes: ahorra el viaje y, sobre todo, deja de
+ * gastar una conexión del fondo por cada petición con basura en la URL.
+ *
+ * Se apoya en una convención que se cumple en las 52 rutas: los parámetros que
+ * son uuid se llaman `id` o terminan en `Id`; los que no lo son —`code`,
+ * `username`— no. Comprobarlo por el nombre evita tener que declarar el tipo
+ * ruta por ruta, que es la clase de lista que se queda desactualizada.
+ *
+ * Devuelve `null` si todo está bien, o la respuesta con la que hay que cortar.
+ */
+async function rechazarIdsMalformados(context: unknown): Promise<Response | null> {
+  const params = (context as { params?: Promise<Record<string, string | string[]>> } | undefined)
+    ?.params;
+  if (!params) return null;
+
+  const resueltos = await params;
+  for (const [nombre, valor] of Object.entries(resueltos ?? {})) {
+    const esIdentificador = nombre === 'id' || nombre.endsWith('Id');
+    if (!esIdentificador) continue;
+    if (typeof valor === 'string' && ES_UUID.test(valor)) continue;
+
+    // 404 y no 400: que el identificador esté mal formado no es información que
+    // el que pregunta necesite, y distinguirlo de «no existe» sería un oráculo.
+    return NextResponse.json({ error: 'Not found.', code: 'not_found' }, { status: 404 });
+  }
+  return null;
+}
+
 /**
  * Wraps a route handler with origin checking and error normalisation so every
  * endpoint returns the same error shape.
@@ -161,7 +197,13 @@ export function route<Context>(handler: Handler<Context>): Handler<Context> {
 
     try {
       assertSameOrigin(request);
-      response = await handler(request, context);
+      // El alcance de petición vive aquí, envolviendo sólo al manejador: es lo
+      // que hace que comprobar la pertenencia por adelantado no cueste una
+      // consulta de más. Fuera de él nada memoiza, así que ninguna respuesta
+      // puede llevarse un valor de la petición anterior.
+      response =
+        (await rechazarIdsMalformados(context)) ??
+        (await conAlcanceDePeticion(async () => handler(request, context)));
     } catch (error) {
       response = toErrorResponse(error);
     }

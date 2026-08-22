@@ -2,7 +2,7 @@ import { updateConversationSchema } from '@/features/conversations/validators';
 import { requireUser } from '@/server/auth';
 import { json, parseBody, route } from '@/server/http';
 import { rateLimit, rateLimits } from '@/server/rate-limit';
-import { getConversationDetail } from '@/server/repositories/conversation.repository';
+import { getConversationDetail, requireMembership } from '@/server/repositories/conversation.repository';
 import type { RouteContext } from '@/server/route-context';
 import { deleteConversation, updateConversation } from '@/server/services/conversation.service';
 
@@ -20,6 +20,12 @@ export const PATCH = route<Context>(async (request, context) => {
   const user = await requireUser();
   const { id } = await context.params;
   await rateLimit(`conversation:${user.id}`, rateLimits.mutate);
+  // La pertenencia antes que el esquema: quien no puede estar aquí no
+  // debe enterarse de qué forma tiene el cuerpo. Es la misma comprobación
+  // que ya hace `updateConversation`, adelantada; sale de la caché de petición,
+  // así que no cuesta una consulta de más.
+  await requireMembership(id, user.id);
+
   const input = await parseBody(request, updateConversationSchema);
   return json(await updateConversation(id, user, input));
 });
