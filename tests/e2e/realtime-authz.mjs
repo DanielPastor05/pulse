@@ -107,6 +107,38 @@ check('Mallory no recibe nada del canal ajeno', filtrado, null);
 const suyo = clienteMallory.channel(`user:${mallory.id}`, { config: { private: true } });
 check('pero su propio canal sí la admite', await subscribed(suyo, 12_000), 'SUBSCRIBED');
 
+// ---------------------------------------------------------------------------
+// 4. La puerta de al lado: el mismo topic, pero como canal público
+// ---------------------------------------------------------------------------
+/*
+ * El proyecto tiene «Allow public access to channels» activado en Supabase, y
+ * eso abre una pregunta que las comprobaciones de arriba no hacen: todas atacan
+ * con `private: true`, que es el camino que la política RLS autoriza. ¿Y si
+ * alguien se suscribe al **mismo topic sin marcar `private`**?
+ *
+ * Si el contenido viajara igual, la autorización del tiempo real no valdría
+ * nada: bastaría con no pedir permiso para no necesitarlo. No es el caso —el
+ * broadcast privado no cruza al espacio público— pero es exactamente el tipo de
+ * salto que se descubre tarde, así que se queda comprobado.
+ */
+console.log('\ny tampoco por la puerta pública del mismo topic:');
+
+const publico = clienteMallory.channel(`conversation:${grupoId}`);
+const porLaPublica = waitFor(publico, 'message.created', 12_000);
+const estadoPublico = await subscribed(publico, 12_000);
+
+await api(`/api/conversations/${grupoId}/messages`, {
+  actor: alice,
+  method: 'POST',
+  body: { content: 'tercer secreto, con Mallory en el canal público', clientId: 'rt-3' },
+});
+
+// La suscripción pública sí se establece —los canales públicos están
+// permitidos— y eso es justo lo que hace la comprobación necesaria: lo que no
+// puede pasar es que además reciba.
+console.log(`  (la suscripción pública se establece: ${estadoPublico})`);
+check('el canal público no recibe el tráfico privado', await porLaPublica, null);
+
 await clienteBob.removeAllChannels();
 await clienteMallory.removeAllChannels();
 await cleanup();
