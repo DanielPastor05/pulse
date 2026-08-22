@@ -80,6 +80,26 @@ function toErrorResponse(error: unknown): NextResponse<ApiErrorBody> {
     if (error.code === 'P2025') {
       return NextResponse.json({ error: 'Not found.', code: 'not_found' }, { status: 404 });
     }
+
+    /*
+     * Un id que no es un uuid pide algo que no puede existir, no rompe nada.
+     *
+     * Antes se caía al 500 del final, y no era un endpoint despistado: **once
+     * de trece** rutas con id lo hacían, porque el error nace en el driver y
+     * ninguna lo trataba. No filtraba nada —el cuerpo es genérico y se
+     * comprobó— pero cada petición basura acababa en Sentry como incidencia y
+     * en los percentiles como latencia real. Cualquiera con sesión podía
+     * agotar la cuota del reporte de errores con un bucle.
+     *
+     * `P2023` es el cliente normal; `P2010` es SQL crudo, y ahí hay que mirar
+     * el código de Postgres: mapear todo `P2010` a 404 escondería fallos de
+     * base de datos de verdad detrás de un «no encontrado».
+     */
+    const uuidInvalido =
+      error.code === 'P2023' || (error.code === 'P2010' && error.message.includes('22P02'));
+    if (uuidInvalido) {
+      return NextResponse.json({ error: 'Not found.', code: 'not_found' }, { status: 404 });
+    }
   }
 
   // Se reporta aquí y no se deja subir.
