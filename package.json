@@ -28,6 +28,7 @@
     "bench:search": "node tests/bench/search.mjs",
     "bench:quality": "node tests/bench/search-quality.mjs",
     "bench:models": "node tests/bench/embedding-models.mjs",
+    "bench:rate": "node tests/bench/rate-limit.mjs",
     "bench:breakdown": "node tests/bench/search-breakdown.mjs",
     "bench:load": "node tests/bench/load.mjs",
     "db:generate": "prisma generate",

@@ -710,6 +710,11 @@ model RateLimit {
   windowStart DateTime @default(now()) @db.Timestamptz(6)
   count       Int      @default(0)
 
+  /// Cuántas hubo en la ventana anterior. El contador deslizante la pondera por
+  /// la parte que todavía solapa, y eso es lo que impide gastar la cuota dos
+  /// veces seguidas a caballo de un corte.
+  prevCount   Int      @default(0)
+
   @@index([windowStart], map: "rate_limits_windowstart_idx")
   @@map("rate_limits")
 }

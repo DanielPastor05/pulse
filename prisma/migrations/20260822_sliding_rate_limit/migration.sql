@@ -1,0 +1,16 @@
+-- El limitador pasa de ventana fija a ventana deslizante.
+--
+-- La ventana fija dejaba colar el doble del límite en el borde: gastar la cuota
+-- al final de una ventana y otra vez al principio de la siguiente. Estaba
+-- documentado como techo conocido; al medirlo con ráfagas dio **1,88×** — 47
+-- mensajes aceptados en diez segundos con un límite declarado de 25.
+--
+-- El contador deslizante necesita recordar la ventana anterior para poder
+-- ponderarla. Con eso, el pico en cualquier intervalo de diez segundos se queda
+-- en el límite en vez de doblarlo.
+--
+-- Cuesta una columna y ninguna consulta de más: sigue siendo un solo `upsert`.
+-- La alternativa —guardar la marca de cada petición y contarlas— es exacta y
+-- crece sin techo con el tráfico, que es un precio peor por una diferencia que
+-- aquí no se nota.
+ALTER TABLE "rate_limits" ADD COLUMN IF NOT EXISTS "prevCount" INTEGER NOT NULL DEFAULT 0;
