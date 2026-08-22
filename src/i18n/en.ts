@@ -19,6 +19,7 @@ export const messages = {
     loading: 'Loading…',
     search: 'Search',
     somethingWentWrong: 'Something went wrong.',
+    you: 'you',
     today: 'Today',
     yesterday: 'Yesterday',
     at: 'at',
@@ -40,6 +41,7 @@ export const messages = {
     accept: 'Accept',
     decline: 'Decline',
     saveChanges: 'Save changes',
+    removeNamed: (name: string) => `Remove ${name}`,
   },
 
   nav: {
@@ -89,6 +91,7 @@ export const messages = {
     allQuiet: 'All quiet',
     allQuietHint: 'Mentions, reactions and new messages land here.',
     signalEstablished: 'Signal established',
+    goodToSee: (name: string) => `Good to see you, ${name}.`,
     pickConversation: 'Pick a conversation on the left, or start a new one.',
     searchEverything: 'Search everything',
     allShortcuts: 'All shortcuts',
@@ -194,6 +197,7 @@ export const messages = {
     jumpTo: 'Jump to message',
     remove: 'Remove',
     forwardTitle: 'Forward message',
+    forwardedFrom: (name: string) => `Forwarded from ${name}`,
     forwardHint: 'Pick up to ten conversations. The original author is credited.',
     noMatchFilter: 'Nothing matched that filter.',
     searchThis: 'Search this conversation',
@@ -217,6 +221,11 @@ export const messages = {
     gifsOff: 'GIFs are not configured',
     gifsOffHint: 'Add a TENOR_API_KEY to the environment to enable this picker.',
     noGifs: 'No GIFs found',
+    goTo: (name: string) => `Go to ${name}`,
+    nothingMentions: (term: string) => `Nothing in this conversation mentions “${term}”.`,
+    reactWith: (emoji: string) => `React with ${emoji}`,
+    pollOption: (n: number) => `Option ${n}`,
+    removePollOption: (n: number) => `Remove option ${n}`,
     starMessage: 'Star message',
     pinTo: 'Pin to conversation',
     deletedShort: 'Message deleted',
@@ -231,6 +240,11 @@ export const messages = {
 
   conversation: {
     members: (count: number) => (count === 1 ? '1 member' : `${count} members`),
+    memberCount: (count: number) => (count === 1 ? '1 member' : `${count} members`),
+    manageMember: (name: string) => `Manage ${name}`,
+    reportedBy: (username: string) => `reported by @${username}`,
+    aboutUser: (username: string) => `About @${username} · `,
+    invitedYou: 'invited you to',
     typing: 'typing…',
     private: 'Private',
     public: 'Public',
@@ -357,7 +371,6 @@ export const messages = {
     speaker: 'Speaker',
     leave: 'Leave call',
     noRelay: 'No TURN relay',
-    you: 'you',
     left: (name: string) => `${name} left — they can rejoin`,
     endingIn: 'Ending in',
     stillGoing: 'is still going',
@@ -430,6 +443,8 @@ export const messages = {
     findPeople: 'Find people',
     searchPeople: 'Search by name or @username',
     twoCharacters: 'Type at least two characters to search.',
+    noOneMatched: (term: string) => `No one matched “${term}”.`,
+    typeToConfirm: (username: string) => `Type ${username} to confirm`,
     profileHint: 'How you appear across every conversation.',
     statusHint: 'Shown next to your name',
     statusPlaceholder: 'Heads down until 4pm',
@@ -479,6 +494,10 @@ export const messages = {
       'Your messages, reactions and memberships go with it, and this cannot be undone.',
     deleteHintExport: 'Download your data first if you want a copy.',
     handOver: 'Hand these over first',
+    handOverHint: (count: number): string =>
+      count === 1
+        ? 'You own a group with other people in it. Leaving without an owner would strand everyone inside, so transfer ownership or remove the group first.'
+        : 'You own groups with other people in them. Leaving without an owner would strand everyone inside, so transfer ownership or remove the groups first.',
     untitledGroup: 'Untitled group',
     exactlyAsWritten: 'Exactly as written, so this can never be an accident.',
     keepAccount: 'Keep my account',
@@ -510,6 +529,9 @@ export const messages = {
     back: 'Back',
     continueStep: 'Continue',
     enterPulse: 'Enter Pulse',
+    stepOf: (paso: number, total: number) => `Step ${paso} of ${total}`,
+    pressToJump: 'anywhere to jump between conversations.',
+    press: 'Press',
     signInHint: 'Sign in to pick up every conversation exactly where you left it.',
     newHere: 'New here?',
     createAnAccount: 'Create an account',
@@ -586,3 +608,18 @@ export const messages = {
  * turns a forgotten translation into a compile error.
  */
 export type Messages = typeof messages;
+
+/**
+ * Las claves de un grupo cuyo valor es texto, sin las funciones.
+ *
+ * Existe porque hay tablas que guardan una clave en vez de una frase —los
+ * rótulos de navegación, los roles, los motivos de denuncia— y se declaran en
+ * el módulo, donde todavía no hay idioma. Si una de esas claves apuntara a
+ * `members(count)` o `goodToSee(name)`, React pintaría la función en pantalla.
+ *
+ * Ya hizo falta dos veces suelto antes de subirlo aquí: la segunda fue añadir
+ * un saludo a `nav` y romper la barra superior, que indexa ese mismo grupo.
+ */
+export type SoloTexto<G extends keyof Messages> = {
+  [K in keyof Messages[G]]: Messages[G][K] extends string ? K : never;
+}[keyof Messages[G]];

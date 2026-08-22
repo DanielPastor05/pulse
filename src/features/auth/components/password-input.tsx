@@ -6,7 +6,7 @@ import { Eye, EyeOff, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input, type InputProps } from '@/components/ui/input';
 import { useT } from '@/i18n/provider';
-import type { Messages } from '@/i18n/en';
+import type { SoloTexto } from '@/i18n/en';
 
 export function PasswordInput({ className, ...props }: InputProps) {
   const t = useT();
@@ -41,7 +41,7 @@ const RULES = [
   { test: (value: string) => /[0-9]/.test(value), label: 'aNumber' },
 ] as const satisfies ReadonlyArray<{
   test: (value: string) => boolean;
-  label: keyof Messages['auth'];
+  label: SoloTexto<'auth'>;
 }>;
 
 /** Live strength meter — reassurance while typing, not a gate. */

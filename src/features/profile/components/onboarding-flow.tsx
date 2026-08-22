@@ -18,7 +18,7 @@ import { Field } from '@/components/ui/field';
 import { Input, Textarea } from '@/components/ui/input';
 import type { CurrentUser } from '@/types/dto';
 import { useT } from '@/i18n/provider';
-import type { Messages } from '@/i18n/en';
+import type { SoloTexto } from '@/i18n/en';
 
 const STEPS = [
   { id: 'identity', title: 'claimHandle', blurb: 'claimHandleHint' },
@@ -26,8 +26,8 @@ const STEPS = [
   { id: 'done', title: 'allSet', blurb: 'allSetHint' },
 ] as const satisfies ReadonlyArray<{
   id: string;
-  title: keyof Messages['auth'];
-  blurb: keyof Messages['auth'];
+  title: SoloTexto<'auth'>;
+  blurb: SoloTexto<'auth'>;
 }>;
 
 type Props = {
@@ -113,7 +113,7 @@ export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvat
 
       <div className="mb-6 space-y-1.5">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--accent)]">
-          Step {step + 1} of {STEPS.length}
+          {t.auth.stepOf(step + 1, STEPS.length)}
         </p>
         <h1 className="text-2xl font-semibold tracking-[-0.02em]">{t.auth[current.title]}</h1>
         <p className="text-sm text-[var(--text-2)]">{t.auth[current.blurb]}</p>
@@ -225,7 +225,7 @@ export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvat
 
                   <p className="flex items-center gap-2 text-[13px] text-[var(--text-2)]">
                     <Sparkles className="size-4 text-[var(--accent)]" />
-                    Press <kbd className="font-mono">⌘K</kbd> anywhere to jump between conversations.
+                    {t.auth.press} <kbd className="font-mono">⌘K</kbd> {t.auth.pressToJump}
                   </p>
                 </div>
               ) : null}

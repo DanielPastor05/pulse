@@ -76,13 +76,14 @@ export function InviteCard({
         </div>
 
         <p className="mt-5 text-[13px] text-[var(--text-3)]">
-          <span className="font-medium text-[var(--text-2)]">{invite.invitedBy}</span> invited you to
+          <span className="font-medium text-[var(--text-2)]">{invite.invitedBy}</span>{' '}
+          {t.conversation.invitedYou}
         </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-[-0.02em]">{invite.name}</h1>
 
         <p className="mt-1 flex items-center justify-center gap-1.5 text-[13px] text-[var(--text-3)]">
           <Users className="size-3.5" />
-          {invite.memberCount} member{invite.memberCount === 1 ? '' : 's'}
+          {t.conversation.memberCount(invite.memberCount)}
         </p>
 
         {invite.description ? (

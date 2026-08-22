@@ -742,8 +742,23 @@ The app ships in English and Spanish. The dictionaries are plain typed objects �
 `es.ts` is declared `satisfies Messages`, so a missing or misspelled translation
 is a **compile error** rather than a screen that quietly shows a key name. That
 is the entire reason they are not JSON: a JSON bundle cannot tell you at build
-time that a translation is missing. 513 entries per language across 11 groups,
-consumed by 70 files.
+time that a translation is missing. 540 entries per language across 11 groups,
+consumed by 72 files.
+
+Getting to *all* of them took four passes, and each pass was a regex that had
+been tuned to catch the previous miss. `Add` slipped through for being three
+letters. `Public` slipped through for sitting in the same ternary as a key that
+had already been translated. `(you)` slipped through for being lowercase and in
+brackets. Every scan came back clean and the interface was still half English.
+
+What found the rest was parsing with the TypeScript compiler instead of guessing
+with patterns — it already knows a JSX text node from a generic, a comment or an
+identifier. That turned up thirteen more, all of the same shape: text *wrapping*
+an interpolation, like `Step {n} of {m}`, which no line-based pattern can see.
+And a grep for template literals in user-facing attributes turned up nine
+`aria-label`s that are invisible on screen and read aloud by a screen reader,
+which in an app that bothers with `role="log"` and `aria-live` is the same
+inconsistency, just not one you can photograph.
 
 The locale resolves server-side — cookie, then `Accept-Language`, then English —
 so the first paint is already in the right language rather than flashing English

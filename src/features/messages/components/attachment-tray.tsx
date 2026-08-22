@@ -6,6 +6,7 @@ import { AlertCircle, FileText, Film, Loader2, Mic, Music, X } from 'lucide-reac
 
 import { cn, formatBytes } from '@/lib/utils';
 import type { UploadedFile } from '@/features/media/upload';
+import { useT } from '@/i18n/provider';
 
 export type PendingAttachment = {
   id: string;
@@ -33,6 +34,7 @@ export function AttachmentTray({
   items: PendingAttachment[];
   onRemove: (id: string) => void;
 }) {
+  const t = useT();
   if (items.length === 0) return null;
 
   return (
@@ -107,7 +109,7 @@ export function AttachmentTray({
                     'bg-[var(--surface-solid)] text-[var(--text-3)] shadow-sm',
                     'transition-colors hover:text-[var(--danger)]',
                   )}
-                  aria-label={`Remove ${item.name}`}
+                  aria-label={t.common.removeNamed(item.name)}
                 >
                   <X className="size-3" />
                 </button>

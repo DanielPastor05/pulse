@@ -5,7 +5,7 @@ import { Kbd } from '@/components/ui/misc';
 import { useIsMac } from '@/hooks/use-keyboard-shortcuts';
 import { useUiStore } from '@/stores/ui-store';
 import { useT } from '@/i18n/provider';
-import type { Messages } from '@/i18n/en';
+import type { SoloTexto } from '@/i18n/en';
 
 const GROUPS = [
   {
@@ -28,8 +28,8 @@ const GROUPS = [
     ],
   },
 ] as const satisfies ReadonlyArray<{
-  title: keyof Messages['nav'];
-  items: ReadonlyArray<{ keys: readonly string[]; label: keyof Messages['nav'] }>;
+  title: SoloTexto<'nav'>;
+  items: ReadonlyArray<{ keys: readonly string[]; label: SoloTexto<'nav'> }>;
 }>;
 
 export function ShortcutsDialog() {

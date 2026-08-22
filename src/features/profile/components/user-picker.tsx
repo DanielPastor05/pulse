@@ -84,7 +84,7 @@ export function UserPicker({
                   type="button"
                   onClick={() => toggle(user)}
                   className="grid size-4 place-items-center rounded-full text-[var(--text-3)] transition-colors hover:bg-[var(--hairline-strong)] hover:text-[var(--text-1)]"
-                  aria-label={`Remove ${user.displayName}`}
+                  aria-label={t.common.removeNamed(user.displayName)}
                 >
                   <X className="size-3" />
                 </button>
@@ -113,7 +113,7 @@ export function UserPicker({
           </div>
         ) : results.length === 0 ? (
           <p className="px-3 py-8 text-center text-[13px] text-[var(--text-3)]">
-            No one matched “{term}”.
+            {t.settings.noOneMatched(term)}
           </p>
         ) : (
           <ul className="space-y-0.5">

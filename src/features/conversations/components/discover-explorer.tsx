@@ -111,7 +111,7 @@ export function DiscoverExplorer() {
                     <h2 className="truncate text-[15px] font-semibold">{group.name}</h2>
                     <p className="flex items-center gap-1 text-[12px] text-[var(--text-3)]">
                       <Users className="size-3" />
-                      {group.memberCount} member{group.memberCount === 1 ? '' : 's'}
+                      {t.conversation.memberCount(group.memberCount)}
                     </p>
                   </div>
                 </div>

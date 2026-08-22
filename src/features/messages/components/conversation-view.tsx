@@ -39,7 +39,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { MessageSkeleton } from '@/components/ui/skeleton';
 import type { MessageDTO } from '@/types/dto';
 import { useT } from '@/i18n/provider';
-import type { Messages } from '@/i18n/en';
+import type { SoloTexto } from '@/i18n/en';
 
 const PANEL_TITLES = {
   details: 'details',
@@ -47,7 +47,7 @@ const PANEL_TITLES = {
   search: 'panelSearch',
   gallery: 'panelGallery',
   thread: 'panelThread',
-} as const satisfies Record<string, keyof Messages['conversation']>;
+} as const satisfies Record<string, SoloTexto<'conversation'>>;
 
 export function ConversationView({ conversationId }: { conversationId: string }) {
   const t = useT();

@@ -47,7 +47,7 @@ import { Badge, Switch } from '@/components/ui/misc';
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from '@/components/ui/menu';
 import type { ConversationDetail, PublicUser, ReportDTO } from '@/types/dto';
 import { useT } from '@/i18n/provider';
-import type { Messages } from '@/i18n/en';
+import type { SoloTexto } from '@/i18n/en';
 
 const ROLE_ICON: Record<MemberRole, typeof Crown | null> = {
   OWNER: Crown,
@@ -56,16 +56,7 @@ const ROLE_ICON: Record<MemberRole, typeof Crown | null> = {
   MEMBER: null,
 };
 
-/**
- * Sólo las claves cuyo valor es texto. El grupo también guarda funciones
- * —`members(count)`, `sayHello(name)`— y una tabla que apuntase a una de ellas
- * pintaría la función en pantalla en vez de la frase.
- */
-type TextoDe = {
-  [K in keyof Messages['conversation']]: Messages['conversation'][K] extends string ? K : never;
-}[keyof Messages['conversation']];
-
-const REPORT_LABEL: Record<ReportDTO['reason'], TextoDe> = {
+const REPORT_LABEL: Record<ReportDTO['reason'], SoloTexto<'conversation'>> = {
   SPAM: 'spam',
   HARASSMENT: 'harassment',
   HATE: 'hate',
@@ -75,7 +66,7 @@ const REPORT_LABEL: Record<ReportDTO['reason'], TextoDe> = {
   OTHER: 'other',
 };
 
-const ROLE_LABEL: Record<MemberRole, TextoDe> = {
+const ROLE_LABEL: Record<MemberRole, SoloTexto<'conversation'>> = {
   OWNER: 'owner',
   ADMIN: 'admin',
   MODERATOR: 'moderator',
@@ -278,8 +269,8 @@ function Reports({ conversation }: { conversation: ConversationDetail }) {
             ) : null}
 
             <p className="mt-1 text-[11px] text-[var(--text-3)]">
-              {report.reportedUser ? `About @${report.reportedUser.username} · ` : ''}
-              reported by @{report.reporter.username}
+              {report.reportedUser ? t.conversation.aboutUser(report.reportedUser.username) : ''}
+              {t.conversation.reportedBy(report.reporter.username)}
             </p>
             {report.note ? (
               <p className="mt-0.5 text-[11px] italic text-[var(--text-3)]">“{report.note}”</p>
@@ -387,7 +378,7 @@ export function DetailsPanel({
                       <div className="min-w-0 flex-1">
                         <p className="flex items-center gap-1.5 truncate text-[13px] font-medium">
                           {member.nickname ?? member.user.displayName}
-                          {isMe ? <span className="text-[11px] text-[var(--text-3)]">(you)</span> : null}
+                          {isMe ? <span className="text-[11px] text-[var(--text-3)]">({t.common.you})</span> : null}
                         </p>
                         <p className="truncate text-[11px] text-[var(--text-3)]">
                           {RoleIcon
@@ -408,7 +399,7 @@ export function DetailsPanel({
                       {manages && !isMe && member.role !== 'OWNER' ? (
                         <Menu>
                           <MenuTrigger asChild>
-                            <Button size="icon-sm" variant="ghost" aria-label={`Manage ${member.user.displayName}`}>
+                            <Button size="icon-sm" variant="ghost" aria-label={t.conversation.manageMember(member.user.displayName)}>
                               <span className="text-base leading-none">⋯</span>
                             </Button>
                           </MenuTrigger>

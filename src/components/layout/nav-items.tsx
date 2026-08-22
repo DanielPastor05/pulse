@@ -3,12 +3,12 @@
 import { Compass, MessagesSquare, Settings, Star } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-import type { Messages } from '@/i18n/en';
+import type { SoloTexto } from '@/i18n/en';
 
 export type NavItem = {
   href: string;
   /** Clave del diccionario, no el texto: aqui todavia no se sabe el idioma. */
-  label: keyof Messages['nav'];
+  label: SoloTexto<'nav'>;
   icon: LucideIcon;
   /** Highlight for any nested route, not just an exact match. */
   match: (pathname: string) => boolean;

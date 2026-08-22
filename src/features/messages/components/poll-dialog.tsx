@@ -78,14 +78,14 @@ export function PollDialog({
                     current.map((item, i) => (i === index ? event.target.value : item)),
                   )
                 }
-                placeholder={`Option ${index + 1}`}
+                placeholder={t.message.pollOption(index + 1)}
                 maxLength={150}
               />
               {options.length > 2 ? (
                 <Button
                   size="icon-sm"
                   variant="ghost"
-                  aria-label={`Remove option ${index + 1}`}
+                  aria-label={t.message.removePollOption(index + 1)}
                   onClick={() => setOptions((current) => current.filter((_, i) => i !== index))}
                 >
                   <X />

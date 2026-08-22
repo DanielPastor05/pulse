@@ -86,7 +86,7 @@ export function GalleryPanel({
                 type="button"
                 onClick={() => onJumpTo(item.messageId)}
                 className="group relative aspect-square overflow-hidden rounded-[var(--radius-field)] bg-[var(--surface-sunken)]"
-                aria-label={`Go to ${item.name}`}
+                aria-label={t.message.goTo(item.name)}
               >
                 {item.kind === 'IMAGE' ? (
                   // Arbitrary storage origins and a thumbnail grid: the raw tag

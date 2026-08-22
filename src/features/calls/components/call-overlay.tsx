@@ -349,7 +349,7 @@ function ActiveCall() {
       >
         <Tile
           name={me.displayName}
-          label={`${me.displayName} (${t.call.you})`}
+          label={`${me.displayName} (${t.common.you})`}
           avatarUrl={me.avatarUrl}
           stream={localStream}
           muted

@@ -112,14 +112,13 @@ export function AccountDangerZone() {
             <div className="rounded-[var(--radius-field)] border border-[var(--warning)]/40 bg-[var(--warning)]/10 p-3 text-[13px]">
               <p className="font-medium">{t.settings.handOver}</p>
               <p className="mt-1 text-[var(--text-2)]">
-                You own {blockedBy.length === 1 ? 'a group' : 'groups'} with other people in{' '}
-                {blockedBy.length === 1 ? 'it' : 'them'}. Leaving without an owner would strand
-                everyone inside, so transfer ownership or remove the group first.
+                {t.settings.handOverHint(blockedBy.length)}
               </p>
               <ul className="mt-2 space-y-1">
                 {blockedBy.map((group) => (
                   <li key={group.id} className="text-[var(--text-2)]">
-                    · {group.name ?? t.settings.untitledGroup} — {group.memberCount} members
+                    · {group.name ?? t.settings.untitledGroup} —{' '}
+                    {t.conversation.memberCount(group.memberCount)}
                   </li>
                 ))}
               </ul>
@@ -127,7 +126,7 @@ export function AccountDangerZone() {
           ) : null}
 
           <Field
-            label={`Type ${me.username} to confirm`}
+            label={t.settings.typeToConfirm(me.username)}
             htmlFor="delete-confirmation"
             hint={t.settings.exactlyAsWritten}
           >

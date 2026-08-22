@@ -9,14 +9,14 @@ import { NewConversationDialog } from '@/features/conversations/components/new-c
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/misc';
 import { useT } from '@/i18n/provider';
-import type { Messages } from '@/i18n/en';
+import type { SoloTexto } from '@/i18n/en';
 
 const SHORTCUTS = [
   { keys: ['⌘', 'K'], label: 'searchEverything' },
   { keys: ['?'], label: 'allShortcuts' },
 ] as const satisfies ReadonlyArray<{
   keys: readonly string[];
-  label: keyof Messages['nav'];
+  label: SoloTexto<'nav'>;
 }>;
 
 /**
@@ -29,14 +29,17 @@ export function ChatWelcome() {
   const me = useSession();
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const setCommandOpen = useUiStore((state) => state.setCommandOpen);
-  const firstName = me.displayName.split(' ')[0];
+  // `split` puede devolver un hueco vacío si el nombre son sólo espacios, y
+  // antes daba igual porque se interpolaba tal cual. Ahora entra en una función
+  // que promete recibir un texto.
+  const firstName = me.displayName.split(' ')[0] || me.displayName;
 
   return (
     <div className="panel grid h-full place-items-center overflow-hidden rounded-[var(--radius-panel)] p-6">
       <div className="max-w-[27rem]">
         <p className="label-caps mb-4 text-[var(--accent)]">{t.nav.signalEstablished}</p>
         <h1 className="text-[2.4rem] font-bold leading-[1.1] tracking-tight glow-text">
-          Good to see you, {firstName}.
+          {t.nav.goodToSee(firstName)}
         </h1>
         <p className="mt-3 text-[14px] leading-relaxed text-[var(--text-2)]">
           {t.nav.pickConversation}

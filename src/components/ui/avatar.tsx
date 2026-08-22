@@ -6,7 +6,7 @@ import type { Presence } from '@prisma/client';
 
 import { cn, hashHue, initials } from '@/lib/utils';
 import { useT } from '@/i18n/provider';
-import type { Messages } from '@/i18n/en';
+import type { SoloTexto } from '@/i18n/en';
 
 const SIZES = {
   xs: 'size-6 rounded-md text-[9px]',
@@ -36,7 +36,7 @@ export const PRESENCE_LABEL = {
   IDLE: 'away',
   DND: 'doNotDisturb',
   OFFLINE: 'offline',
-} as const satisfies Record<Presence, keyof Messages['common']>;
+} as const satisfies Record<Presence, SoloTexto<'common'>>;
 
 export type AvatarProps = {
   src?: string | null;

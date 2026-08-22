@@ -273,7 +273,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                 {message.forwardedFrom ? (
                   <p className={cn('mb-1 flex items-center gap-1 text-[11px] font-medium', metaTone)}>
                     <Forward className="size-3" />
-                    Forwarded from {message.forwardedFrom.authorName}
+                    {t.message.forwardedFrom(message.forwardedFrom.authorName)}
                   </p>
                 ) : null}
 
@@ -364,7 +364,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                       type="button"
                       onClick={() => actions.onReact(message, emoji)}
                       className="grid size-7 place-items-center rounded-full text-[14px] transition-transform hover:scale-125 active:scale-95"
-                      aria-label={`React with ${emoji}`}
+                      aria-label={t.message.reactWith(emoji)}
                     >
                       {emoji}
                     </button>

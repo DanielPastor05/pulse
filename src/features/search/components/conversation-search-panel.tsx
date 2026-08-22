@@ -56,7 +56,7 @@ export function ConversationSearchPanel({
             compact
             icon={<SearchX />}
             title={t.message.noMatches}
-            description={`Nothing in this conversation mentions “${term.trim()}”.`}
+            description={t.message.nothingMentions(term.trim())}
           />
         ) : (
           <ul className="space-y-1 p-2">
