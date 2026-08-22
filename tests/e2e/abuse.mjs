@@ -145,12 +145,39 @@ const fea = [
   ['un número donde va un texto', { content: 12345, clientId: 'x-4' }],
   ['contenido vacío', { content: '', clientId: 'x-5' }],
   ['un mensaje de 100 000 caracteres', { content: 'A'.repeat(100_000), clientId: 'x-6' }],
-  ['sin clientId', { content: 'hola' }],
 ];
 
 for (const [etiqueta, body] of fea) {
   niega(etiqueta, await api(`/api/conversations/${grupoId}/messages`, { actor: alice, method: 'POST', body }));
 }
+
+/*
+ * `clientId` es opcional a propósito, y conviene decir qué implica.
+ *
+ * La garantía de «un reintento no duplica» se apoya en un índice único sobre
+ * esa columna, así que **sólo vale cuando el cliente manda la clave**. Un
+ * cliente que la omita puede publicar dos veces lo mismo. No es un fallo de
+ * seguridad —el envío está limitado por cuota y sólo se afecta a sí mismo—
+ * pero es una precondición que la garantía no enuncia.
+ *
+ * Se afirma el contrato real: sin clave se acepta, con clave se deduplica.
+ */
+console.log('\nla idempotencia depende de que el cliente mande la clave:');
+
+check('sin clientId se acepta', (await api(`/api/conversations/${grupoId}/messages`, {
+  actor: alice, method: 'POST', body: { content: 'sin clave de cliente' },
+})).status, 201);
+
+const clave = `dedupe-${Date.now()}`;
+const primera = await api(`/api/conversations/${grupoId}/messages`, {
+  actor: alice, method: 'POST', body: { content: 'con clave', clientId: clave },
+});
+const segunda = await api(`/api/conversations/${grupoId}/messages`, {
+  actor: alice, method: 'POST', body: { content: 'con clave', clientId: clave },
+});
+check('el reintento con la misma clave no da error', segunda.status < 400, true);
+check('y devuelve el mismo mensaje, no uno nuevo',
+  (segunda.json?.id ?? segunda.json?.message?.id), (primera.json?.id ?? primera.json?.message?.id));
 
 /*
  * Regresión de AUDIT-01.

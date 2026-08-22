@@ -24,7 +24,7 @@
     "test:covered": "npm test && npm run test:component && npm run test:integration",
     "coverage": "c8 npm run test:covered",
     "test:smoke": "playwright test",
-    "test:e2e": "node tests/e2e/security.mjs && node tests/e2e/notifications.mjs && node tests/e2e/realtime.mjs && node tests/e2e/push.mjs",
+    "test:e2e": "node tests/e2e/security.mjs && node tests/e2e/authorization.mjs && node tests/e2e/abuse.mjs && node tests/e2e/realtime-authz.mjs && node tests/e2e/notifications.mjs && node tests/e2e/realtime.mjs && node tests/e2e/push.mjs",
     "bench:search": "node tests/bench/search.mjs",
     "bench:quality": "node tests/bench/search-quality.mjs",
     "bench:models": "node tests/bench/embedding-models.mjs",

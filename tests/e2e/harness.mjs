@@ -161,8 +161,23 @@ export async function cleanup() {
     .in('userId', ids);
   const tocadas = [...new Set((pertenencias ?? []).map((fila) => fila.conversationId))];
 
+  /*
+   * Los fallos del borrado se cuentan, no se tragan.
+   *
+   * Antes esto era `.catch(() => {})` y el mensaje final decía «cuentas
+   * borradas» pasara lo que pasara. Durante la auditoría quedaron tres cuentas
+   * vivas y la suite lo había dado por hecho — el mismo patrón de prueba que
+   * pasa sin comprobar nada que estas suites existen para evitar.
+   */
+  const fallidos = [];
   for (const id of ids) {
-    await admin.auth.admin.deleteUser(id).catch(() => {});
+    const { error } = await admin.auth.admin.deleteUser(id).catch((e) => ({ error: e }));
+    if (error) fallidos.push(`${id}: ${error.message ?? error}`);
+  }
+  if (fallidos.length) {
+    process.exitCode = 1;
+    console.error(`\nNO se pudieron borrar ${fallidos.length} cuentas de prueba:`);
+    for (const linea of fallidos) console.error(`  ${linea}`);
   }
 
   for (const conversationId of tocadas) {
