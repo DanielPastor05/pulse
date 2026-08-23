@@ -492,6 +492,13 @@ comería el turno y su tasa de error se quedaría sin contar media hora, que es
 justo cuando las dos cosas suelen venir juntas. La regla vive en
 `src/server/budgets.ts`, sin dependencias, con nueve pruebas unitarias.
 
+**Lo que no se ha observado, y conviene decirlo.** La regla está probada y el
+cableado es una línea, pero **el aviso no se ha visto dispararse en producción**:
+para verlo harían falta tres 500 reales en quince minutos, y producirlos a
+voluntad es exactamente lo que se acaba de arreglar en AUDIT-09. Fabricar un
+endpoint que reviente sólo para mirar la alerta no compensa el riesgo de dejarlo
+puesto. Queda como lo que es — probado en la regla, no observado en el disparo.
+
 **Regresión.** Ocho pruebas unitarias sobre la aritmética del solape —incluidas
 dos de propiedad: el uso crece de forma monótona al llenarse la ventana y
 decrece al alejarse del corte— más `npm run bench:rate`, que mide el pico real
