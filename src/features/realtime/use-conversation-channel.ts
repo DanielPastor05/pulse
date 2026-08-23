@@ -11,11 +11,11 @@ import {
 } from '@/lib/supabase/client';
 import { queryKeys } from '@/lib/query-keys';
 import { realtimeChannels, realtimeEvents, type TypingPayload } from '@/lib/realtime';
+import { debeEnviarEscritura } from '@/lib/typing-throttle';
 import { useMessageCache } from '@/features/messages/hooks';
 import type { ConversationDetail, MessageDTO, ReactionGroup } from '@/types/dto';
 
 const TYPING_TTL_MS = 4_000;
-const TYPING_THROTTLE_MS = 2_000;
 
 function groupReactions(rows: Array<{ emoji: string; userId: string }>, viewerId: string): ReactionGroup[] {
   const groups = new Map<string, ReactionGroup>();
@@ -153,13 +153,19 @@ export function useConversationChannel(conversationId: string, viewerId: string)
 
   // Throttled: one packet every couple of seconds is enough to keep the
   // indicator alive, and it keeps us far under the realtime rate limit.
+  //
+  // La decisión vive en `typing-throttle` y no aquí porque el orden de sus dos
+  // condiciones ya se equivocó una vez: el reloj se sellaba antes de mirar si
+  // había canal, así que escribir durante los ~350 ms que tarda la suscripción
+  // perdía el paquete y encima gastaba los dos segundos de espera.
   const sendTyping = React.useCallback(
     (displayName: string) => {
+      const canal = channelRef.current;
       const now = Date.now();
-      if (now - lastTypingSentAt.current < TYPING_THROTTLE_MS) return;
+      if (!debeEnviarEscritura(now, lastTypingSentAt.current, canal !== null)) return;
       lastTypingSentAt.current = now;
 
-      void channelRef.current?.send({
+      void canal?.send({
         type: 'broadcast',
         event: realtimeEvents.typing,
         payload: { userId: viewerId, displayName, conversationId } satisfies TypingPayload,

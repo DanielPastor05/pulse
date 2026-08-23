@@ -9,7 +9,7 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 | | |
 | --- | --- |
-| **Automated checks** | 522 — 97 unit, 35 component, 46 integration against a real Postgres, 10 browser smoke tests, 334 end-to-end against the deployed instance |
+| **Automated checks** | 527 — 102 unit, 35 component, 46 integration against a real Postgres, 10 browser smoke tests, 334 end-to-end against the deployed instance |
 | **Latency budgets** | p95 per endpoint over a 15-minute window, alerting to Sentry when a budget is missed ([how](#emitting-signal-is-not-watching-it)) |
 | **Coverage** | 36.1% of statements and 74.1% of branches across `src/server` and `src/lib` ([what that gap means](#thirty-six-percent-and-why-branches-are-double-that)) |
 | **Row Level Security** | Enabled on all 26 tables; 15 policies grant access on the 14 that need it, the other 12 deny by default — enforced independently of the API |
@@ -766,6 +766,60 @@ And a grep for template literals in user-facing attributes turned up nine
 which in an app that bothers with `role="log"` and `aria-live` is the same
 inconsistency, just not one you can photograph.
 
+That is where this section used to end, and it ended one pass too early.
+
+The first time a component was mounted in a test — months later, closing an
+unrelated gap — the typing indicator rendered **"Marta is typing" with the
+interface in Spanish**. Pulling that thread found fifteen more strings, in three
+shapes the AST scan never looked at, because it walked `JsxText` nodes and none
+of these is one:
+
+| shape | example |
+| --- | --- |
+| literal inside `{…}` | `{muted ? 'Unmute' : t.conversation.mute}` |
+| attribute value | `emptyDescription="Messages you send here…"` |
+| literal returned from a helper | `return \`${name} is typing\`` |
+
+Five of them already had a translated key sitting unused in the dictionary. The
+translator had done the work and the component never called it.
+
+The lesson is not that a fourth shape existed. It is that **a detector that
+finds nothing and a codebase that is fully translated look identical from the
+outside**, and the only difference between them is a test you can run against a
+case you know is broken. The scan now lives in `tests/unit/untranslated.test.ts`
+with a positive control that feeds it three known-bad snippets and fails if it
+stays quiet.
+
+### The typing indicator was two seconds late, and the network was not to blame
+
+Using the app, the "X is typing" bubble felt slow to appear. The obvious suspect
+was the realtime round trip, so that got measured first — two real clients, the
+same private channel, the same broadcast the browser sends:
+
+| leg | measured |
+| --- | ---: |
+| typing event, client → client | **47 ms p50**, 168 ms max over 12 rounds |
+| channel subscription after opening a conversation | 341–399 ms |
+
+47 ms is not a delay anybody can feel, which meant the answer was in the code.
+The sender throttles to one packet every two seconds, and it stamped the
+throttle clock *before* checking that the channel existed:
+
+```ts
+if (now - lastTypingSentAt.current < THROTTLE) return;
+lastTypingSentAt.current = now;        // the turn is spent here
+void channelRef.current?.send(…);      // and there may be no channel here
+```
+
+Type within the ~350 ms the subscription takes and the packet is dropped **and**
+the two-second wait starts, so the other side sees nothing until two seconds
+after you began. Nothing failed, nothing logged, and the only symptom was
+"feels a bit slow" — which is exactly the kind of bug that never gets chased.
+
+The fix is the ordering, and it lives in `src/lib/typing-throttle.ts` with five
+unit tests, because the ordering is the whole bug. Reproduce the measurement
+with `npm run bench:typing`.
+
 The locale resolves server-side — cookie, then `Accept-Language`, then English —
 so the first paint is already in the right language rather than flashing English
 at somebody who does not read it.
@@ -840,10 +894,10 @@ no second round trip to render a new message.
 
 ## Testing
 
-522 checks, in five layers.
+527 checks, in five layers.
 
 ```bash
-npm test                  # 97 unit tests — pure logic, no I/O
+npm test                  # 102 unit tests — pure logic, no I/O
 npm run test:component    # 35 component tests in a DOM
 npm run test:integration  # 46 tests against a real Postgres, four of them a perf gate
 npm run test:smoke        # 10 browser checks against the production build

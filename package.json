@@ -30,6 +30,7 @@
     "bench:models": "node tests/bench/embedding-models.mjs",
     "bench:rate": "node tests/bench/rate-limit.mjs",
     "bench:sustained": "node tests/bench/sustained.mjs",
+    "bench:typing": "node tests/bench/typing.mjs",
     "bench:breakdown": "node tests/bench/search-breakdown.mjs",
     "bench:load": "node tests/bench/load.mjs",
     "db:generate": "prisma generate",
