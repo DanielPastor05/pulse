@@ -301,5 +301,33 @@ if (seUne.status >= 400) {
 check('y a partir de ahí puede leer la sala',
   (await api(`/api/conversations/${publicoId}/messages`, { actor: mallory })).status, 200);
 
+/*
+ * El catálogo de GIF y stickers sólo admite sus dos valores.
+ *
+ * Se comprueba aquí y no en el selector porque el fallo que hubo era del
+ * servidor y de la misma familia que AUDIT-04: el corte por «Tenor no está
+ * configurado» iba **delante** de la validación, así que sin clave un `kind`
+ * inventado devolvía 200 y la comprobación no llegaba a ejecutarse. La respuesta
+ * a una petición mal formada no puede depender de una variable de entorno.
+ */
+console.log('\nel catálogo de GIF sólo admite sus dos valores:');
+
+for (const kind of ['gif', 'sticker']) {
+  const r = await api(`/api/gifs?kind=${kind}`, { actor: alice });
+  const ok = r.status === 200 && typeof r.json?.configured === 'boolean';
+  console.log(`  ${ok ? 'ok  ' : 'FAIL'}  kind=${kind} -> ${r.status} (configurado: ${r.json?.configured})`);
+  if (!ok) process.exitCode = 1;
+}
+
+for (const kind of ['pegatina', 'GIF', '', 'sticker,gif']) {
+  const r = await api(`/api/gifs?kind=${encodeURIComponent(kind)}`, { actor: alice });
+  // `''` no es un valor inválido: el esquema tiene `.default('gif')` y una
+  // cadena vacía en la URL es equivalente a no mandar el parámetro.
+  const esperado = kind === '' ? 200 : 400;
+  const ok = r.status === esperado;
+  console.log(`  ${ok ? 'ok  ' : 'FAIL'}  kind=«${kind}» -> ${r.status} (esperado ${esperado})`);
+  if (!ok) process.exitCode = 1;
+}
+
 await cleanup();
 console.log('\ncuentas de prueba borradas');

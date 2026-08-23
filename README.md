@@ -9,7 +9,7 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 | | |
 | --- | --- |
-| **Automated checks** | 533 — 108 unit, 35 component, 46 integration against a real Postgres, 10 browser smoke tests, 334 end-to-end against the deployed instance |
+| **Automated checks** | 540 — 108 unit, 42 component, 46 integration against a real Postgres, 10 browser smoke tests, 334 end-to-end against the deployed instance |
 | **Latency budgets** | p95 per endpoint over a 15-minute window, alerting to Sentry when a budget is missed ([how](#emitting-signal-is-not-watching-it)) |
 | **Coverage** | 36.1% of statements and 74.1% of branches across `src/server` and `src/lib` ([what that gap means](#thirty-six-percent-and-why-branches-are-double-that)) |
 | **Row Level Security** | Enabled on all 26 tables; 15 policies grant access on the 14 that need it, the other 12 deny by default — enforced independently of the API |
@@ -917,11 +917,11 @@ no second round trip to render a new message.
 
 ## Testing
 
-533 checks, in five layers.
+540 checks, in five layers.
 
 ```bash
 npm test                  # 108 unit tests — pure logic, no I/O
-npm run test:component    # 35 component tests in a DOM
+npm run test:component    # 42 component tests in a DOM
 npm run test:integration  # 46 tests against a real Postgres, four of them a perf gate
 npm run test:smoke        # 10 browser checks against the production build
 npm run test:e2e          # 334 checks against a running server + real Supabase
@@ -1040,8 +1040,14 @@ database, not a self-contained stack.
 
 `.env.example` documents every variable and which are optional. The short
 version: Supabase URL and keys plus two Postgres connection strings are
-required; Tenor (GIF picker), VAPID (web push) and Sentry (error reporting) are
-optional and the app runs without them.
+required; Tenor (GIFs and stickers), VAPID (web push) and Sentry (error
+reporting) are optional and the app runs without them.
+
+Optional means the feature is off, not that it degrades: with no `TENOR_API_KEY`
+the picker renders an empty state saying so, and every other endpoint reports it
+as `configured: false` rather than failing. That is deliberate, and it is also
+the current state of the deployed instance — the GIF and sticker tabs are wired
+and dormant until a key is set.
 
 Both connection strings go through Supavisor, the Supabase pooler. `DATABASE_URL`
 uses transaction mode on port 6543 with `connection_limit=10`; `DIRECT_URL` uses

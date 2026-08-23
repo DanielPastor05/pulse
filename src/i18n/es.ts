@@ -225,6 +225,13 @@ export const messages = {
     gifsOff: 'Los GIFs no están configurados',
     gifsOffHint: 'Añade TENOR_API_KEY al entorno para activar este selector.',
     noGifs: 'No se ha encontrado ningún GIF',
+    gifsTab: 'GIFs',
+    // «Sticker» y no «pegatina»: es como los llama todo el mundo en una
+    // aplicación de mensajería, y traducirlo sonaría a manual de instrucciones.
+    stickersTab: 'Stickers',
+    searchStickers: 'Buscar stickers',
+    noStickers: 'No se ha encontrado ningún sticker',
+    stickersOff: 'Los stickers no están configurados',
     goTo: (name: string) => `Ir a ${name}`,
     nothingMentions: (term: string) => `Nada en esta conversación menciona “${term}”.`,
     reactWith: (emoji: string) => `Reaccionar con ${emoji}`,

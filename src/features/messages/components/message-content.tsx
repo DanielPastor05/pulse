@@ -65,8 +65,23 @@ const components: Components = {
       </a>
     );
   },
-  img({ src, alt }) {
+  img({ src, alt, title }) {
     if (typeof src !== 'string') return null;
+
+    /*
+     * Un sticker se pinta sin marco y más pequeño.
+     *
+     * La marca viaja en el título de la imagen —`![alt](url "sticker")`—, que es
+     * markdown de toda la vida: el mensaje sigue siendo texto corriente en la
+     * base de datos y en la exportación, sin un campo nuevo ni una migración
+     * para una etiqueta.
+     *
+     * El borde y el fondo son lo correcto para una foto y lo peor posible para
+     * un sticker: dibujan un rectángulo alrededor de una silueta recortada, que
+     * es exactamente lo que la transparencia venía a evitar.
+     */
+    const esSticker = title === 'sticker';
+
     return (
       // Markdown images are rare and arbitrary-origin, so they stay unoptimised.
       // eslint-disable-next-line @next/next/no-img-element
@@ -74,7 +89,11 @@ const components: Components = {
         src={src}
         alt={alt ?? ''}
         loading="lazy"
-        className="max-h-80 rounded-[var(--radius-field)] border border-[var(--hairline)]"
+        className={
+          esSticker
+            ? 'max-h-40'
+            : 'max-h-80 rounded-[var(--radius-field)] border border-[var(--hairline)]'
+        }
       />
     );
   },

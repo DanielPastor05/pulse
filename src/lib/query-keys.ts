@@ -16,7 +16,7 @@ export const queryKeys = {
   userSearch: (query: string) => ['user-search', query] as const,
   search: (query: string, scope: string) => ['search', query, scope] as const,
   discover: (query: string) => ['discover', query] as const,
-  gifs: (query: string) => ['gifs', query] as const,
+  gifs: (query: string, kind: string) => ['gifs', kind, query] as const,
   profile: (username: string) => ['profile', username] as const,
   invite: (code: string) => ['invite', code] as const,
 } as const;

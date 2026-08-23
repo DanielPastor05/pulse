@@ -384,8 +384,18 @@ export function Composer({
               <GifPicker
                 open={gifOpen}
                 onOpenChange={setGifOpen}
-                onSelect={(gif) => {
-                  insertAtCaret(`![${gif.description}](${gif.url})`);
+                onSelect={(gif, kind) => {
+                  /*
+                   * El título de markdown marca los stickers.
+                   *
+                   * `![alt](url "sticker")` es sintaxis estándar, así que el
+                   * mensaje sigue siendo texto corriente en la base y en la
+                   * exportación de la cuenta — nada de un campo nuevo ni de una
+                   * migración para una etiqueta. `MessageContent` lo lee y les
+                   * quita el marco, que en algo transparente sobra.
+                   */
+                  const marca = kind === 'sticker' ? ' "sticker"' : '';
+                  insertAtCaret(`![${gif.description}](${gif.url}${marca})`);
                 }}
               >
                 <Button size="icon-sm" variant="ghost" disabled={disabled} aria-label={t.composer.gif}>

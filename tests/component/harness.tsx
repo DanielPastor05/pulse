@@ -64,7 +64,21 @@ export type ResultadoMontaje = RenderResult & { router: RouterFalso };
  */
 export function montar(
   ui: React.ReactElement,
-  { locale = 'EN' as Locale }: { locale?: Locale } = {},
+  {
+    locale = 'EN' as Locale,
+    semillas = [],
+  }: {
+    locale?: Locale;
+    /**
+     * Datos ya en la caché de consultas, para montar un componente que pide
+     * cosas sin dejarle salir a la red.
+     *
+     * Sembrar y no interceptar `fetch`: lo que se prueba es qué pinta el
+     * componente con unos datos dados, y un doble del transporte añadiría una
+     * pieza que puede mentir entre la prueba y lo que se afirma.
+     */
+    semillas?: Array<[clave: readonly unknown[], datos: unknown]>;
+  } = {},
 ): ResultadoMontaje {
   const router = routerFalso();
   const cliente = new QueryClient({
@@ -73,6 +87,8 @@ export function montar(
       mutations: { retry: false, gcTime: 0 },
     },
   });
+
+  for (const [clave, datos] of semillas) cliente.setQueryData(clave, datos);
 
   const resultado = render(
     <AppRouterContext.Provider value={router}>
