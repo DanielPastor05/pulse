@@ -8,6 +8,7 @@ import { AppError, errors } from '@/server/errors';
 import { describeError, log } from '@/server/logger';
 import { checkLatencyBudgets, recordSample } from '@/server/metrics';
 import { conAlcanceDePeticion } from '@/server/request-scope';
+import { contieneTextoImposible } from '@/server/texto-imposible';
 
 export type ApiErrorBody = { error: string; code: string; details?: unknown };
 
@@ -44,6 +45,9 @@ export async function parseBody<S extends ZodTypeAny>(
   } catch {
     throw errors.badRequest('Expected a JSON body.');
   }
+  if (contieneTextoImposible(raw)) {
+    throw errors.badRequest('That text contains characters we cannot store.');
+  }
   const result = schema.safeParse(raw);
   if (!result.success) throw errors.badRequest('Validation failed.', result.error.flatten());
   return result.data;
@@ -51,6 +55,9 @@ export async function parseBody<S extends ZodTypeAny>(
 
 export function parseQuery<S extends ZodTypeAny>(request: Request, schema: S): TypeOf<S> {
   const params = Object.fromEntries(new URL(request.url).searchParams.entries());
+  if (contieneTextoImposible(params)) {
+    throw errors.badRequest('That text contains characters we cannot store.');
+  }
   const result = schema.safeParse(params);
   if (!result.success) throw errors.badRequest('Invalid query parameters.', result.error.flatten());
   return result.data;

@@ -56,7 +56,11 @@ export async function makeUser(tag) {
   });
   if (signInError) throw new Error(`signIn(${tag}): ${signInError.message}`);
 
-  return { id: data.user.id, email, session: signed.session, tag };
+  // La contraseña sale también: `auth-abuse.mjs` necesita comprobar que, después
+  // de que un atacante agote los intentos, quien sí la sabe puede entrar. Sin
+  // ese dato, un freno correcto y un bloqueo permanente de la cuenta se ven
+  // exactamente igual desde fuera.
+  return { id: data.user.id, email, password, session: signed.session, tag };
 }
 
 /**
