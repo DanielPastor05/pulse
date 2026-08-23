@@ -57,7 +57,7 @@ export function NotificationBell({ side = 'right' }: { side?: 'right' | 'top' | 
               'hover:bg-[var(--surface-hover)] hover:text-[var(--accent-mint)]',
               open && 'bg-[var(--surface-active)] text-[var(--text-1)]',
             )}
-            aria-label={unread > 0 ? `Notifications, ${unread} unread` : t.settings.notifications}
+            aria-label={unread > 0 ? t.nav.notificationsUnread(unread) : t.settings.notifications}
           >
             <Bell className="size-[18px]" />
             {/* A dot, not a springing pill. The count is one click away. */}

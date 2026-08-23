@@ -319,7 +319,7 @@ function ActiveCall() {
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
       <div className="flex items-center justify-between gap-3 p-4 text-white">
         <div className="min-w-0">
-          <p className="truncate text-[14px] font-medium">{conversationName ?? 'Call'}</p>
+          <p className="truncate text-[14px] font-medium">{conversationName ?? t.settings.untitledCall}</p>
           <p className="text-[12px] text-white/60">
             {status === 'joining' ? (
               t.call.calling
@@ -453,7 +453,7 @@ function ActiveCall() {
                   ) : (
                     <span className="size-4" />
                   )}
-                  {device.label || `Output ${index + 1}`}
+                  {device.label || t.settings.outputDevice(index + 1)}
                 </MenuItem>
               ))}
             </MenuContent>

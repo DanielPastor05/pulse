@@ -213,10 +213,10 @@ export function ConversationView({ conversationId }: { conversationId: string })
           highlightId={highlightId}
           emptyTitle={
             conversation.type === 'DIRECT'
-              ? `Say hello to ${conversation.peer?.displayName ?? 'them'}`
-              : `${conversation.name} is ready`
+              ? t.conversation.sayHello(conversation.peer?.displayName ?? t.message.someone)
+              : t.conversation.groupReady(conversation.name)
           }
-          emptyDescription="Messages you send here are delivered instantly to everyone in the conversation."
+          emptyDescription={t.conversation.sayHelloHint}
         />
 
         {/* Floating console, docked over the thread rather than below it. */}

@@ -16,6 +16,7 @@ type Props = { params: Promise<{ code: string }> };
 
 export default async function InvitePage({ params }: Props) {
   const { code } = await params;
+  const t = await getMessages();
 
   const authUser = await getAuthUser();
   if (!authUser) redirect(`/login?next=${encodeURIComponent(`/invite/${code}`)}`);
@@ -58,7 +59,7 @@ export default async function InvitePage({ params }: Props) {
           invite
             ? {
                 invitedBy: invite.createdBy.displayName,
-                name: invite.conversation.name ?? 'Group',
+                name: invite.conversation.name ?? t.settings.untitledGroup,
                 description: invite.conversation.description,
                 avatarUrl: invite.conversation.avatarUrl,
                 accent: invite.conversation.accent,

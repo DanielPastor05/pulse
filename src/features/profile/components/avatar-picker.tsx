@@ -54,7 +54,7 @@ export function AvatarPicker({ value, name, onChange, size = 'xl' }: AvatarPicke
         )}
         aria-label={t.settings.uploadPicture}
       >
-        <Avatar src={value} name={name || 'You'} size={size} />
+        <Avatar src={value} name={name || t.common.you} size={size} />
         <span
           className={cn(
             'absolute inset-0 grid place-items-center rounded-full bg-black/55 text-white',

@@ -5,8 +5,9 @@ Ejecutada el 22 de agosto de 2026 contra el despliegue real
 **ampliada el 23 de agosto** para cerrar las seis lagunas que ella misma había
 declarado: la matriz completa de roles, el fuzzing sobre los 67 métodos, el XSS
 por superficie, el recorrido de directorios en las subidas, la fuerza bruta en el
-acceso y el perfilado de memoria. Esa segunda pasada añadió tres hallazgos, dos
-de ellos corregidos.
+acceso y el perfilado de memoria — y **la séptima, la interfaz**, que era la que
+el propio informe daba por la más difícil de cerrar. Esa segunda pasada añadió
+cinco hallazgos, cuatro de ellos corregidos.
 
 El mapa de la superficie está en [AUDIT_ARCHITECTURE.md](AUDIT_ARCHITECTURE.md).
 
@@ -14,7 +15,7 @@ El mapa de la superficie está en [AUDIT_ARCHITECTURE.md](AUDIT_ARCHITECTURE.md)
 
 ## Resumen ejecutivo
 
-**Diez hallazgos, todos de severidad baja o informativa. Siete corregidos y
+**Doce hallazgos, todos de severidad baja o informativa. Nueve corregidos y
 verificados; dos abiertos por estar fuera de este repositorio; uno aceptado.**
 Cero críticos, cero altos, cero medios.
 
@@ -123,6 +124,8 @@ como estaba: 5 usuarios, 4 conversaciones, 0 conversaciones huérfanas.
 | AUDIT-08 | El tiempo de respuesta del acceso distingue si el correo existe | INFORMATIONAL | Abierto — es del proveedor | `/auth/v1/token` (Supabase) |
 | AUDIT-09 | Un carácter nulo devolvía 500 en cinco endpoints | LOW | **CORREGIDO** | `src/server/texto-imposible.ts` |
 | AUDIT-10 | La tasa de error por ruta se calculaba y no la miraba nadie | LOW | **CORREGIDO** | `src/server/budgets.ts` |
+| AUDIT-11 | Dieciséis cadenas de interfaz seguían en inglés | INFORMATIONAL | **CORREGIDO** | 12 componentes + `tests/unit/untranslated.test.ts` |
+| AUDIT-12 | La tarjeta de enlace metía la URL en un `href` sin mirar el esquema | INFORMATIONAL | **CORREGIDO** | `link-preview-card.tsx` |
 
 ### AUDIT-01 — Un id malformado devuelve 500 · LOW · CORREGIDO
 
@@ -504,6 +507,55 @@ dos de propiedad: el uso crece de forma monótona al llenarse la ventana y
 decrece al alejarse del corte— más `npm run bench:rate`, que mide el pico real
 y el tiempo de recuperación.
 
+### AUDIT-11 — Dieciséis cadenas seguían en inglés · INFORMATIONAL · CORREGIDO
+
+No es un fallo de seguridad y aun así es el hallazgo que mejor explica por qué
+esta segunda pasada valía la pena.
+
+La interfaz se tradujo entera en agosto, con un detector por AST que recorría
+nodos `JsxText` y encontró trece cadenas sueltas. Con eso se dio por terminada.
+
+El 23/08, al montar el primer componente en una prueba, apareció **«Marta is
+typing» con la interfaz en español**. Tirando del hilo salieron quince más, en
+tres formas que aquel detector no miraba:
+
+| forma | ejemplo | dónde |
+| --- | --- | --- |
+| literal dentro de `{expresión}` | `{muted ? 'Unmute' : t.…}` | lista de conversaciones |
+| valor de atributo | `emptyDescription="Messages you send…"` | vista de conversación |
+| literal devuelto por una auxiliar | `return \`${n} is typing\`` | indicador de escritura |
+
+Entre ellas: «Photos & video», «Files», «Failed», «(no text)», «vote/votes»,
+«· closed», «${n} new messages», «Notifications, ${n} unread» y tres apariciones
+de «You». Cinco tenían **ya su clave traducida en el diccionario, sin usar**.
+
+Ninguna prueba de servidor podía verlas: ese texto no cruza la API, se compone en
+el navegador. Y ninguna revisión de código lo iba a ver tampoco, porque cada una
+está sola en su fichero y al lado de una llamada correcta a `t.`.
+
+**Corrección.** Las dieciséis conectadas al diccionario, once claves nuevas, y el
+detector convertido en prueba (`tests/unit/untranslated.test.ts`) con su control
+positivo — porque un detector que no encuentra nada y un proyecto bien traducido
+se ven idénticos desde fuera, que es exactamente lo que pasó la primera vez.
+
+### AUDIT-12 — La tarjeta de enlace no miraba el esquema · INFORMATIONAL · CORREGIDO
+
+`LinkPreviewCard` metía `preview.url` en un `href` y `preview.imageUrl` en un
+`src` sin comprobar el protocolo. El componente ya hacía `new URL(preview.url)`
+para sacar el host, y **parsear no es validar**: `javascript:alert(1)` parsea
+perfectamente. Es la misma trampa que `src/lib/zod.ts` documenta para
+`z.string().url()`.
+
+**No era explotable.** `src/server/link-preview.ts` sólo detecta enlaces
+`https?://` y descarta las imágenes que no lo sean, con pruebas propias — una de
+ellas exactamente contra `javascript:`. O sea que hoy no llega nada peligroso.
+
+Se corrige igual porque el sumidero está en el componente: el `href` se ejecuta
+al pulsarlo, y la única razón de que sea seguro vivía tres ficheros más allá.
+Basta con que alguien añada otra forma de crear un preview —una importación, una
+migración, un endpoint nuevo— para que esa distancia importe. La comprobación
+cabía dentro del `new URL()` que ya se hacía.
+
 ---
 
 ## Falsos positivos descartados
@@ -776,7 +828,7 @@ Calculada así:
 | Matriz de roles | 32 | 32 | 4 roles × 8 permisos, celda por celda |
 | Categorías OWASP API Top 10 | 9 | 10 | falta inventario de activos |
 | Superficie de tiempo real | ~90% | | autorización atacada e inundación medida |
-| Componentes de frontend | ~15% | | sólo el renderizado de mensajes |
+| Componentes de frontend | 8 | ~75 | ver abajo: pocos ficheros, todas las superficies de texto ajeno |
 
 Lo que se cerró, y con qué:
 
@@ -804,13 +856,43 @@ diente de sierra y restar dos puntos cualesquiera mide en qué parte del diente
 cayó cada uno. Lo que dice si hay fuga es el suelo al que vuelve tras cada
 recolección, y ese suelo está plano.
 
+**La interfaz, que era la laguna más honesta del informe.** Cerrada el
+23/08/2026, y conviene decir con qué cifra y con cuál no.
+
+Ocho componentes de unos setenta y cinco se renderizan ahora en pruebas: por
+ficheros son el 11%, y decirlo de otra forma sería mentir. Pero no son ocho
+cualesquiera — son **todos los sitios donde se pinta texto que ha escrito otra
+persona**: el mensaje, el nombre y la biografía de un perfil, el nombre y la
+descripción de un grupo, el apodo que te pone un moderador, el avance del último
+mensaje en la barra lateral y la tarjeta de un enlace compartido. Cada uno recibe
+las mismas cinco cargas hostiles que `xss-surfaces.mjs` manda al servidor, con lo
+que la cadena queda completa: la de allí afirma que el texto **se guarda tal
+cual**, y ésta que **se pinta como texto**.
+
+Y dos guardianes cubren lo que ningún inventario de componentes cubre, porque no
+dependen de que a alguien se le ocurra el componente:
+
+- **Nadie usa `dangerouslySetInnerHTML` ni `innerHTML`** en `src`. Es la única
+  puerta por la que React deja de escapar, y está cerrada en el 100% de los
+  ficheros, incluidos los que se escriban mañana.
+- **Ninguna cadena de interfaz se salta el diccionario.** Este salió de tirar del
+  hilo: al montar el primer componente apareció «Marta is typing» con la
+  interfaz en español, y detrás había **quince cadenas más** en tres formas que
+  el barrido por AST anterior no miraba —literales dentro de `{expresión}`,
+  valores de atributo y literales devueltos por funciones auxiliares—. Ninguna
+  prueba de servidor podía verlas: ese texto no cruza la API, se compone en el
+  navegador.
+
 **Lo que sigue sin probarse**, porque una cobertura sin esta lista no significa
 nada:
 
-- **La interfaz.** Salvo el renderizador de mensajes, ningún componente se
-  renderiza en una prueba. Las superficies de texto se atacan por la API y se
-  comprueba que guardan literal, que es la mitad del problema; que React escape
-  la otra mitad sigue siendo un argumento, no una medición.
+- **La cabecera de conversación y el resto del chat.** `ChatHeader` y compañía
+  dependen de `CallProvider`, que monta WebRTC de verdad; montarlo en un DOM
+  falso probaría el doble, no el componente. Su texto ajeno —el nombre de la
+  conversación— sí está cubierto por la lista lateral y el panel de detalles.
+- **La interacción.** Lo que se prueba es lo que se pinta. Pulsar, arrastrar,
+  escribir y sus consecuencias siguen siendo terreno de las pruebas de navegador,
+  que son diez.
 - **El canal de señalización de llamadas y el de presencia.** La autorización
   está probada; el contenido que viaja por ellos, no.
 - **Inventario de activos** (OWASP API9): no hay versionado de API ni endpoints
@@ -832,12 +914,12 @@ fila.
 
 | capa | pruebas | pasan | fallan |
 | --- | ---: | ---: | ---: |
-| Unitarias | 95 | 95 | 0 |
-| Componente (8 de XSS) | 14 | 14 | 0 |
+| Unitarias | 97 | 97 | 0 |
+| Componente | 35 | 35 | 0 |
 | Integración (Postgres real) | 46 | — | — |
 | Navegador | 10 | — | — |
 | Extremo a extremo | 334 | 334 | 0 |
-| **Total** | **499** | | |
+| **Total** | **522** | | |
 
 Las 334 de extremo a extremo, suite por suite, medidas contra el despliegue:
 
@@ -900,10 +982,11 @@ Las suites nuevas están en `npm run test:e2e`, así que corren con las demás.
 
 Y las que abrió esta segunda pasada:
 
-6. **Renderizar los componentes en pruebas.** Que React escape los nombres y las
-   biografías sigue siendo un argumento por construcción. Lo que falta no es
-   difícil, es aburrido: montar los proveedores de i18n, router y react-query
-   para poder renderizar algo más que el renderizador de mensajes.
+6. ~~**Renderizar los componentes en pruebas**~~ — hecho, y salió más rentable de
+   lo previsto: el arnés de proveedores costó un fichero y encontró dos
+   hallazgos (AUDIT-11 y AUDIT-12) que ninguna prueba de servidor podía ver.
+   Queda fuera la cabecera de conversación, que depende de `CallProvider` y por
+   tanto de WebRTC de verdad.
 7. **Cerrar el INSERT de Realtime** si algún día la cuota importa, moviendo el
    indicador de escritura a un endpoint. Hoy no compensa: cuesta una petición por
    pulsación y deja abiertos los otros dos canales (ver AUDIT-06).

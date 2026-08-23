@@ -10,17 +10,40 @@ import type { LinkPreviewDTO } from '@/types/dto';
  * be listed in `next.config.ts` ahead of time, so the optimiser is no help
  * here. It is lazy and size-capped instead.
  */
-export function LinkPreviewCard({ preview }: { preview: LinkPreviewDTO }) {
-  let host: string;
+/** `new URL()` acepta `javascript:` — parsear no es validar. */
+function httpUrl(valor: string | null): string | null {
+  if (!valor) return null;
   try {
-    host = new URL(preview.url).hostname.replace(/^www\./, '');
+    const url = new URL(valor);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? valor : null;
   } catch {
     return null;
   }
+}
+
+export function LinkPreviewCard({ preview }: { preview: LinkPreviewDTO }) {
+  /*
+   * El esquema se comprueba aquí **además** de en el servidor.
+   *
+   * `src/server/link-preview.ts` ya sólo detecta enlaces `https?://` y descarta
+   * las imágenes que no lo sean, con sus pruebas. O sea que hoy no llega nada
+   * peligroso. Pero el sumidero está en este fichero: el `href` de abajo se
+   * ejecuta al pulsarlo, y la única razón de que sea seguro vive tres ficheros
+   * más allá. Basta con que alguien añada otra forma de crear un preview
+   * —importar, migrar, un endpoint nuevo— para que esa distancia importe.
+   *
+   * La comprobación cabía dentro del `new URL()` que este componente ya hacía
+   * para sacar el host, así que cuesta una condición.
+   */
+  const href = httpUrl(preview.url);
+  const imageUrl = httpUrl(preview.imageUrl);
+  if (!href) return null;
+
+  const host = new URL(href).hostname.replace(/^www\./, '');
 
   return (
     <a
-      href={preview.url}
+      href={href}
       target="_blank"
       rel="noopener noreferrer nofollow"
       className={cn(
@@ -29,10 +52,10 @@ export function LinkPreviewCard({ preview }: { preview: LinkPreviewDTO }) {
         'transition-colors hover:border-[var(--accent)]',
       )}
     >
-      {preview.imageUrl ? (
+      {imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={preview.imageUrl}
+          src={imageUrl}
           alt=""
           loading="lazy"
           className="size-20 shrink-0 object-cover"

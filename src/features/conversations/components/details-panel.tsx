@@ -263,8 +263,8 @@ function Reports({ conversation }: { conversation: ConversationDetail }) {
 
             {report.message ? (
               <p className="mt-1.5 line-clamp-2 rounded bg-[var(--surface)] px-2 py-1 text-[11px] text-[var(--text-2)]">
-                {report.message.deleted ? '(deleted) ' : ''}
-                {report.message.content || '(no text)'}
+                {report.message.deleted ? t.conversation.deletedPrefix : ''}
+                {report.message.content || t.conversation.noText}
               </p>
             ) : null}
 

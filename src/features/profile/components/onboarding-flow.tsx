@@ -172,7 +172,7 @@ export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvat
                 <>
                   <AvatarPicker
                     value={values.avatarUrl ?? null}
-                    name={values.displayName || 'You'}
+                    name={values.displayName || t.common.you}
                     onChange={(url) => setValue('avatarUrl', url, { shouldDirty: true })}
                   />
 
@@ -207,7 +207,7 @@ export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvat
                     <div className="relative flex items-end gap-4 pt-6">
                       <AvatarPicker
                         value={values.avatarUrl ?? null}
-                        name={values.displayName || 'You'}
+                        name={values.displayName || t.common.you}
                         onChange={(url) => setValue('avatarUrl', url)}
                         size="lg"
                       />

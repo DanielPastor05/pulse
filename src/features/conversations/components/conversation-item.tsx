@@ -164,7 +164,7 @@ export const ConversationItem = React.memo(function ConversationItem({
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => preferences.mutate({ muted: !conversation.muted })}>
           {conversation.muted ? <Bell /> : <BellOff />}
-          {conversation.muted ? 'Unmute' : t.conversation.muteNotifications}
+          {conversation.muted ? t.conversation.unmute : t.conversation.muteNotifications}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => preferences.mutate({ archived: !conversation.archived })}>

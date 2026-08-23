@@ -229,7 +229,7 @@ export function MessageList({
             )}
           >
             <ArrowDown className="size-3.5" />
-            {unseen > 0 ? `${unseen} new message${unseen === 1 ? '' : 's'}` : t.message.jumpToLatest}
+            {unseen > 0 ? t.message.newMessages(unseen) : t.message.jumpToLatest}
           </motion.button>
         ) : null}
       </AnimatePresence>

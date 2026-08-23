@@ -77,9 +77,9 @@ export function PollCard({ messageId, poll }: { messageId: string; poll: PollDTO
       </ul>
 
       <p className="mt-1.5 text-[11px] text-[var(--text-3)]">
-        {poll.totalVotes} {poll.totalVotes === 1 ? 'vote' : 'votes'}
-        {poll.multiple ? ' · pick as many as you like' : ''}
-        {poll.closed ? ' · closed' : ''}
+        {t.message.votes(poll.totalVotes)}
+        {poll.multiple ? t.message.pollPickMany : ''}
+        {poll.closed ? t.message.pollClosed : ''}
       </p>
     </div>
   );

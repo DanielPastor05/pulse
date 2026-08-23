@@ -97,7 +97,7 @@ export function AttachmentTray({
                 <div className="min-w-0 max-w-[9rem] pr-4">
                   <p className="truncate text-[12px] font-medium">{item.name}</p>
                   <p className="text-[11px] text-[var(--text-3)]">
-                    {item.status === 'error' ? (item.error ?? 'Failed') : formatBytes(item.size)}
+                    {item.status === 'error' ? (item.error ?? t.composer.uploadFailed) : formatBytes(item.size)}
                   </p>
                 </div>
 

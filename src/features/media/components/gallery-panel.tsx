@@ -62,7 +62,7 @@ export function GalleryPanel({
             )}
             aria-pressed={tab === value}
           >
-            {value === 'media' ? 'Photos & video' : 'Files'}
+            {value === 'media' ? t.message.galleryMedia : t.message.galleryFiles}
           </button>
         ))}
       </div>

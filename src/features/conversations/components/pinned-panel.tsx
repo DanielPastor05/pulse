@@ -74,7 +74,7 @@ export function PinnedPanel({
               >
                 {message.content
                   ? truncate(message.content, 160)
-                  : `${message.attachments.length} attachment${message.attachments.length === 1 ? '' : 's'}`}
+                  : t.message.attachments(message.attachments.length)}
               </button>
             </div>
             <Button

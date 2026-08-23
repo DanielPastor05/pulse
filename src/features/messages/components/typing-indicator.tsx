@@ -2,13 +2,26 @@
 
 import { AnimatePresence, motion } from 'framer-motion';
 
-function describe(names: string[]): string {
-  if (names.length === 1) return `${names[0]} is typing`;
-  if (names.length === 2) return `${names[0]} and ${names[1]} are typing`;
-  return `${names[0]} and ${names.length - 1} others are typing`;
+import { useT } from '@/i18n/provider';
+
+/**
+ * Se quedó en inglés cuando se tradujo el resto de la interfaz.
+ *
+ * No lo cazó nada: ni el detector de texto por AST —las cadenas están dentro de
+ * una función auxiliar, no en el JSX que aquel recorría— ni el barrido de
+ * dependencias, donde este fichero salía como «sin i18n», que es justo el
+ * síntoma y se leyó como si fuera una propiedad. Lo cazó montar el componente en
+ * una prueba y mirar qué texto pinta.
+ */
+function describe(t: ReturnType<typeof useT>, names: string[]): string {
+  if (names.length === 1) return t.conversation.typingOne(names[0]!);
+  if (names.length === 2) return t.conversation.typingTwo(names[0]!, names[1]!);
+  return t.conversation.typingMany(names[0]!, names.length - 1);
 }
 
 export function TypingIndicator({ names }: { names: string[] }) {
+  const t = useT();
+
   return (
     <AnimatePresence>
       {names.length > 0 ? (
@@ -36,7 +49,7 @@ export function TypingIndicator({ names }: { names: string[] }) {
                 />
               ))}
             </span>
-            <span className="text-[11.5px] text-[var(--text-3)]">{describe(names)}</span>
+            <span className="text-[11.5px] text-[var(--text-3)]">{describe(t, names)}</span>
           </div>
         </motion.div>
       ) : null}

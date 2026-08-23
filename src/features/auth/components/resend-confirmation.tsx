@@ -62,7 +62,7 @@ export function ResendConfirmation({ email }: { email: string }) {
       loading={pending}
       disabled={cooldown > 0}
     >
-      {cooldown > 0 ? `Resend in ${cooldown}s` : t.auth.resend}
+      {cooldown > 0 ? t.auth.resendIn(cooldown) : t.auth.resend}
     </Button>
   );
 }

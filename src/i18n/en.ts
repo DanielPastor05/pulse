@@ -50,6 +50,7 @@ export const messages = {
     starred: 'Starred',
     settings: 'Settings',
     notifications: 'Notifications',
+    notificationsUnread: (count: number) => `Notifications, ${count} unread`,
     help: 'Help',
     shortcuts: 'Keyboard shortcuts',
     discoverHint: 'Public groups anyone can join. Say hello — that is usually enough.',
@@ -236,6 +237,12 @@ export const messages = {
     moreActions: 'More actions',
     unknown: 'Unknown',
     attachments: (count: number) => (count === 1 ? '1 attachment' : `${count} attachments`),
+    newMessages: (count: number) => (count === 1 ? '1 new message' : `${count} new messages`),
+    votes: (count: number) => (count === 1 ? '1 vote' : `${count} votes`),
+    pollPickMany: ' · pick as many as you like',
+    pollClosed: ' · closed',
+    galleryMedia: 'Photos & video',
+    galleryFiles: 'Files',
   },
 
   conversation: {
@@ -246,6 +253,15 @@ export const messages = {
     aboutUser: (username: string) => `About @${username} · `,
     invitedYou: 'invited you to',
     typing: 'typing…',
+    // Tres formas y no una con un contador: en español el verbo concuerda
+    // («está» / «están»), así que una plantilla única obligaría a escribir
+    // «1 persona está escribiendo», que no es lo que diría nadie.
+    typingOne: (name: string) => `${name} is typing`,
+    typingTwo: (first: string, second: string) => `${first} and ${second} are typing`,
+    typingMany: (first: string, others: number) => `${first} and ${others} others are typing`,
+    groupReady: (name: string) => `${name} is ready`,
+    noText: '(no text)',
+    deletedPrefix: '(deleted) ',
     private: 'Private',
     public: 'Public',
     beginning: 'This is the beginning of the conversation.',
@@ -499,6 +515,8 @@ export const messages = {
         ? 'You own a group with other people in it. Leaving without an owner would strand everyone inside, so transfer ownership or remove the group first.'
         : 'You own groups with other people in them. Leaving without an owner would strand everyone inside, so transfer ownership or remove the groups first.',
     untitledGroup: 'Untitled group',
+    untitledCall: 'Call',
+    outputDevice: (index: number) => `Output ${index}`,
     exactlyAsWritten: 'Exactly as written, so this can never be an accident.',
     keepAccount: 'Keep my account',
     deleteForGood: 'Delete for good',
@@ -575,6 +593,7 @@ export const messages = {
     signOut: 'Sign out',
     resendFailed: 'Could not resend',
     resent: 'Confirmation email sent again',
+    resendIn: (seconds: number) => `Resend in ${seconds}s`,
     resend: 'Resend confirmation email',
     hidePassword: 'Hide password',
     showPassword: 'Show password',

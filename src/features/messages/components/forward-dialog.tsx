@@ -68,7 +68,7 @@ export function ForwardDialog({ message, onClose, onConfirm, pending }: Props) {
             <p className="mt-0.5 text-[13px] text-[var(--text-2)]">
               {message.content
                 ? truncate(message.content, 140)
-                : `${message.attachments.length} attachment${message.attachments.length === 1 ? '' : 's'}`}
+                : t.message.attachments(message.attachments.length)}
             </p>
           </div>
         ) : null}

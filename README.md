@@ -9,7 +9,7 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 | | |
 | --- | --- |
-| **Automated checks** | 499 — 95 unit, 14 component, 46 integration against a real Postgres, 10 browser smoke tests, 334 end-to-end against the deployed instance |
+| **Automated checks** | 522 — 97 unit, 35 component, 46 integration against a real Postgres, 10 browser smoke tests, 334 end-to-end against the deployed instance |
 | **Latency budgets** | p95 per endpoint over a 15-minute window, alerting to Sentry when a budget is missed ([how](#emitting-signal-is-not-watching-it)) |
 | **Coverage** | 36.1% of statements and 74.1% of branches across `src/server` and `src/lib` ([what that gap means](#thirty-six-percent-and-why-branches-are-double-that)) |
 | **Row Level Security** | Enabled on all 26 tables; 15 policies grant access on the 14 that need it, the other 12 deny by default — enforced independently of the API |
@@ -840,11 +840,11 @@ no second round trip to render a new message.
 
 ## Testing
 
-499 checks, in five layers.
+522 checks, in five layers.
 
 ```bash
-npm test                  # 95 unit tests — pure logic, no I/O
-npm run test:component    # 14 component tests in a DOM
+npm test                  # 97 unit tests — pure logic, no I/O
+npm run test:component    # 35 component tests in a DOM
 npm run test:integration  # 46 tests against a real Postgres, four of them a perf gate
 npm run test:smoke        # 10 browser checks against the production build
 npm run test:e2e          # 334 checks against a running server + real Supabase
