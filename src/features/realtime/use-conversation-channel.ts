@@ -11,11 +11,15 @@ import {
 } from '@/lib/supabase/client';
 import { queryKeys } from '@/lib/query-keys';
 import { realtimeChannels, realtimeEvents, type TypingPayload } from '@/lib/realtime';
-import { debeEnviarEscritura } from '@/lib/typing-throttle';
+import {
+  BARRIDO_ESCRITURA_MS,
+  debeEnviarEscritura,
+  haCaducado,
+  mereceLaPenaReenviar,
+} from '@/lib/typing-throttle';
 import { useMessageCache } from '@/features/messages/hooks';
 import type { ConversationDetail, MessageDTO, ReactionGroup } from '@/types/dto';
 
-const TYPING_TTL_MS = 4_000;
 
 function groupReactions(rows: Array<{ emoji: string; userId: string }>, viewerId: string): ReactionGroup[] {
   const groups = new Map<string, ReactionGroup>();
@@ -44,6 +48,15 @@ export function useConversationChannel(conversationId: string, viewerId: string)
   const [typing, setTyping] = React.useState<Record<string, { name: string; at: number }>>({});
   const channelRef = React.useRef<RealtimeChannel | null>(null);
   const lastTypingSentAt = React.useRef(0);
+
+  /**
+   * La pulsación que se quedó sin canal, esperando a que lo haya.
+   *
+   * Sin esto, abrir una conversación, escribir una palabra y parar no manda
+   * nada en absoluto: el único intento cayó dentro de los ~350 ms que tarda la
+   * suscripción, y al otro lado no aparece el aviso nunca.
+   */
+  const escrituraPendiente = React.useRef<{ nombre: string; desde: number } | null>(null);
 
   React.useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -137,35 +150,17 @@ export function useConversationChannel(conversationId: string, viewerId: string)
     };
   }, [conversationId, viewerId, queryClient, upsert, remove, patch]);
 
-  // Expire stale typing entries instead of trusting a "stopped typing" event.
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      setTyping((current) => {
-        const now = Date.now();
-        const next = Object.fromEntries(
-          Object.entries(current).filter(([, value]) => now - value.at < TYPING_TTL_MS),
-        );
-        return Object.keys(next).length === Object.keys(current).length ? current : next;
-      });
-    }, 1_000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Throttled: one packet every couple of seconds is enough to keep the
-  // indicator alive, and it keeps us far under the realtime rate limit.
-  //
-  // La decisión vive en `typing-throttle` y no aquí porque el orden de sus dos
-  // condiciones ya se equivocó una vez: el reloj se sellaba antes de mirar si
-  // había canal, así que escribir durante los ~350 ms que tarda la suscripción
-  // perdía el paquete y encima gastaba los dos segundos de espera.
-  const sendTyping = React.useCallback(
-    (displayName: string) => {
-      const canal = channelRef.current;
-      const now = Date.now();
-      if (!debeEnviarEscritura(now, lastTypingSentAt.current, canal !== null)) return;
-      lastTypingSentAt.current = now;
-
-      void canal?.send({
+  /**
+   * Manda un paquete de escritura, sin condiciones.
+   *
+   * Separado de `sendTyping` porque lo llaman dos sitios: la pulsación normal y
+   * el reenvío de la que se quedó sin canal.
+   */
+  const emitirEscritura = React.useCallback(
+    (canal: RealtimeChannel, displayName: string, cuando: number) => {
+      lastTypingSentAt.current = cuando;
+      escrituraPendiente.current = null;
+      void canal.send({
         type: 'broadcast',
         event: realtimeEvents.typing,
         payload: { userId: viewerId, displayName, conversationId } satisfies TypingPayload,
@@ -173,6 +168,70 @@ export function useConversationChannel(conversationId: string, viewerId: string)
     },
     [conversationId, viewerId],
   );
+
+  /**
+   * Un solo barrido con dos tareas, porque las dos van al mismo ritmo.
+   *
+   * **Caducar** las entradas en vez de fiarse de un evento de «he dejado de
+   * escribir»: ese evento se pierde con la misma facilidad que cualquier otro, y
+   * perderlo deja el aviso encendido para siempre.
+   *
+   * **Soltar** la pulsación que se quedó sin canal. Sin esto, abrir una
+   * conversación, escribir una palabra y parar no manda nada en absoluto: el
+   * único intento cayó dentro de los ~350 ms que tarda la suscripción.
+   */
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+
+      setTyping((current) => {
+        const next = Object.fromEntries(
+          Object.entries(current).filter(([, value]) => !haCaducado(now, value.at)),
+        );
+        return Object.keys(next).length === Object.keys(current).length ? current : next;
+      });
+
+      const pendiente = escrituraPendiente.current;
+      const canal = channelRef.current;
+      if (!pendiente || !canal) return;
+
+      // Caducada: reenviarla mostraría «está escribiendo» por alguien que paró.
+      if (!mereceLaPenaReenviar(now, pendiente.desde)) {
+        escrituraPendiente.current = null;
+        return;
+      }
+      if (!debeEnviarEscritura(now, lastTypingSentAt.current, true)) return;
+      emitirEscritura(canal, pendiente.nombre, now);
+    }, BARRIDO_ESCRITURA_MS);
+    return () => clearInterval(interval);
+  }, [emitirEscritura]);
+
+  // Acelerado: un paquete por segundo basta para mantener vivo el aviso, y deja
+  // el tráfico muy por debajo de cualquier límite de Realtime.
+  //
+  // La decisión vive en `typing-throttle` y no aquí porque el orden de sus dos
+  // condiciones ya se equivocó una vez: el reloj se sellaba antes de mirar si
+  // había canal, así que escribir durante los ~350 ms que tarda la suscripción
+  // perdía el paquete y encima gastaba la espera entera.
+  const sendTyping = React.useCallback(
+    (displayName: string) => {
+      const canal = channelRef.current;
+      const now = Date.now();
+
+      // Sin canal se apunta y se espera: el barrido de arriba lo suelta en
+      // cuanto haya. Se guarda el intento más reciente, no el primero — describe
+      // mejor el presente cuando por fin sale.
+      if (!canal) {
+        escrituraPendiente.current = { nombre: displayName, desde: now };
+        return;
+      }
+
+      if (!debeEnviarEscritura(now, lastTypingSentAt.current, true)) return;
+      emitirEscritura(canal, displayName, now);
+    },
+    [emitirEscritura],
+  );
+
 
   const typingNames = React.useMemo(
     () => Object.values(typing).map((entry) => entry.name),

@@ -9,7 +9,7 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 | | |
 | --- | --- |
-| **Automated checks** | 527 — 102 unit, 35 component, 46 integration against a real Postgres, 10 browser smoke tests, 334 end-to-end against the deployed instance |
+| **Automated checks** | 533 — 108 unit, 35 component, 46 integration against a real Postgres, 10 browser smoke tests, 334 end-to-end against the deployed instance |
 | **Latency budgets** | p95 per endpoint over a 15-minute window, alerting to Sentry when a budget is missed ([how](#emitting-signal-is-not-watching-it)) |
 | **Coverage** | 36.1% of statements and 74.1% of branches across `src/server` and `src/lib` ([what that gap means](#thirty-six-percent-and-why-branches-are-double-that)) |
 | **Row Level Security** | Enabled on all 26 tables; 15 policies grant access on the 14 that need it, the other 12 deny by default — enforced independently of the API |
@@ -816,9 +816,32 @@ the two-second wait starts, so the other side sees nothing until two seconds
 after you began. Nothing failed, nothing logged, and the only symptom was
 "feels a bit slow" — which is exactly the kind of bug that never gets chased.
 
-The fix is the ordering, and it lives in `src/lib/typing-throttle.ts` with five
-unit tests, because the ordering is the whole bug. Reproduce the measurement
-with `npm run bench:typing`.
+The fix is the ordering, and it lives in `src/lib/typing-throttle.ts` because the
+ordering is the whole bug.
+
+That made it appear sooner. It still lingered on the way out, and that half was
+arithmetic nobody had added up:
+
+| | before | after |
+| --- | ---: | ---: |
+| sender throttle | 2 s | 1 s |
+| entry lifetime | 4 s | 2.5 s |
+| sweep interval | 1 s | 0.25 s |
+| **tail after the last keystroke** | **4–7 s** | **1.5–3.75 s** |
+
+The three are not independent, which is why they now live in one file with the
+tests that pin their relationship. **The lifetime must exceed the throttle plus
+the trip time**, or nothing refreshes the entry between packets and the bubble
+blinks off and on every second — so lowering one number alone introduces a
+different bug than the one it fixes. One test asserts that relationship using the
+measured worst-case trip (168 ms) rather than a guessed constant; another caps
+the tail.
+
+Doubling the packet rate is the cost, and it is small: one packet per second per
+person actually typing, against a channel that carried 200 events per second in
+the flood test without shedding any.
+
+Reproduce the measurement with `npm run bench:typing`.
 
 The locale resolves server-side — cookie, then `Accept-Language`, then English —
 so the first paint is already in the right language rather than flashing English
@@ -894,10 +917,10 @@ no second round trip to render a new message.
 
 ## Testing
 
-527 checks, in five layers.
+533 checks, in five layers.
 
 ```bash
-npm test                  # 102 unit tests — pure logic, no I/O
+npm test                  # 108 unit tests — pure logic, no I/O
 npm run test:component    # 35 component tests in a DOM
 npm run test:integration  # 46 tests against a real Postgres, four of them a perf gate
 npm run test:smoke        # 10 browser checks against the production build
