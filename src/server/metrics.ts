@@ -1,6 +1,12 @@
 import * as Sentry from '@sentry/nextjs';
 
 import { prisma } from '@/lib/prisma';
+import {
+  PRESUPUESTO_DE_ERROR,
+  superaErrores,
+  superaLatencia,
+  tasaDeError,
+} from '@/server/budgets';
 import { describeError, log } from '@/server/logger';
 
 /**
@@ -20,16 +26,6 @@ export const SAMPLE_RETENTION_DAYS = 7;
 
 /** La ventana sobre la que se calcula el percentil que dispara el aviso. */
 const WINDOW_MINUTES = 15;
-
-/**
- * Cuántas muestras hacen falta para creerse un p95.
- *
- * Un percentil sobre tres peticiones no es un percentil, es la más lenta de
- * tres. Sin este mínimo, el primer usuario del día con una conexión mala
- * dispara un aviso que no significa nada — y unos cuantos avisos que no
- * significan nada son exactamente cómo se acaba ignorando el panel.
- */
-const MIN_SAMPLES = 20;
 
 /** Cada cuánto se molesta alguien en calcular los percentiles. */
 const CHECK_EVERY_MINUTES = 5;
@@ -153,7 +149,7 @@ async function claim(key: string, minutes: number): Promise<boolean> {
 }
 
 /**
- * Comprueba los percentiles y avisa si alguno se sale del presupuesto.
+ * Comprueba los presupuestos —de latencia y de error— y avisa si se pasan.
  *
  * La comprobación va montada sobre el tráfico y no sobre un temporizador. En
  * este plan las tareas programadas corren como mucho una vez al día, y una
@@ -161,29 +157,46 @@ async function claim(key: string, minutes: number): Promise<boolean> {
  * revise el propio tráfico tiene además una propiedad que un cron no tiene: si
  * no hay peticiones, no hay nada que vigilar.
  *
+ * El de error se añadió el 23/08/2026, y llegaba tarde: la consulta ya contaba
+ * los 5xx por ruta desde el primer día —la columna `errors` estaba ahí, en cada
+ * fila— y **nadie la miraba**. Vigilar sólo la latencia deja pasar el fallo más
+ * obvio: una ruta que responde rapidísimo porque revienta enseguida cumple el
+ * presupuesto de p95 sin despeinarse.
+ *
+ * Los dos avisos tienen esperas separadas a propósito. Con una compartida, una
+ * ruta lenta se comería el turno y su tasa de error se quedaría sin contar
+ * durante media hora — justo cuando las dos cosas suelen venir juntas.
+ *
  * Nunca lanza: corre desprendida de la petición.
  */
-export async function checkLatencyBudgets(): Promise<void> {
+export async function checkBudgets(): Promise<void> {
   try {
     if (!(await claim('check', CHECK_EVERY_MINUTES))) return;
 
     for (const row of await percentiles(WINDOW_MINUTES)) {
-      if (row.samples < MIN_SAMPLES) continue;
-
       const budget = budgetFor(row.route);
-      if (row.p95 <= budget) continue;
 
       // El aviso por ruta tiene su propia espera: un endpoint que va mal lo va
       // a seguir yendo durante un rato, y repetirlo cada cinco minutos sólo
       // consigue que se deje de leer.
-      if (!(await claim(`alert:${row.route}`, ALERT_COOLDOWN_MINUTES))) continue;
+      if (superaLatencia(row, budget) && (await claim(`alert:${row.route}`, ALERT_COOLDOWN_MINUTES))) {
+        log.warn('metrics.budget_exceeded', { ...row, budget });
+        Sentry.captureMessage('latency.budget_exceeded', {
+          level: 'warning',
+          tags: { subsystem: 'latency', route: row.route },
+          extra: { ...row, budget, windowMinutes: WINDOW_MINUTES },
+        });
+      }
 
-      log.warn('metrics.budget_exceeded', { ...row, budget });
-      Sentry.captureMessage('latency.budget_exceeded', {
-        level: 'warning',
-        tags: { subsystem: 'latency', route: row.route },
-        extra: { ...row, budget, windowMinutes: WINDOW_MINUTES },
-      });
+      if (superaErrores(row) && (await claim(`errors:${row.route}`, ALERT_COOLDOWN_MINUTES))) {
+        const rate = tasaDeError(row);
+        log.warn('metrics.error_budget_exceeded', { ...row, rate, budget: PRESUPUESTO_DE_ERROR });
+        Sentry.captureMessage('error.budget_exceeded', {
+          level: 'error',
+          tags: { subsystem: 'errors', route: row.route },
+          extra: { ...row, rate, budget: PRESUPUESTO_DE_ERROR, windowMinutes: WINDOW_MINUTES },
+        });
+      }
     }
   } catch (error) {
     log.warn('metrics.check_failed', describeError(error));

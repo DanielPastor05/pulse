@@ -6,7 +6,7 @@ import { ZodError, type TypeOf, type ZodTypeAny } from 'zod';
 import { publicEnv } from '@/lib/env';
 import { AppError, errors } from '@/server/errors';
 import { describeError, log } from '@/server/logger';
-import { checkLatencyBudgets, recordSample } from '@/server/metrics';
+import { checkBudgets, recordSample } from '@/server/metrics';
 import { conAlcanceDePeticion } from '@/server/request-scope';
 import { contieneTextoImposible } from '@/server/texto-imposible';
 
@@ -231,7 +231,7 @@ export function route<Context>(handler: Handler<Context>): Handler<Context> {
     // respondió.
     after(async () => {
       await recordSample(sample);
-      await checkLatencyBudgets();
+      await checkBudgets();
     });
 
     // La misma cifra en la respuesta, para verla en el inspector sin salir del

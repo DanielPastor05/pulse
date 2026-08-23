@@ -1,22 +1,36 @@
 # Auditoría de seguridad de Pulse
 
 Ejecutada el 22 de agosto de 2026 contra el despliegue real
-(`pulse-blond-two.vercel.app`) y el repositorio en el commit `f04a68e`.
+(`pulse-blond-two.vercel.app`) y el repositorio en el commit `f04a68e`, y
+**ampliada el 23 de agosto** para cerrar las seis lagunas que ella misma había
+declarado: la matriz completa de roles, el fuzzing sobre los 67 métodos, el XSS
+por superficie, el recorrido de directorios en las subidas, la fuerza bruta en el
+acceso y el perfilado de memoria. Esa segunda pasada añadió tres hallazgos, dos
+de ellos corregidos.
+
 El mapa de la superficie está en [AUDIT_ARCHITECTURE.md](AUDIT_ARCHITECTURE.md).
 
 ---
 
 ## Resumen ejecutivo
 
-**Tres hallazgos, todos de severidad baja. Dos corregidos y verificados; el
-tercero necesita un ajuste en el panel de Supabase.** Cero críticos, cero altos,
-cero medios.
+**Diez hallazgos, todos de severidad baja o informativa. Siete corregidos y
+verificados; dos abiertos por estar fuera de este repositorio; uno aceptado.**
+Cero críticos, cero altos, cero medios.
 
 Lo importante no es el recuento sino dónde *no* apareció nada. La barrida
 sistemática de autorización —las 31 rutas que aceptan un id, llamadas con tres
 identidades distintas— devolvió **54 de 54 correctas**. Ese era el sitio donde
 un fallo habría sido grave, porque una aplicación de chat que deja leer la
 conversación de otro no tiene arreglo cosmético.
+
+Y la matriz de roles al completo, que la primera pasada dejó a medias: **4 roles
+× 8 permisos = 32 celdas**, todas correctas. Importaba porque MODERATOR y ADMIN
+nunca se habían separado, y son cuatro permisos los que los distinguen — un
+`atLeast(role, 'MODERATOR')` escrito donde tocaba `'ADMIN'` habría pasado
+inadvertido, porque desde fuera los dos siguen sin ser la dueña. Las 24
+negaciones se exigen con **403 exacto**: un 400 significaría que contestó el
+validador y el permiso no llegó a mirarse.
 
 Y el tiempo real, que era el punto con menos red debajo —ahí la autorización de
 la base de datos no es una segunda capa, es la única—, resistió el ataque de un
@@ -37,7 +51,25 @@ confidencialidad:
 - **AUDIT-06** — el tope de eventos de tiempo real vive **sólo en el cliente**.
   Un miembro con su propio cliente metió 1.580 eventos a 200/s y llegaron los
   1.580. No degrada a los demás, pero gasta cuota del proyecto sin pasar por
-  ningún límite. **Abierto**: se arregla en el panel, no en el repositorio.
+  ningún límite. **Abierto**, y la recomendación original era inaplicable: el
+  ajuste que lo arreglaría es de plan Pro. Corregido eso en el informe.
+- **AUDIT-09** — un **solo carácter nulo** en el cuerpo o en la consulta devolvía
+  500 en cinco endpoints. Salió del fuzzing, y la causa no era la que parecía:
+  los emoji y U+FFFD entran bien; lo que rompe es lo que Postgres no puede
+  guardar en un `text`. **Corregido** en `parseBody`/`parseQuery`, por donde
+  pasan los 67. Verificado: las mismas 545 peticiones, cero 5xx.
+- **AUDIT-04** — un desconocido recibía **400 con el esquema de Zod** en vez de
+  403. Reproducido contra producción antes de tocar nada. **Corregido**, y por el
+  camino apareció algo peor: la memoización que iba a hacerlo gratis
+  —`cache()` de React— **no memoizaba nada** dentro de un route handler. Medido:
+  dos consultas por petición donde debía haber una, desde siempre.
+- **AUDIT-10** — la tasa de error por ruta se calculaba en cada consulta de
+  percentiles y **nadie la leía**. Una ruta que responde rapidísimo porque
+  revienta enseguida cumplía su presupuesto de latencia sin despeinarse.
+  **Corregido**: presupuesto de error junto al de latencia.
+- **AUDIT-08** — el tiempo de respuesta del acceso distingue si el correo existe
+  (~152 ms contra ~65 ms, estable). El mensaje y el código no distinguen; el
+  reloj sí. **Abierto**: responde Supabase, no este repositorio.
 
 Tres cosas que conviene decir de esta auditoría antes de leer el resto:
 
@@ -88,6 +120,9 @@ como estaba: 5 usuarios, 4 conversaciones, 0 conversaciones huérfanas.
 | AUDIT-05 | `cleanup()` de las pruebas tragaba errores de borrado | LOW (sólo pruebas) | **CORREGIDO** | `tests/e2e/harness.mjs` |
 | AUDIT-06 | El límite de eventos de tiempo real es sólo del lado del cliente | LOW | Abierto — requiere ajuste en el panel | `src/lib/supabase/client.ts` |
 | AUDIT-07 | El limitador de la API dejaba pasar 1,88× lo declarado | LOW | **CORREGIDO** | `src/server/rate-limit.ts` |
+| AUDIT-08 | El tiempo de respuesta del acceso distingue si el correo existe | INFORMATIONAL | Abierto — es del proveedor | `/auth/v1/token` (Supabase) |
+| AUDIT-09 | Un carácter nulo devolvía 500 en cinco endpoints | LOW | **CORREGIDO** | `src/server/texto-imposible.ts` |
+| AUDIT-10 | La tasa de error por ruta se calculaba y no la miraba nadie | LOW | **CORREGIDO** | `src/server/budgets.ts` |
 
 ### AUDIT-01 — Un id malformado devuelve 500 · LOW · CORREGIDO
 
@@ -293,13 +328,39 @@ rechazados en el cliente y daba cero, lo cual no demuestra nada — `send()`
 devuelve `'ok'` en cuanto escribe en el socket, sin acuse del servidor. El
 número que dice algo es cuántos aparecen **al otro lado**, y ése es el 100%.
 
-**Solución recomendada.** El techo tiene que estar donde el cliente no llega:
-el ajuste *Max events per second* de Realtime en el panel de Supabase, por
-proyecto. El `eventsPerSecond` del cliente se queda como está — es útil para no
-saturarse a uno mismo — pero deja de ser lo único.
+**Solución recomendada, y por qué no se aplicó.** El techo tiene que estar donde
+el cliente no llega: el ajuste *Max events per second* de Realtime en el panel de
+Supabase. **Ese ajuste es de plan Pro**, así que en este proyecto no está
+disponible — la recomendación original no decía esto y era, por tanto,
+inaplicable tal como estaba escrita.
 
-**Por qué queda abierto.** Es un ajuste de infraestructura en un panel, no una
-línea de código, así que no se puede aplicar desde el repositorio.
+Vuelto a medir el 23/08/2026, tras revisar la configuración de Realtime: **1.580
+de 1.580 eventos entregados, cero rechazados**. Nada ha cambiado, y ahora se sabe
+que nada iba a cambiar.
+
+**La otra vía, examinada y descartada por ahora.** La autorización de Realtime
+tiene dos políticas sobre `realtime.messages`, y en este proyecto son idénticas:
+
+```sql
+INSERT  "publish to your own topics"    private.can_use_realtime_topic(realtime.topic())
+SELECT  "subscribe to your own topics"  private.can_use_realtime_topic(realtime.topic())
+```
+
+O sea que quien puede **leer** un canal puede **escribir** en él. Endurecer el
+INSERT sería gratis y más fuerte que un tope de ritmo… si los clientes no
+escribieran. Escriben: el indicador de «está escribiendo» sale del navegador por
+`channel.send()`, y la presencia por `channel.track()`. Cerrar el INSERT
+obligaría a pasar el typing por un endpoint —donde sí lo cazaría el limitador ya
+existente— pero seguiría dejando abiertos el canal de señalización de llamadas,
+donde los clientes tienen que publicar por fuerza, y el de presencia.
+
+Es decir: una media solución que cuesta una petición HTTP por pulsación y no
+cierra dos de los tres canales. Queda escrita porque es la salida si algún día
+importa, no aplicada porque hoy no compensa.
+
+**Impacto real, para dimensionarlo.** Quien abusa tiene que ser ya miembro de la
+conversación, y lo que consigue es gastar cuota del proyecto — no leer nada
+ajeno, no tumbar el servicio, no impedir que los demás reciban.
 
 ### AUDIT-07 — El limitador dejaba pasar 1,88× lo declarado · LOW · CORREGIDO
 
@@ -333,6 +394,103 @@ así que quien insiste tarda más en volver. Se midió con una cuenta limpia:
 gastar la cuota entera de golpe y luego pedir a ritmo humano da **13,5 s** hasta
 volver a entrar, frente a los 10 s justos de la ventana fija. Tres segundos y
 medio de más a cambio de eliminar el doble cupo.
+
+### AUDIT-08 — El tiempo del acceso distingue si el correo existe · INFORMATIONAL
+
+El formulario de acceso no pasa por esta aplicación: el navegador habla directo
+con `/auth/v1/token` de Supabase. Así que se atacó ahí, igual que lo haría él.
+
+**Lo que está bien.** Un correo registrado y uno inventado reciben la **misma**
+respuesta: `400`, `invalid_credentials`, «Invalid login credentials». Palabra por
+palabra. No hay oráculo en el mensaje ni en el código de estado.
+
+**Lo que no.** El reloj sí distingue, y de forma estable entre ejecuciones:
+
+| correo | mediana de 5 |
+| --- | ---: |
+| registrado | ~152 ms |
+| inexistente | ~65 ms |
+
+Una cuenta que existe obliga a comprobar el hash de la contraseña; una que no,
+se descarta antes. Con suficientes muestras, eso enumera.
+
+**Por qué se queda abierto.** No hay nada que corregir en este repositorio: el
+que responde es el proveedor. Y el valor práctico es bajo — con el tope por IP
+medido abajo, sondear una lista de correos sale caro.
+
+**Lo que sí se hizo.** Dejarlo medido y con un cable trampa en
+`tests/e2e/auth-abuse.mjs`, que salta si la brecha cambia de orden de magnitud.
+Conviene decir por qué la aserción no es «no hay brecha»: la hay. Un umbral
+elegido para que pase habría convertido un hallazgo en un aprobado.
+
+**Y lo que sí protege, medido.** El acceso se frena con **429** desde la misma
+IP tras una treintena de intentos, y el freno es **por IP y no por cuenta** — la
+contraseña correcta también recibe 429 durante el castigo. Eso tiene las dos
+caras: nadie puede dejar fuera a otra persona a base de fallar su contraseña,
+pero quien comparta salida de red comparte castigo. Que la ventana caduque viene
+de la documentación de Supabase, no de una medición: esperar una hora dentro de
+una suite que corre en cada despliegue no tiene sentido, y así está dicho en el
+propio fichero.
+
+### AUDIT-09 — Un carácter nulo devolvía 500 en cinco endpoints · LOW · CORREGIDO
+
+Salió del fuzzing de los 67 métodos: 545 peticiones con basura, y **cinco 500**.
+
+**La causa no era la que parecía.** El primer impulso fue culpar a «unicode
+raro», que es como se llamaba la carga. Aislando carácter a carácter, U+FFFE,
+U+FFFD y los emoji entran sin despeinarse. Los que rompen son dos:
+
+| entrada | resultado |
+| --- | --- |
+| U+0000 (nulo) | **500** |
+| sustituto suelto (`\uD800`) | **500** |
+| U+FFFE, U+FFFD, emoji, CJK | 201 / 200 |
+
+Son exactamente las dos cosas que Postgres no puede guardar en una columna
+`text`: el protocolo usa cadenas terminadas en nulo, y UTF-8 no tiene cómo
+codificar un sustituto sin pareja.
+
+**El daño.** Ninguna fuga —el cuerpo del error es genérico— pero un solo
+carácter, con sesión y un bucle, agota la cuota de Sentry y ensucia los
+percentiles de latencia. Es el mismo daño que AUDIT-01 por otra puerta, y salió
+en cinco endpoints a la vez por el mismo motivo: nace en lo compartido.
+
+**Corrección.** La guarda va en `parseBody` y `parseQuery`, por donde pasan los
+67, no en cada esquema. El recorrido del cuerpo es iterativo y no recursivo: con
+recursión, un objeto anidado cien mil niveles cambiaba un 500 por otro 500.
+
+**Verificado tras desplegar:** las mismas 545 peticiones, **cero 5xx**.
+
+### AUDIT-10 — La tasa de error se calculaba y no la miraba nadie · LOW · CORREGIDO
+
+La consulta de percentiles contaba los 5xx por ruta desde el primer día —la
+columna `errors` venía en cada fila— y la alerta sólo miraba el p95. O sea que
+la señal estaba, calculada y a la vista, sin que nada la leyera. Es la misma
+forma que el hallazgo que abrió esta auditoría: emitir no es vigilar.
+
+Vigilar sólo la latencia deja pasar el fallo más obvio de todos: **una ruta que
+responde rapidísimo porque revienta enseguida cumple su presupuesto de p95 sin
+despeinarse**. AUDIT-09 es justo eso — cinco endpoints devolviendo 500 en pocos
+milisegundos.
+
+**Corrección.** Un presupuesto de error junto al de latencia, con dos caminos
+porque hacen falta los dos:
+
+- **1% sobre la ventana de quince minutos**, para el goteo en una ruta con mucho
+  tráfico.
+- **Tres errores absolutos**, para la ruta poco transitada que está rota del
+  todo: cinco peticiones y cinco errores nunca llegan al mínimo de muestras que
+  un percentil necesita, así que la regla del porcentaje sola la habría dejado
+  en silencio para siempre.
+
+Que un 500 suelto no dispare esto no pierde nada: cada excepción no controlada
+ya se reporta a Sentry una a una. El presupuesto responde a otra pregunta — no
+«¿ha fallado algo?» sino «¿está fallando esta ruta a un ritmo que importa?».
+
+Las dos alertas tienen esperas separadas. Con una compartida, una ruta lenta se
+comería el turno y su tasa de error se quedaría sin contar media hora, que es
+justo cuando las dos cosas suelen venir juntas. La regla vive en
+`src/server/budgets.ts`, sin dependencias, con nueve pruebas unitarias.
 
 **Regresión.** Ocho pruebas unitarias sobre la aritmética del solape —incluidas
 dos de propiedad: el uso crece de forma monótona al llenarse la ventana y
@@ -599,34 +757,60 @@ malformado da 400, no 500.
 
 ## Cobertura
 
-**Estimación: 84-88% de la superficie.** Calculada así:
+**Estimación: 93-95% de la superficie**, tras cerrar el 23/08/2026 las seis
+lagunas que la versión anterior de este informe declaraba (estaba en 84-88%).
+Calculada así:
 
 | dimensión | cubierto | total | cómo |
 | --- | --- | --- | --- |
 | Rutas de la API | 52 | 52 | enumeradas leyendo el árbol |
-| Métodos HTTP | ~55 | 67 | los no cubiertos son GET de lectura propia |
+| Métodos HTTP | 67 | 67 | 545 peticiones de fuzzing, lista descubierta leyendo el árbol |
 | Rutas con id (IDOR) | 31 | 31 | las tres identidades contra todas |
-| Categorías OWASP API Top 10 | 8 | 10 | faltan inventario de activos y consumo ilimitado |
+| Matriz de roles | 32 | 32 | 4 roles × 8 permisos, celda por celda |
+| Categorías OWASP API Top 10 | 9 | 10 | falta inventario de activos |
 | Superficie de tiempo real | ~90% | | autorización atacada e inundación medida |
 | Componentes de frontend | ~15% | | sólo el renderizado de mensajes |
 
-El número está deliberadamente por debajo de lo que sugieren los ceros. **Un
-«no encontré nada» sin la lista de lo que no se probó no significa nada**, y
-aquí esa lista es real:
+Lo que se cerró, y con qué:
 
-- **Fuerza bruta y enumeración en el login.** Es el limitador de Supabase, y
-  atacarlo sería atacar a un tercero.
-- **Perfilado de memoria.** La carga sostenida no mostró degradación en tres
-  minutos, pero contra el despliegue no se puede leer la memoria del proceso: la
-  ausencia de fuga se infiere del comportamiento, no se observa.
-- **Fuzzing.** Se probaron tipos incorrectos y valores extremos a mano, no un
-  fuzzer sobre los 67 métodos.
-- **XSS fuera de los mensajes.** Nombres, biografías y nombres de grupo van como
-  texto de JSX, que React escapa por construcción, pero no hay una prueba por
-  cada sitio.
-- **Recorrido de directorios en nombres de fichero.**
-- **La matriz completa de roles.** Se probó MEMBER contra OWNER; MODERATOR y
-  ADMIN se probaron por separado sólo en las acciones que los distinguen.
+| laguna declarada | cerrada con | resultado |
+| --- | --- | --- |
+| Fuerza bruta y enumeración en el login | `auth-abuse.mjs` | tope por IP confirmado; **AUDIT-08** |
+| Perfilado de memoria | build de producción local con sonda de proceso | sin fuga en 5.000 peticiones |
+| Fuzzing sobre los 67 métodos | `fuzz.mjs`, 545 peticiones | **AUDIT-09**, corregido |
+| XSS fuera de los mensajes | `xss-surfaces.mjs` | sin hallazgos |
+| Recorrido de directorios en nombres de fichero | `upload-paths.mjs` | sin hallazgos |
+| Matriz completa de roles | `role-matrix.mjs` | 32/32 correctas |
+
+**El perfilado de memoria, con su número y su límite.** Contra el despliegue no
+se puede leer la memoria del proceso, así que se midió sobre el **build de
+producción corriendo en local** —no sobre `next dev`, cuyas cifras están
+dominadas por los mapas de fuente y el recargado en caliente— con una sonda
+temporal que devolvía `process.memoryUsage()`. 5.000 peticiones en diez tandas:
+el RSS sube de 315 MB, **se estabiliza en 371 MB hacia la mitad** y ahí sigue tras
+las 2.500 restantes y tras veinte segundos parado. El heap oscila entre 105 y
+188 MB sin tendencia.
+
+La primera versión de esa medición anunció «164 MB por cada 1000 peticiones»
+restando la última muestra de la primera. Es un número inventado: el heap va en
+diente de sierra y restar dos puntos cualesquiera mide en qué parte del diente
+cayó cada uno. Lo que dice si hay fuga es el suelo al que vuelve tras cada
+recolección, y ese suelo está plano.
+
+**Lo que sigue sin probarse**, porque una cobertura sin esta lista no significa
+nada:
+
+- **La interfaz.** Salvo el renderizador de mensajes, ningún componente se
+  renderiza en una prueba. Las superficies de texto se atacan por la API y se
+  comprueba que guardan literal, que es la mitad del problema; que React escape
+  la otra mitad sigue siendo un argumento, no una medición.
+- **El canal de señalización de llamadas y el de presencia.** La autorización
+  está probada; el contenido que viaja por ellos, no.
+- **Inventario de activos** (OWASP API9): no hay versionado de API ni endpoints
+  antiguos que retirar, así que la categoría casi no aplica — pero «casi no
+  aplica» no es «comprobado».
+- **La caducidad del freno de acceso.** Que la ventana de Supabase sea de una
+  hora viene de su documentación, no de haberla esperado.
 
 ---
 
@@ -641,25 +825,41 @@ fila.
 
 | capa | pruebas | pasan | fallan |
 | --- | ---: | ---: | ---: |
-| Unitarias | 75 | 75 | 0 |
+| Unitarias | 95 | 95 | 0 |
 | Componente (8 de XSS) | 14 | 14 | 0 |
 | Integración (Postgres real) | 46 | — | — |
 | Navegador | 10 | — | — |
-| Extremo a extremo | 212 | 212 | 0 |
-| **Total** | **357** | | |
+| Extremo a extremo | 334 | 334 | 0 |
+| **Total** | **499** | | |
 
-Las 212 de extremo a extremo, suite por suite, medidas contra el despliegue:
+Las 334 de extremo a extremo, suite por suite, medidas contra el despliegue:
 
 | suite | comprobaciones |
 | --- | ---: |
 | `security` (incluye cabeceras y CORS) | 71 |
 | `authorization` | 54 |
+| `xss-surfaces` · nueva | 49 |
 | `abuse` (11 nuevas de AUDIT-04) | 47 |
+| `role-matrix` · nueva | 41 |
+| `upload-paths` · nueva | 17 |
 | `push` | 12 |
 | `realtime-authz` | 10 |
+| `auth-abuse` · nueva | 9 |
 | `realtime-flood` | 7 |
+| `fuzz` · nueva | 6 |
 | `notifications` | 6 |
 | `realtime` | 5 |
+
+`fuzz` aparece con seis y es la que más trabajo hace: lanza **545 peticiones**
+contra los 67 métodos y las resume en unas pocas afirmaciones, porque lo que
+importa es «ninguna de estas produjo un 5xx ni filtró nada por dentro», no 545
+líneas diciéndolo por separado. Contar comprobaciones mide líneas de salida, no
+esfuerzo, y conviene que eso quede dicho junto a la tabla que las cuenta.
+
+`auth-abuse` va la última del script, y no por gusto: el tope de intentos de
+Supabase es **por IP**, así que agotarlo deja sin poder entrar a cualquier suite
+que corra después desde la misma máquina. Su primera versión lo descubrió sola,
+muriendo en su propio `makeUser`.
 
 Integración y navegador van sin resultado a propósito: **desde este entorno no se
 pueden ejecutar**, y ponerles un «46/46 pasan» copiado de otra vez sería
@@ -685,10 +885,21 @@ Las suites nuevas están en `npm run test:e2e`, así que corren con las demás.
    los nueve manejadores donde la pertenencia ya era precondición. Salió más
    barato de lo esperado y más caro de lo que parecía: obligó a descubrir que la
    memoización que lo hacía gratis no memoizaba nada.
-4. **Prueba de XSS por cada superficie de texto** —nombre, biografía, nombre de
-   grupo— aunque React escape por construcción. Barato, y convierte un argumento
-   en una comprobación.
-5. **Nombres de fichero con recorrido de directorios** en la subida.
+4. ~~**Prueba de XSS por cada superficie de texto**~~ — hecha. Sin hallazgos, y
+   con la distinción que importa: el texto se guarda **literal** (escapar es cosa
+   de quien pinta) y las URL se **rechazan** (ahí no hay pintado que salve nada).
+5. ~~**Nombres de fichero con recorrido de directorios**~~ — hecha, doce nombres
+   hostiles. `safeName` aguanta todos, incluida la barra de ancho completo.
+
+Y las que abrió esta segunda pasada:
+
+6. **Renderizar los componentes en pruebas.** Que React escape los nombres y las
+   biografías sigue siendo un argumento por construcción. Lo que falta no es
+   difícil, es aburrido: montar los proveedores de i18n, router y react-query
+   para poder renderizar algo más que el renderizador de mensajes.
+7. **Cerrar el INSERT de Realtime** si algún día la cuota importa, moviendo el
+   indicador de escritura a un endpoint. Hoy no compensa: cuesta una petición por
+   pulsación y deja abiertos los otros dos canales (ver AUDIT-06).
 
 ---
 
