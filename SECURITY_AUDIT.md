@@ -918,20 +918,20 @@ fila.
 | capa | pruebas | pasan | fallan |
 | --- | ---: | ---: | ---: |
 | Unitarias | 108 | 108 | 0 |
-| Componente | 35 | 35 | 0 |
+| Componente | 42 | 42 | 0 |
 | Integración (Postgres real) | 46 | — | — |
 | Navegador | 10 | 10 | 0 |
-| Extremo a extremo | 334 | 334 | 0 |
-| **Total** | **533** | | |
+| Extremo a extremo | 341 | 341 | 0 |
+| **Total** | **547** | | |
 
-Las 334 de extremo a extremo, suite por suite, medidas contra el despliegue:
+Las 341 de extremo a extremo, suite por suite, medidas contra el despliegue:
 
 | suite | comprobaciones |
 | --- | ---: |
 | `security` (incluye cabeceras y CORS) | 71 |
 | `authorization` | 54 |
 | `xss-surfaces` · nueva | 49 |
-| `abuse` (11 nuevas de AUDIT-04) | 47 |
+| `abuse` (11 de AUDIT-04, 7 del catálogo de GIF) | 54 |
 | `role-matrix` · nueva | 41 |
 | `upload-paths` · nueva | 17 |
 | `push` | 12 |

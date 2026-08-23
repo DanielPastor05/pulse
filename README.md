@@ -9,7 +9,7 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 | | |
 | --- | --- |
-| **Automated checks** | 540 — 108 unit, 42 component, 46 integration against a real Postgres, 10 browser smoke tests, 334 end-to-end against the deployed instance |
+| **Automated checks** | 547 — 108 unit, 42 component, 46 integration against a real Postgres, 10 browser smoke tests, 341 end-to-end against the deployed instance |
 | **Latency budgets** | p95 per endpoint over a 15-minute window, alerting to Sentry when a budget is missed ([how](#emitting-signal-is-not-watching-it)) |
 | **Coverage** | 36.1% of statements and 74.1% of branches across `src/server` and `src/lib` ([what that gap means](#thirty-six-percent-and-why-branches-are-double-that)) |
 | **Row Level Security** | Enabled on all 26 tables; 15 policies grant access on the 14 that need it, the other 12 deny by default — enforced independently of the API |
@@ -917,14 +917,14 @@ no second round trip to render a new message.
 
 ## Testing
 
-540 checks, in five layers.
+547 checks, in five layers.
 
 ```bash
 npm test                  # 108 unit tests — pure logic, no I/O
 npm run test:component    # 42 component tests in a DOM
 npm run test:integration  # 46 tests against a real Postgres, four of them a perf gate
 npm run test:smoke        # 10 browser checks against the production build
-npm run test:e2e          # 334 checks against a running server + real Supabase
+npm run test:e2e          # 341 checks against a running server + real Supabase
 ```
 
 The end-to-end count understates the work in one place: the fuzzing suite throws

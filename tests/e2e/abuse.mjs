@@ -319,15 +319,25 @@ for (const kind of ['gif', 'sticker']) {
   if (!ok) process.exitCode = 1;
 }
 
+/*
+ * `''` también es inválido, y esta prueba lo dio por bueno primero.
+ *
+ * El razonamiento era que el esquema lleva `.default('gif')`, así que una cadena
+ * vacía caería en el valor por defecto. Falso: `.default()` sólo actúa cuando el
+ * valor es `undefined`, y `?kind=` manda una cadena vacía **presente**, que el
+ * enum rechaza como cualquier otra. El servidor tenía razón y la expectativa
+ * estaba mal — no omitir el parámetro y mandarlo vacío no son lo mismo.
+ */
 for (const kind of ['pegatina', 'GIF', '', 'sticker,gif']) {
   const r = await api(`/api/gifs?kind=${encodeURIComponent(kind)}`, { actor: alice });
-  // `''` no es un valor inválido: el esquema tiene `.default('gif')` y una
-  // cadena vacía en la URL es equivalente a no mandar el parámetro.
-  const esperado = kind === '' ? 200 : 400;
-  const ok = r.status === esperado;
-  console.log(`  ${ok ? 'ok  ' : 'FAIL'}  kind=«${kind}» -> ${r.status} (esperado ${esperado})`);
+  const ok = r.status === 400;
+  console.log(`  ${ok ? 'ok  ' : 'FAIL'}  kind=«${kind}» -> ${r.status} (esperado 400)`);
   if (!ok) process.exitCode = 1;
 }
+
+// Y sin el parámetro, el valor por defecto sí entra.
+const sinKind = await api('/api/gifs', { actor: alice });
+check('sin kind se asume gif', sinKind.status, 200);
 
 await cleanup();
 console.log('\ncuentas de prueba borradas');
