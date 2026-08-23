@@ -900,6 +900,9 @@ nada:
   aplica» no es «comprobado».
 - **La caducidad del freno de acceso.** Que la ventana de Supabase sea de una
   hora viene de su documentación, no de haberla esperado.
+- **Las pruebas de integración.** Se niegan a correr contra Supabase por diseño y
+  aquí no hay Postgres desechable. Es la única de las cinco capas que en esta
+  sesión no se ha llegado a ejecutar ni una vez.
 
 ---
 
@@ -914,12 +917,12 @@ fila.
 
 | capa | pruebas | pasan | fallan |
 | --- | ---: | ---: | ---: |
-| Unitarias | 97 | 97 | 0 |
+| Unitarias | 108 | 108 | 0 |
 | Componente | 35 | 35 | 0 |
 | Integración (Postgres real) | 46 | — | — |
-| Navegador | 10 | — | — |
+| Navegador | 10 | 10 | 0 |
 | Extremo a extremo | 334 | 334 | 0 |
-| **Total** | **522** | | |
+| **Total** | **533** | | |
 
 Las 334 de extremo a extremo, suite por suite, medidas contra el despliegue:
 
@@ -950,14 +953,23 @@ Supabase es **por IP**, así que agotarlo deja sin poder entrar a cualquier suit
 que corra después desde la misma máquina. Su primera versión lo descubrió sola,
 muriendo en su propio `makeUser`.
 
-Integración y navegador van sin resultado a propósito: **desde este entorno no se
-pueden ejecutar**, y ponerles un «46/46 pasan» copiado de otra vez sería
-exactamente la clase de cifra que este informe existe para no tener. Las de
-integración se niegan solas a correr cuando `DATABASE_URL` apunta a Supabase
-—escriben datos y quieren un Postgres desechable—, y las de navegador necesitan
-una sesión, que aquí no se puede establecer porque el runtime del middleware no
-tiene salida de red hacia Supabase. Sus cifras son declaraciones contadas leyendo
-los ficheros, no ejecuciones, y el guardián del README las vigila como tales.
+**Corrección sobre las de navegador.** Una versión anterior de esta tabla las
+daba por inejecutables «porque necesitan una sesión que aquí no se puede
+establecer». Era falso, y encima al revés: están diseñadas exactamente para **no**
+necesitar sesión —sólo cargan `/login`— y basta apuntarlas al despliegue con
+`SMOKE_URL` para que corran. Ejecutadas el 23/08/2026 contra
+`pulse-blond-two.vercel.app`: **10 de 10**, incluida la que comprueba que React
+hidrata de verdad, que es la única capaz de cazar un despliegue con todo verde y
+la aplicación muerta.
+
+Se cuenta aquí porque afirmar que algo no se puede comprobar, sin haberlo
+intentado, es la misma clase de error que dar una cifra sin medirla.
+
+Integración sí va sin resultado, y esta vez comprobado: se niegan a correr cuando
+`DATABASE_URL` apunta a Supabase —escriben datos y quieren un Postgres
+desechable— y en esta máquina no hay ni Docker ni Postgres local. Su cifra es un
+recuento de declaraciones leído de los ficheros, no una ejecución, y el guardián
+del README la vigila como tal.
 
 Las suites nuevas están en `npm run test:e2e`, así que corren con las demás.
 
