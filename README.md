@@ -24,9 +24,15 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 ![Pulse: a group conversation with unread counts, reactions, a quoted reply and a live poll](docs/screenshots/chat.png)
 
-![Searching for «lo del servidor lento» — a Spanish query that returns, as its top result, an English message about a p50 of six seconds in Washington and Frankfurt](docs/screenshots/search.png)
+![The command palette in Spanish, searching for «lo del servidor lento» and returning, as its first result, an English message that begins "Heads up: search p50 was 6 seconds, not 300 ms"](docs/screenshots/search.png)
 
-*Asking for «lo del servidor lento» — Spanish for "the thing about the slow server" — puts *"search p50 was 6 seconds… Washington… Frankfurt"* at the **top** of the results. Not one word in common, and not the same language. Lexical search returns nothing at all for that query; the numbers behind it are [here](#the-half-of-search-that-was-missing).*
+*Asking for «lo del servidor lento» — Spanish for "the thing about the slow server" — puts "search p50 was 6 seconds, not 300 ms…" **first**. Not one word in common with the query, and not the same language; the message goes on to name Washington and Frankfurt, which is the whole story of [the region fix](#making-search-nineteen-times-faster). Lexical search returns nothing at all for that query — the numbers behind it are [here](#the-half-of-search-that-was-missing).*
+
+*The interface in that shot is in Spanish, and that is the second thing it
+demonstrates: the language comes from the account, the browser, or a switch in
+settings, and is resolved on the server so the first paint is already right. The
+accent colour differs from the screenshot above it for the same reason — it
+belongs to the account, not to the app.*
 
 ---
 
