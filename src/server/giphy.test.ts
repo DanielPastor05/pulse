@@ -4,19 +4,18 @@ import test from 'node:test';
 import { mapearGiphy, type GiphyResponse } from './giphy.ts';
 
 /*
- * Lo que estas pruebas cubren, y lo que no.
+ * Lo que estas pruebas cubren: la traducción de una respuesta a lo que el
+ * selector necesita. Es la parte que se rompe al tocar el código, y corre sin
+ * red ni clave.
  *
- * Cubren la traducción: dada una respuesta con la forma que documenta GIPHY,
- * qué sale. Eso es todo lo verificable sin una clave de la API, y es la parte
- * que puede romperse al tocar el código.
- *
- * **No** cubren que la respuesta real tenga esta forma. Los nombres de los
- * formatos y de los campos salen de la documentación, no de una llamada, y eso
- * es una suposición hasta que alguien ponga una clave y lo mire. Escribirlo aquí
- * para que unas pruebas en verde no se lean como más de lo que son.
+ * La forma de la respuesta **está comprobada contra la API real** (24/08/2026):
+ * los formatos que el mapeo prefiere existen, `alt_text` viene, y se mapearon
+ * cinco de cinco resultados en los dos catálogos. Antes de esa comprobación
+ * estas mismas pruebas pasaban igual sobre una forma sacada de la documentación
+ * — pasar no era lo mismo que ser cierto, y eso estaba dicho aquí.
  */
 
-/** Una respuesta con la forma documentada, recortada a lo que se usa. */
+/** Una respuesta con la forma real, recortada a lo que se usa. */
 const RESPUESTA: GiphyResponse = {
   data: [
     {

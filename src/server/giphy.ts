@@ -1,16 +1,15 @@
 /**
  * La forma de una respuesta de GIPHY, traducida a lo que el selector necesita.
  *
- * En módulo aparte y sin dependencias por un motivo concreto: **no hay clave
- * para probar la integración de verdad**. Sacar una es cosa de una persona con
- * cuenta, así que lo único que se puede verificar desde aquí es la traducción —
- * y eso sí se puede, dándole una respuesta con la forma que documenta GIPHY y
- * mirando qué sale.
+ * En módulo aparte y sin dependencias para poder probar la traducción sin clave:
+ * se le da una respuesta con la forma documentada y se mira qué sale.
  *
- * Lo que queda sin comprobar hasta que alguien ponga la clave: que la respuesta
- * real tenga esta forma. Es una suposición leída de la documentación, no una
- * medición, y conviene que esté dicho en vez de escondido detrás de unas
- * pruebas en verde.
+ * **La forma está verificada contra la API real** (24/08/2026, `search` de los
+ * dos catálogos con `rating=g` y `lang=es`): `fixed_width_small` y
+ * `downsized_medium` vienen en los resultados, `alt_text` también, y se mapearon
+ * cinco de cinco en cada catálogo. Hasta ese día esto era una suposición leída
+ * de la documentación y así estaba escrito aquí, porque unas pruebas en verde
+ * sobre una forma inventada no valen nada.
  */
 
 export type GifKind = 'gif' | 'sticker';
