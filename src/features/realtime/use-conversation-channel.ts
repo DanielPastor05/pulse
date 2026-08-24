@@ -13,6 +13,7 @@ import { queryKeys } from '@/lib/query-keys';
 import { realtimeChannels, realtimeEvents, type TypingPayload } from '@/lib/realtime';
 import {
   BARRIDO_ESCRITURA_MS,
+  canalPuedeEnviar,
   debeEnviarEscritura,
   haCaducado,
   mereceLaPenaReenviar,
@@ -57,6 +58,27 @@ export function useConversationChannel(conversationId: string, viewerId: string)
    * suscripción, y al otro lado no aparece el aviso nunca.
    */
   const escrituraPendiente = React.useRef<{ nombre: string; desde: number } | null>(null);
+
+  /**
+   * El canal, pero sólo si de verdad está unido.
+   *
+   * `channelRef.current` se asigna al **crear** el canal, no al suscribirlo, así
+   * que preguntar si existe da «sí» desde el primer render — y con eso, la ruta
+   * de «guárdalo para cuando haya canal» no se activaba nunca.
+   *
+   * Peor: llamar a `send()` sobre un canal sin unir hace que supabase-js caiga
+   * a la API REST por su cuenta, avisando de que ese respaldo va a
+   * desaparecer. O sea que el paquete salía por otro camino, más lento, con una
+   * deprecación encima y sin que nada fallara.
+   *
+   * Lo delató el aviso en la salida de una prueba. Da la medida de lo callado
+   * que es este fallo: la corrección de esta mañana asumía que «hay canal»
+   * significaba «se puede enviar», y no lo significa.
+   */
+  const canalListo = React.useCallback(
+    () => (canalPuedeEnviar(channelRef.current) ? channelRef.current : null),
+    [],
+  );
 
   React.useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -192,7 +214,7 @@ export function useConversationChannel(conversationId: string, viewerId: string)
       });
 
       const pendiente = escrituraPendiente.current;
-      const canal = channelRef.current;
+      const canal = canalListo();
       if (!pendiente || !canal) return;
 
       // Caducada: reenviarla mostraría «está escribiendo» por alguien que paró.
@@ -204,7 +226,7 @@ export function useConversationChannel(conversationId: string, viewerId: string)
       emitirEscritura(canal, pendiente.nombre, now);
     }, BARRIDO_ESCRITURA_MS);
     return () => clearInterval(interval);
-  }, [emitirEscritura]);
+  }, [canalListo, emitirEscritura]);
 
   // Acelerado: un paquete por segundo basta para mantener vivo el aviso, y deja
   // el tráfico muy por debajo de cualquier límite de Realtime.
@@ -215,12 +237,12 @@ export function useConversationChannel(conversationId: string, viewerId: string)
   // perdía el paquete y encima gastaba la espera entera.
   const sendTyping = React.useCallback(
     (displayName: string) => {
-      const canal = channelRef.current;
+      const canal = canalListo();
       const now = Date.now();
 
-      // Sin canal se apunta y se espera: el barrido de arriba lo suelta en
-      // cuanto haya. Se guarda el intento más reciente, no el primero — describe
-      // mejor el presente cuando por fin sale.
+      // Sin canal **unido** se apunta y se espera: el barrido de arriba lo suelta
+      // en cuanto lo esté. Se guarda el intento más reciente, no el primero —
+      // describe mejor el presente cuando por fin sale.
       if (!canal) {
         escrituraPendiente.current = { nombre: displayName, desde: now };
         return;
@@ -229,7 +251,7 @@ export function useConversationChannel(conversationId: string, viewerId: string)
       if (!debeEnviarEscritura(now, lastTypingSentAt.current, true)) return;
       emitirEscritura(canal, displayName, now);
     },
-    [emitirEscritura],
+    [canalListo, emitirEscritura],
   );
 
 

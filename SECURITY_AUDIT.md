@@ -331,6 +331,25 @@ rechazados en el cliente y daba cero, lo cual no demuestra nada — `send()`
 devuelve `'ok'` en cuanto escribe en el socket, sin acuse del servidor. El
 número que dice algo es cuántos aparecen **al otro lado**, y ése es el 100%.
 
+**Y una segunda precisión, del 24/08/2026, que corrige el «100%» de arriba.** De
+tres ejecuciones seguidas ese día, **una falló**: el mensaje legítimo no llegó
+durante la inundación ni después, la entrega fue **46,99× la línea base** y sólo
+llegaron **791 de 936 eventos (85%)** — o sea que el servicio *sí* recortó, al
+revés de lo que dice la conclusión de este hallazgo. Las otras dos pasaron
+limpias, con 1570/1570 y 100%.
+
+La aplicación no estaba degradada: la entrega normal medida en el mismo rato
+seguía en 46 ms de mediana. Es variabilidad de Supabase bajo carga, no una
+regresión. Pero queda escrito porque **«el servicio NO recorta» es una
+afirmación demasiado rotunda para una muestra de una ejecución**, y porque el
+comportamiento bajo inundación resultó ser peor de lo que este informe decía en
+al menos un caso de tres.
+
+De esa ejecución fallida salió además un hallazgo que no tenía nada que ver con
+la inundación: entre la salida apareció `Realtime send() is automatically
+falling back to REST API`, y tirando de ahí se vio que el indicador de escritura
+enviaba sobre canales sin unir. Un aviso que se podía haber leído como ruido.
+
 **Solución recomendada, y por qué no se aplicó.** El techo tiene que estar donde
 el cliente no llega: el ajuste *Max events per second* de Realtime en el panel de
 Supabase. **Ese ajuste es de plan Pro**, así que en este proyecto no está
@@ -917,12 +936,12 @@ fila.
 
 | capa | pruebas | pasan | fallan |
 | --- | ---: | ---: | ---: |
-| Unitarias | 118 | 118 | 0 |
+| Unitarias | 121 | 121 | 0 |
 | Componente | 44 | 44 | 0 |
 | Integración (Postgres real) | 46 | — | — |
 | Navegador | 10 | 10 | 0 |
 | Extremo a extremo | 341 | 341 | 0 |
-| **Total** | **559** | | |
+| **Total** | **562** | | |
 
 Las 341 de extremo a extremo, suite por suite, medidas contra el despliegue:
 

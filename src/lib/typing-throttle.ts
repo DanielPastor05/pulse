@@ -58,6 +58,26 @@ export function haCaducado(ahora: number, recibidoEn: number): boolean {
 }
 
 /**
+ * Un canal por el que de verdad se puede enviar.
+ *
+ * Existir no basta, y la diferencia costó un fallo: la referencia al canal se
+ * asigna al **crearlo**, no al suscribirlo, así que «¿hay canal?» responde que
+ * sí desde el primer render, cuando todavía no está unido.
+ *
+ * Enviar por uno sin unir no da error: supabase-js cae solo a la API REST y
+ * avisa de que ese respaldo va a desaparecer. El paquete sale por otro camino,
+ * más lento y ya deprecado, sin que nada falle. Sólo se ve leyendo el aviso en
+ * la salida de una prueba, que es como se encontró.
+ *
+ * Se acepta cualquier objeto con `state` para poder probarlo sin montar un
+ * canal de verdad; `'joined'` es el único estado desde el que el socket
+ * transporta.
+ */
+export function canalPuedeEnviar(canal: { state?: string } | null | undefined): boolean {
+  return canal?.state === 'joined';
+}
+
+/**
  * ¿Vale la pena mandar la pulsación que se quedó sin canal, ahora que lo hay?
  *
  * Cubre el caso corriente de abrir una conversación, escribir una palabra y

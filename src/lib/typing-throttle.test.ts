@@ -5,6 +5,7 @@ import {
   BARRIDO_ESCRITURA_MS,
   ESPERA_ESCRITURA_MS,
   VIDA_ESCRITURA_MS,
+  canalPuedeEnviar,
   debeEnviarEscritura,
   haCaducado,
   mereceLaPenaReenviar,
@@ -72,6 +73,35 @@ test('una entrada recién llegada no caduca', () => {
 test('caduca al cumplirse su vida', () => {
   assert.equal(haCaducado(AHORA + VIDA_ESCRITURA_MS, AHORA), true);
   assert.equal(haCaducado(AHORA + VIDA_ESCRITURA_MS - 1, AHORA), false);
+});
+
+// ---------------------------------------------------------------------------
+// Existir no es poder enviar
+// ---------------------------------------------------------------------------
+
+test('sólo un canal unido puede enviar', () => {
+  assert.equal(canalPuedeEnviar({ state: 'joined' }), true);
+});
+
+test('un canal recién creado, no', () => {
+  /*
+   * Éste es el fallo entero.
+   *
+   * La referencia al canal se asigna al crearlo, así que «¿hay canal?» decía que
+   * sí desde el primer render. Con eso, la ruta de «guárdalo para cuando se
+   * pueda» no se activaba nunca y el envío se hacía sobre un canal a medio unir,
+   * donde supabase-js cae solo a la API REST — sin error, por otro camino y con
+   * una deprecación encima.
+   */
+  for (const state of ['closed', 'joining', 'errored', 'leaving']) {
+    assert.equal(canalPuedeEnviar({ state }), false, `«${state}» no debería poder enviar`);
+  }
+});
+
+test('ni uno que no está', () => {
+  assert.equal(canalPuedeEnviar(null), false);
+  assert.equal(canalPuedeEnviar(undefined), false);
+  assert.equal(canalPuedeEnviar({}), false);
 });
 
 // ---------------------------------------------------------------------------
