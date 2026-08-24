@@ -29,10 +29,22 @@ const nextConfig: NextConfig = {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [
       { protocol: 'https', hostname: supabaseHost, pathname: '/storage/v1/object/**' },
-      { protocol: 'https', hostname: 'media.tenor.com' },
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
       { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
     ],
+    /*
+     * Aquí no hay entrada para GIPHY, y es a propósito.
+     *
+     * Los GIF y los stickers se pintan con un `<img>` normal y no con
+     * `next/image`: el optimizador serviría un fotograma estático de un GIF
+     * animado, que es exactamente lo contrario de lo que hace falta. Como no
+     * pasan por él, `remotePatterns` no los mira.
+     *
+     * Había una entrada para `media.tenor.com` que tampoco hacía nada, por lo
+     * mismo, y que además nombraba a un proveedor que ya no se usa. Se quitó al
+     * cambiar a GIPHY: una lista de permisos que nombra algo que no existe
+     * confunde a quien la lee sobre por dónde pasan las imágenes.
+     */
   },
   experimental: {
     optimizePackageImports: ['lucide-react', 'date-fns', 'framer-motion'],
