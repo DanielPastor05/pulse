@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { GifKind, GifResult } from '@/app/api/gifs/route';
-import { useT } from '@/i18n/provider';
+import { useLocale, useT } from '@/i18n/provider';
 
 type Props = {
   onSelect: (gif: GifResult, kind: GifKind) => void;
@@ -36,14 +36,21 @@ type Props = {
  */
 export function GifPicker({ onSelect, children, open, onOpenChange }: Props) {
   const t = useT();
+  const locale = useLocale();
   const [kind, setKind] = React.useState<GifKind>('gif');
   const [term, setTerm] = React.useState('');
   const query = useDebouncedValue(term.trim(), 280);
 
+  // El idioma viaja con la búsqueda: quien escribe «cumpleaños» quiere lo que
+  // GIPHY tiene etiquetado en español, no la traducción aproximada de su propio
+  // término. Es gratis —un parámetro— y es justo la clase de detalle que se
+  // olvida en una aplicación bilingüe.
+  const lang = locale === 'ES' ? 'es' : 'en';
+
   const { data, isLoading } = useQuery({
-    queryKey: queryKeys.gifs(query, kind),
+    queryKey: queryKeys.gifs(query, `${kind}:${lang}`),
     queryFn: () =>
-      api<{ configured: boolean; gifs: GifResult[] }>('/gifs', { query: { q: query, kind } }),
+      api<{ configured: boolean; gifs: GifResult[] }>('/gifs', { query: { q: query, kind, lang } }),
     enabled: open !== false,
     staleTime: 5 * 60_000,
   });
@@ -146,6 +153,18 @@ export function GifPicker({ onSelect, children, open, onOpenChange }: Props) {
             </div>
           )}
         </div>
+
+        {/*
+          La atribución no es decorativa: las condiciones de GIPHY la exigen a
+          cambio de la clave gratuita. Se pinta sólo cuando el catálogo está
+          configurado, porque atribuir un servicio que no se está usando sería
+          raro además de falso.
+        */}
+        {data?.configured ? (
+          <p className="mt-1.5 text-center text-[10.5px] uppercase tracking-wide text-[var(--text-3)]">
+            {t.message.poweredByGiphy}
+          </p>
+        ) : null}
       </PopoverContent>
     </Popover>
   );

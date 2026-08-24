@@ -42,8 +42,19 @@ export const serverEnv = {
   get serviceRoleKey() {
     return required('SUPABASE_SERVICE_ROLE_KEY', process.env.SUPABASE_SERVICE_ROLE_KEY);
   },
-  get tenorApiKey() {
-    return process.env.TENOR_API_KEY ?? '';
+  /**
+   * GIPHY y no Tenor.
+   *
+   * El selector nació sobre Tenor y nunca llegó a funcionar: la clave estaba
+   * vacía, y al ir a sacarla resultó que **Tenor dejó de admitir clientes nuevos
+   * en enero de 2026** y su documentación anuncia la retirada del servicio. Una
+   * integración que sólo puede usar quien ya tuviera clave no es una integración.
+   *
+   * GIPHY sigue dando claves, y encima separa los dos catálogos en endpoints
+   * distintos en vez de esconderlos tras un filtro.
+   */
+  get giphyApiKey() {
+    return process.env.GIPHY_API_KEY ?? '';
   },
   /**
    * Lo que Vercel manda en `Authorization` al disparar una tarea programada.

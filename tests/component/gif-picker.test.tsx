@@ -30,10 +30,17 @@ const gif = (id: string): GifResult => ({
   description: `un ${id}`,
 });
 
-/** Siembra los dos catálogos para la consulta vacía, que es la que se abre. */
-const SEMILLAS: Array<[readonly unknown[], unknown]> = [
-  [queryKeys.gifs('', 'gif'), { configured: true, gifs: [gif('gato')] }],
-  [queryKeys.gifs('', 'sticker'), { configured: true, gifs: [gif('pato')] }],
+/**
+ * Siembra los dos catálogos para la consulta vacía, que es la que se abre.
+ *
+ * La clave lleva el idioma además del catálogo, porque la búsqueda se manda
+ * localizada. Cuando eso se añadió, estas semillas dejaron de casar y tres
+ * pruebas se pusieron en rojo — que es exactamente lo que tenían que hacer:
+ * la clave de caché es parte del contrato entre el componente y el servidor.
+ */
+const semillasDe = (lang: 'en' | 'es'): Array<[readonly unknown[], unknown]> => [
+  [queryKeys.gifs('', `gif:${lang}`), { configured: true, gifs: [gif('gato')] }],
+  [queryKeys.gifs('', `sticker:${lang}`), { configured: true, gifs: [gif('pato')] }],
 ];
 
 function abrirSelector(onSelect: (gif: GifResult, kind: GifKind) => void = () => {}) {
@@ -41,7 +48,7 @@ function abrirSelector(onSelect: (gif: GifResult, kind: GifKind) => void = () =>
     <GifPicker open onOpenChange={() => {}} onSelect={onSelect}>
       <button type="button">abrir</button>
     </GifPicker>,
-    { semillas: SEMILLAS },
+    { semillas: semillasDe('en') },
   );
 }
 
@@ -89,17 +96,42 @@ test('al elegir, dice de qué catálogo salió', () => {
   cleanup();
 });
 
-test('el selector también habla español', () => {
+test('el selector también habla español, y busca en español', () => {
+  // Las semillas van con `es`: si el componente no mandara el idioma, no
+  // encontraría ninguna y la rejilla saldría vacía. O sea que esta prueba
+  // afirma dos cosas — los textos y el parámetro de búsqueda.
   montar(
     <GifPicker open onOpenChange={() => {}} onSelect={() => {}}>
       <button type="button">abrir</button>
     </GifPicker>,
-    { locale: 'ES', semillas: SEMILLAS },
+    { locale: 'ES', semillas: semillasDe('es') },
   );
 
   assert.ok(screen.getByPlaceholderText('Buscar GIFs'));
+  assert.ok(screen.getByAltText('un gato'), 'la búsqueda tiene que ir marcada como española');
+
   fireEvent.click(screen.getByRole('tab', { name: 'Stickers' }));
   assert.ok(screen.getByPlaceholderText('Buscar stickers'));
+  cleanup();
+});
+
+test('la atribución de GIPHY se pinta cuando hay catálogo', () => {
+  // No es decorativa: las condiciones de la clave gratuita la exigen.
+  abrirSelector();
+  assert.ok(screen.getByText('Powered by GIPHY'));
+  cleanup();
+});
+
+test('y no se pinta cuando no hay clave configurada', () => {
+  // Atribuir un servicio que no se está usando sería raro además de falso.
+  montar(
+    <GifPicker open onOpenChange={() => {}} onSelect={() => {}}>
+      <button type="button">abrir</button>
+    </GifPicker>,
+    { semillas: [[queryKeys.gifs('', 'gif:en'), { configured: false, gifs: [] }]] },
+  );
+
+  assert.equal(screen.queryByText('Powered by GIPHY'), null);
   cleanup();
 });
 

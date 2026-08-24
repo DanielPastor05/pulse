@@ -223,7 +223,10 @@ export const messages = {
     sendVoice: 'Enviar la nota de voz',
     searchGifs: 'Buscar GIFs',
     gifsOff: 'Los GIFs no están configurados',
-    gifsOffHint: 'Añade TENOR_API_KEY al entorno para activar este selector.',
+    gifsOffHint: 'Añade GIPHY_API_KEY al entorno para activar este selector.',
+    // La atribución que piden las condiciones de GIPHY, en su idioma: es
+    // una marca, no una frase, y traducirla sería no atribuir.
+    poweredByGiphy: 'Powered by GIPHY',
     noGifs: 'No se ha encontrado ningún GIF',
     gifsTab: 'GIFs',
     // «Sticker» y no «pegatina»: es como los llama todo el mundo en una
