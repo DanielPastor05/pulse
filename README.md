@@ -51,6 +51,11 @@ everything you have written and close the account for good — and if you own a
 group with people in it, it asks you to hand it over first rather than leaving
 them without an owner.
 
+Messages can be written now and sent later, and there is an assistant you can
+ask things — a normal account with a flag on it, so the thread, the list, the
+notifications and the permissions treat it like anyone else. Threads take a
+background you pick for yourself; nobody else's view of the room changes.
+
 The interface is in English and Spanish, picked from your account, your browser,
 or a switch in settings — decided on the server so the first paint is already
 right.
@@ -457,6 +462,44 @@ interface with an in-memory double, so both paths are inside the suite. The
 double imitates the two behaviours that caused the bugs: `list('')` returns
 folders rather than paths, and `remove` can report success without deleting.
 A double without that second behaviour could not have caught the hang at all.
+
+### Scheduled messages, on a platform whose scheduler runs once a day
+
+Vercel's cron on this plan fires at most **once a day**. A message set for three
+in the afternoon would go out whenever that happened to be, which is not a
+scheduled message — it is a message with a rumour of a time.
+
+So delivery rides on traffic instead, the same way the latency budgets already
+do here. Every request, after the response is sent, claims whatever is due:
+
+```sql
+UPDATE scheduled_messages SET "claimedAt" = now()
+ WHERE id IN (SELECT id FROM scheduled_messages
+               WHERE "sentMessageId" IS NULL AND "scheduledFor" <= now()
+               ORDER BY "scheduledFor" LIMIT 10 FOR UPDATE SKIP LOCKED)
+RETURNING …
+```
+
+`FOR UPDATE SKIP LOCKED` is what makes two simultaneous requests take different
+rows instead of one waiting on the other. A claim that goes stale — the instance
+died mid-send — is retried after five minutes, and **that retry cannot double
+post**: the send goes through the same `clientId` path that already existed so a
+mobile retry would not publish twice, and the unique constraint on `(authorId,
+clientId)` returns the message that is already there.
+
+Measured against the deployment: **12.1 s** from the scheduled time to delivery,
+which is the twenty-second per-instance check interval doing its job.
+
+The honest cost, and the interface says it rather than hiding it: **with nobody
+using the app, the message waits.** That is why the dialog reads "send after"
+and not "send at". A cron would trade this for a worse guarantee, not a better
+one.
+
+The row lives in its own table rather than as a `messages` row with a future
+date. An unsent message sitting in the messages table leaks into the unread
+count, the sidebar preview, the thread, and search — five queries that would
+each have to learn to exclude it, and the one that forgot would show the message
+early. Here there is nothing to exclude.
 
 ### Emitting signal is not watching it
 
