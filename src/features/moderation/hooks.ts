@@ -6,12 +6,14 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api-client';
 import type { ReportDTO } from '@/types/dto';
 import type { ReportMessageInput } from '@/features/moderation/validators';
+import { useT } from '@/i18n/provider';
 
 const reportKeys = {
   queue: (conversationId: string) => ['reports', conversationId] as const,
 };
 
 export function useReportMessage() {
+  const t = useT();
   return useMutation({
     mutationFn: (input: ReportMessageInput & { messageId: string }) =>
       api(`/messages/${input.messageId}/report`, {
@@ -19,10 +21,10 @@ export function useReportMessage() {
         body: { reason: input.reason, note: input.note },
       }),
     onSuccess: () =>
-      toast.success('Report sent', {
+      toast.success(t.toast.reportSent, {
         description: 'A moderator will take a look. Thanks for flagging it.',
       }),
-    onError: (error) => toast.error('Could not send the report', { description: error.message }),
+    onError: (error) => toast.error(t.toast.reportFailed, { description: error.message }),
   });
 }
 
@@ -39,6 +41,7 @@ export function useReports(conversationId: string | undefined, enabled: boolean)
 }
 
 export function useReviewReport(conversationId: string) {
+  const t = useT();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -51,6 +54,6 @@ export function useReviewReport(conversationId: string) {
       void queryClient.invalidateQueries({ queryKey: reportKeys.queue(conversationId) });
       toast.success(input.status === 'RESOLVED' ? 'Marked as resolved' : 'Dismissed');
     },
-    onError: (error) => toast.error('Could not update the report', { description: error.message }),
+    onError: (error) => toast.error(t.toast.reportUpdateFailed, { description: error.message }),
   });
 }

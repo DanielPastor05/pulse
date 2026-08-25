@@ -182,12 +182,27 @@ test('las rutas que no piden sesión son las que el README enumera', () => {
   const sinSesion = RUTAS.filter((ruta) => !/await requireUser\(/.test(readFileSync(ruta, 'utf8')));
   const conSesion = RUTAS.length - sinSesion.length;
 
-  // Sólo la tabla de *esa* sección: la de la API más abajo también lista rutas
-  // entre acentos graves, y contarlas todas daba seis donde hay cuatro.
-  const seccion = readme.match(/### The four endpoints without requireUser\n([\s\S]*?)\n### /);
+  /*
+   * Sólo la tabla de *esa* sección: la de la API más abajo también lista rutas
+   * entre acentos graves, y contarlas todas daba seis donde hay cuatro.
+   *
+   * El número del título va como grupo y no incrustado. Estaba incrustado —
+   * `### The four endpoints…`— y al pasar de cuatro a cinco esta prueba falló
+   * diciendo «ya no existe la sección», que es un mensaje que manda a buscar
+   * donde no es. Un guardián que se rompe al cambiar justo lo que vigila hace
+   * perder el tiempo dos veces.
+   */
+  const seccion = readme.match(/### The (\w+) endpoints without requireUser\n([\s\S]*?)\n### /);
   assert.ok(seccion, 'ya no existe la sección que enumera las rutas sin sesión');
 
-  const enumeradas = [...seccion[1]!.matchAll(/^\| `(\/api\/[^`]+)` \|/gm)].map((m) => m[1]);
+  const enumeradas = [...seccion[2]!.matchAll(/^\| `(\/api\/[^`]+)` \|/gm)].map((m) => m[1]);
+
+  const EN_LETRA: Record<string, number> = { three: 3, four: 4, five: 5, six: 6, seven: 7 };
+  assert.equal(
+    EN_LETRA[seccion[1]!.toLowerCase()],
+    sinSesion.length,
+    `el título dice «${seccion[1]}» y son ${sinSesion.length}`,
+  );
   assert.equal(
     enumeradas.length,
     sinSesion.length,

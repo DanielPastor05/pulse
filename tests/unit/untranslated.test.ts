@@ -157,6 +157,46 @@ function buscar(): Hallazgo[] {
   return hallazgos;
 }
 
+/**
+ * Los avisos emergentes, que viven en ficheros `.ts` y por eso no los veía nadie.
+ *
+ * El barrido de arriba sólo recorre `.tsx`, y los `toast.success(...)` están en
+ * los hooks. Resultado: **treinta y ocho** mensajes en inglés a pelo, así que la
+ * aplicación se veía en español y confirmaba cada acción en inglés. Se reportó
+ * como «errores con el español y el inglés», y costó verlo porque no falla nada
+ * — simplemente sale en el idioma que no es.
+ *
+ * Es una regla estrecha a propósito: un literal dentro de `toast.*()` es
+ * siempre texto para una persona, sin excepciones ni heurística que afinar.
+ */
+test('ningún aviso emergente lleva el texto escrito a mano', () => {
+  const sospechosos: string[] = [];
+
+  const recorrer = (directorio: string) => {
+    for (const entrada of readdirSync(directorio, { withFileTypes: true })) {
+      const ruta = join(directorio, entrada.name);
+      if (entrada.isDirectory()) {
+        recorrer(ruta);
+        continue;
+      }
+      if (!/\.tsx?$/.test(entrada.name) || entrada.name.includes('.test.')) continue;
+
+      const fuente = readFileSync(ruta, 'utf8');
+      for (const encontrado of fuente.matchAll(/toast\.(?:success|error|info|warning)\(\s*(['"`])/g)) {
+        const linea = fuente.slice(0, encontrado.index).split('\n').length;
+        sospechosos.push(`${ruta.slice(RAIZ.length).replaceAll('\\', '/')}:${linea}`);
+      }
+    }
+  };
+  recorrer(join(RAIZ, 'src'));
+
+  assert.deepEqual(
+    sospechosos,
+    [],
+    `estos avisos no pasan por el diccionario:\n  ${sospechosos.join('\n  ')}`,
+  );
+});
+
 test('ninguna cadena de interfaz se salta el diccionario', () => {
   const hallazgos = buscar().filter((h) => !h.fichero.includes('.test.'));
 

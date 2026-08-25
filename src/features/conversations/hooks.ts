@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 
 import { api } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
+import { useT } from '@/i18n/provider';
 import type { CreateGroupInput, UpdateConversationInput } from '@/features/conversations/validators';
 import type { ConversationDetail, ConversationSummary, JoinRequestDTO, MessageDTO } from '@/types/dto';
 
@@ -51,36 +52,64 @@ export function useJoinRequests(conversationId: string | undefined, enabled: boo
 
 type Preferences = { favorite?: boolean; archived?: boolean; muted?: boolean; draft?: string | null };
 
+/**
+ * Favorito, silenciado y archivado.
+ *
+ * **Se actualizan dos cachés, y antes sólo se actualizaba una.** La lista
+ * lateral vive en `conversations`; la cabecera del chat lee el detalle, que vive
+ * en `conversation(id)`. Al parchear sólo la lista, el mismo botón respondía al
+ * instante desde el clic derecho de la barra lateral —que pinta desde la lista—
+ * y se quedaba congelado desde los tres puntos del chat, que pinta desde el
+ * detalle. Reportado justo así: «con click derecho sí que funciona bien».
+ *
+ * No era un fallo del menú: era que dos vistas de la misma cosa leen de sitios
+ * distintos y sólo uno se enteraba.
+ */
 export function useConversationPreferences(conversationId: string) {
   const queryClient = useQueryClient();
+  const t = useT();
 
   return useMutation({
     mutationFn: (input: Preferences) =>
       api(`/conversations/${conversationId}/preferences`, { method: 'PATCH', body: input }),
     onMutate: async (input) => {
-      // Toggling a favourite should reorder the sidebar instantly.
-      const key = queryKeys.conversations(false);
-      await queryClient.cancelQueries({ queryKey: key });
-      const previous = queryClient.getQueryData<ConversationSummary[]>(key);
+      const claveLista = queryKeys.conversations(false);
+      const claveDetalle = queryKeys.conversation(conversationId);
 
-      queryClient.setQueryData<ConversationSummary[]>(key, (list) =>
-        list?.map((item) => (item.id === conversationId ? { ...item, ...input } : item)),
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: claveLista }),
+        queryClient.cancelQueries({ queryKey: claveDetalle }),
+      ]);
+
+      const lista = queryClient.getQueryData<ConversationSummary[]>(claveLista);
+      const detalle = queryClient.getQueryData<ConversationDetail>(claveDetalle);
+
+      // Toggling a favourite should reorder the sidebar instantly.
+      queryClient.setQueryData<ConversationSummary[]>(claveLista, (actual) =>
+        actual?.map((item) => (item.id === conversationId ? { ...item, ...input } : item)),
+      );
+      queryClient.setQueryData<ConversationDetail>(claveDetalle, (actual) =>
+        actual ? { ...actual, ...input } : actual,
       );
 
-      return { previous, key };
+      return { lista, detalle, claveLista, claveDetalle };
     },
     onError: (_error, _input, context) => {
-      if (context) queryClient.setQueryData(context.key, context.previous);
-      toast.error('Could not update that conversation');
+      if (!context) return;
+      queryClient.setQueryData(context.claveLista, context.lista);
+      queryClient.setQueryData(context.claveDetalle, context.detalle);
+      toast.error(t.conversation.updateFailed);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(false) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(true) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.conversation(conversationId) });
     },
   });
 }
 
 export function useCreateGroup() {
+  const t = useT();
   const queryClient = useQueryClient();
   const router = useRouter();
 
@@ -89,14 +118,15 @@ export function useCreateGroup() {
       api<ConversationDetail>('/conversations', { method: 'POST', body: input }),
     onSuccess: (conversation) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(false) });
-      toast.success(`${conversation.name} is live`);
+      toast.success(t.toast.groupLive(conversation.name));
       router.push(`/chat/${conversation.id}`);
     },
-    onError: (error) => toast.error('Could not create the group', { description: error.message }),
+    onError: (error) => toast.error(t.toast.groupCreateFailed, { description: error.message }),
   });
 }
 
 export function useUpdateConversation(conversationId: string) {
+  const t = useT();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -105,13 +135,14 @@ export function useUpdateConversation(conversationId: string) {
     onSuccess: (conversation) => {
       queryClient.setQueryData(queryKeys.conversation(conversationId), conversation);
       void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(false) });
-      toast.success('Group updated');
+      toast.success(t.toast.groupUpdated);
     },
-    onError: (error) => toast.error('Could not save changes', { description: error.message }),
+    onError: (error) => toast.error(t.toast.changesFailed, { description: error.message }),
   });
 }
 
 export function useOpenDirectConversation() {
+  const t = useT();
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -123,11 +154,12 @@ export function useOpenDirectConversation() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(false) });
       router.push(`/chat/${conversation.id}`);
     },
-    onError: (error) => toast.error('Could not open that chat', { description: error.message }),
+    onError: (error) => toast.error(t.toast.openChatFailed, { description: error.message }),
   });
 }
 
 export function useMemberMutations(conversationId: string) {
+  const t = useT();
   const queryClient = useQueryClient();
   const router = useRouter();
 
@@ -144,9 +176,9 @@ export function useMemberMutations(conversationId: string) {
       }),
     onSuccess: () => {
       invalidate();
-      toast.success('Members added');
+      toast.success(t.toast.membersAdded);
     },
-    onError: (error) => toast.error('Could not add members', { description: error.message }),
+    onError: (error) => toast.error(t.toast.addMembersFailed, { description: error.message }),
   });
 
   const updateMember = useMutation({
@@ -157,9 +189,9 @@ export function useMemberMutations(conversationId: string) {
       }),
     onSuccess: () => {
       invalidate();
-      toast.success('Member updated');
+      toast.success(t.toast.memberUpdated);
     },
-    onError: (error) => toast.error('Could not update member', { description: error.message }),
+    onError: (error) => toast.error(t.toast.updateMemberFailed, { description: error.message }),
   });
 
   const removeMember = useMutation({
@@ -167,9 +199,9 @@ export function useMemberMutations(conversationId: string) {
       api(`/conversations/${conversationId}/members/${userId}`, { method: 'DELETE' }),
     onSuccess: () => {
       invalidate();
-      toast.success('Member removed');
+      toast.success(t.toast.memberRemoved);
     },
-    onError: (error) => toast.error('Could not remove member', { description: error.message }),
+    onError: (error) => toast.error(t.toast.removeMemberFailed, { description: error.message }),
   });
 
   const transferOwnership = useMutation({
@@ -180,9 +212,9 @@ export function useMemberMutations(conversationId: string) {
       }),
     onSuccess: () => {
       invalidate();
-      toast.success('Ownership transferred');
+      toast.success(t.toast.ownershipTransferred);
     },
-    onError: (error) => toast.error('Could not transfer ownership', { description: error.message }),
+    onError: (error) => toast.error(t.toast.transferFailed, { description: error.message }),
   });
 
   const leave = useMutation({
@@ -191,9 +223,9 @@ export function useMemberMutations(conversationId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(false) });
       router.push('/chat');
-      toast.success('You left the conversation');
+      toast.success(t.toast.left);
     },
-    onError: (error) => toast.error('Could not leave', { description: error.message }),
+    onError: (error) => toast.error(t.toast.leaveFailed, { description: error.message }),
   });
 
   const reviewJoinRequest = useMutation({
@@ -206,7 +238,7 @@ export function useMemberMutations(conversationId: string) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.joinRequests(conversationId) });
       invalidate();
     },
-    onError: (error) => toast.error('Could not review the request', { description: error.message }),
+    onError: (error) => toast.error(t.toast.reviewFailed, { description: error.message }),
   });
 
   return { addMembers, updateMember, removeMember, transferOwnership, leave, reviewJoinRequest };

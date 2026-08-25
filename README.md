@@ -9,7 +9,7 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 | | |
 | --- | --- |
-| **Automated checks** | 562 — 121 unit, 44 component, 46 integration against a real Postgres, 10 browser smoke tests, 341 end-to-end against the deployed instance |
+| **Automated checks** | 568 — 127 unit, 44 component, 46 integration against a real Postgres, 10 browser smoke tests, 341 end-to-end against the deployed instance |
 | **Latency budgets** | p95 per endpoint over a 15-minute window, alerting to Sentry when a budget is missed ([how](#emitting-signal-is-not-watching-it)) |
 | **Coverage** | 36.1% of statements and 74.1% of branches across `src/server` and `src/lib` ([what that gap means](#thirty-six-percent-and-why-branches-are-double-that)) |
 | **Row Level Security** | Enabled on all 26 tables; 15 policies grant access on the 14 that need it, the other 12 deny by default — enforced independently of the API |
@@ -19,7 +19,7 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 | **Concurrent sending** | 13.5 s → 1.48 s → **590 ms p50** with ten people writing at once, three runs ([how](#the-hypothesis-that-was-not-wrong-just-hidden)) |
 | **Realtime delivery** | 3.8 s p95 end to end at ten concurrent senders, 100% delivered |
 | **Where it bends** | Sending stays under 1.2 s p95 at forty concurrent senders; delivery stretches to 10.6 s ([how](#where-it-bends-and-the-number-that-lied)) |
-| **API surface** | 67 endpoints across 52 route files; 48 of those files call `requireUser`, the other four authorise themselves ([which](#the-four-endpoints-without-requireuser)) |
+| **API surface** | 67 endpoints across 52 route files; 47 of those files call `requireUser`, the other five authorise themselves ([which](#the-five-endpoints-without-requireuser)) |
 
 
 ![Pulse: a group conversation with unread counts, reactions, a quoted reply and a live poll](docs/screenshots/chat.png)
@@ -544,9 +544,9 @@ server code, so modules like `navigate.ts` and `api-client.ts` sit at 0% by
 construction under a server-side suite. Excluding them would raise the number
 without changing anything true, so they stay in.
 
-### The four endpoints without requireUser
+### The five endpoints without requireUser
 
-Forty-eight of fifty-two route files call `requireUser()`. The other four are
+Forty-seven of fifty-two route files call `requireUser()`. The other five are
 each a deliberate answer to "who is calling this?":
 
 | endpoint | who calls it | how it authorises |
@@ -555,6 +555,14 @@ each a deliberate answer to "who is calling this?":
 | `/api/cron/cleanup` | Vercel's scheduler | shared secret in the `Authorization` header |
 | `/api/metrics` | whoever is asking how it performs | the same shared secret |
 | `/api/me/onboarding` | a signed-in account with no profile row yet | `getAuthUser()` and its own 401 — `requireUser` resolves the profile row, which is precisely what this endpoint creates |
+| `/api/uploads` | the same account, picking an avatar mid-signup | `getAuthUser()`, then `getSessionUser()` for anything that is not an avatar |
+
+The last one was the fifth by accident, and the accident was a bug: `requireUser`
+resolves the profile row, so choosing a picture during sign-up answered **"you
+need to sign in to do that"** to somebody in the middle of signing up. The first
+person who registered hit it. Relaxing it to `getAuthUser()` is correct, and the
+relaxation stops at the avatar bucket — an attachment still needs a finished
+account, and somebody without one is in no conversation to put it in.
 
 Only the first is genuinely open. The middleware exempts the other three from
 its session check, which is a thing worth getting right in both directions:
@@ -917,10 +925,10 @@ no second round trip to render a new message.
 
 ## Testing
 
-562 checks, in five layers.
+568 checks, in five layers.
 
 ```bash
-npm test                  # 121 unit tests — pure logic, no I/O
+npm test                  # 127 unit tests — pure logic, no I/O
 npm run test:component    # 44 component tests in a DOM
 npm run test:integration  # 46 tests against a real Postgres, four of them a perf gate
 npm run test:smoke        # 10 browser checks against the production build
@@ -1084,7 +1092,7 @@ npm run db:migrate       npm run db:deploy        npm run db:studio
 ### API
 
 67 endpoints across 52 route files, all JSON. All of them require a session
-except the four that [authorise themselves](#the-four-endpoints-without-requireuser).
+except the four that [authorise themselves](#the-five-endpoints-without-requireuser).
 Errors share one shape: `{ error, code, details? }`.
 
 | Area | Endpoints |

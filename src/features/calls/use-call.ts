@@ -21,6 +21,7 @@ import { fetchIceConfig, type IceConfig } from '@/features/calls/ice';
 import { Peer, isPolite } from '@/features/calls/peer';
 import { watchAudioLevel } from '@/features/calls/audio-level';
 import { remoteDefaults, useCallStore } from '@/stores/call-store';
+import { useT } from '@/i18n/provider';
 
 /**
  * Drives a call from start to hang-up.
@@ -39,6 +40,7 @@ import { remoteDefaults, useCallStore } from '@/stores/call-store';
  * componente vuelve a romper contestar una llamada.
  */
 export function useCall(meId: string) {
+  const t = useT();
   const store = useCallStore();
   const peers = React.useRef(new Map<string, Peer>());
   const channel = React.useRef<RealtimeChannel | null>(null);
@@ -188,7 +190,7 @@ export function useCall(meId: string) {
         const seats = CALL_LIMITS[store.mode];
 
         if (Object.keys(store.remotes).length + 2 > seats) {
-          toast.error(`This call is full — ${seats} people maximum`, {
+          toast.error(t.toast.callFull(seats), {
             description:
               'Everyone sends their own camera to everyone else, so it stops holding up beyond that.',
           });
@@ -275,7 +277,7 @@ export function useCall(meId: string) {
       return ch;
     },
     // Ya no depende de `teardown`: quedarse solo dejó de cerrar la llamada.
-    [meId, peerFor, send, broadcastState],
+    [meId, peerFor, send, broadcastState, t],
   );
 
   const captureLocal = React.useCallback(
@@ -307,7 +309,7 @@ export function useCall(meId: string) {
       try {
         await captureLocal(wanted);
       } catch {
-        toast.error('Could not use your microphone or camera', {
+        toast.error(t.toast.mediaFailed, {
           description: 'Check the permission in your browser and try again.',
         });
         teardown();
@@ -329,7 +331,7 @@ export function useCall(meId: string) {
           body: { callId: newCallId, mode: wanted },
         });
       } catch (error) {
-        toast.error('Could not start the call', {
+        toast.error(t.toast.callStartFailed, {
           description: error instanceof Error ? error.message : undefined,
         });
         teardown();
@@ -340,7 +342,7 @@ export function useCall(meId: string) {
         console.warn('[call] no TURN relay — calls will fail on many mobile networks');
       }
     },
-    [captureLocal, joinSignalling, teardown],
+    [captureLocal, joinSignalling, teardown, t],
   );
 
   /**
@@ -355,7 +357,7 @@ export function useCall(meId: string) {
       try {
         await captureLocal(wanted);
       } catch {
-        toast.error('Could not use your microphone or camera');
+        toast.error(t.toast.mediaFailed);
         teardown();
         return;
       }
@@ -370,7 +372,7 @@ export function useCall(meId: string) {
       // si no queda nadie, el temporizador de «no contestan» la cierra sola en
       // vez de dejar una ventana abierta contra una sala vacía.
     },
-    [captureLocal, joinSignalling, meId, send, teardown],
+    [captureLocal, joinSignalling, meId, send, teardown, t],
   );
 
   /** Picks up a ringing call. */

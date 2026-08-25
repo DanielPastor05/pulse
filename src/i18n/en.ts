@@ -251,6 +251,57 @@ export const messages = {
     galleryFiles: 'Files',
   },
 
+  /**
+   * Los avisos emergentes.
+   *
+   * Estaban todos escritos en inglés dentro de los hooks, así que la aplicación
+   * se veía en español y confirmaba cada acción en inglés. Lo reportaron como
+   * «errores con el español y el inglés», y no era un fallo de carga: era una
+   * categoría entera de textos que nunca pasó por el diccionario.
+   *
+   * No los vio el detector de cadenas sin traducir porque sólo miraba ficheros
+   * `.tsx` y éstos viven en `.ts`. Ahora también los mira.
+   */
+  toast: {
+    saved: 'Saved',
+    saveFailed: 'Could not save',
+    updateFailed: 'Could not update',
+    sendFailed: 'Could not send',
+    groupLive: (name: string) => `${name} is live`,
+    groupCreateFailed: 'Could not create the group',
+    groupUpdated: 'Group updated',
+    changesFailed: 'Could not save changes',
+    openChatFailed: 'Could not open that chat',
+    membersAdded: 'Members added',
+    addMembersFailed: 'Could not add members',
+    memberUpdated: 'Member updated',
+    updateMemberFailed: 'Could not update member',
+    memberRemoved: 'Member removed',
+    removeMemberFailed: 'Could not remove member',
+    ownershipTransferred: 'Ownership transferred',
+    transferFailed: 'Could not transfer ownership',
+    left: 'You left the conversation',
+    leaveFailed: 'Could not leave',
+    reviewFailed: 'Could not review the request',
+    callFull: (seats: number) => `This call is full — ${seats} people maximum`,
+    mediaFailed: 'Could not use your microphone or camera',
+    callStartFailed: 'Could not start the call',
+    messageNotSent: 'Message not sent',
+    editFailed: 'Could not edit',
+    deleteFailed: 'Could not delete',
+    reactFailed: 'Could not react',
+    pinFailed: 'Could not pin',
+    forwarded: (count: number) =>
+      count === 1 ? 'Forwarded to 1 conversation' : `Forwarded to ${count} conversations`,
+    forwardFailed: 'Could not forward',
+    reportSent: 'Report sent',
+    reportFailed: 'Could not send the report',
+    reportUpdateFailed: 'Could not update the report',
+    friendRequestSent: 'Friend request sent',
+    respondFailed: 'Could not respond',
+    welcome: (name: string) => `Welcome, ${name}`,
+  },
+
   conversation: {
     members: (count: number) => (count === 1 ? '1 member' : `${count} members`),
     memberCount: (count: number) => (count === 1 ? '1 member' : `${count} members`),

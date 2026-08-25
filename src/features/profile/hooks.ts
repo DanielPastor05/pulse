@@ -8,8 +8,10 @@ import { queryKeys } from '@/lib/query-keys';
 import { useUpdateSessionCache } from '@/components/providers/session-provider';
 import type { UpdateProfileInput } from '@/features/profile/validators';
 import type { CurrentUser, PublicUser, RelationshipDTO } from '@/types/dto';
+import { useT } from '@/i18n/provider';
 
 export function useUpdateProfile() {
+  const t = useT();
   const queryClient = useQueryClient();
   const patchSession = useUpdateSessionCache();
 
@@ -19,9 +21,9 @@ export function useUpdateProfile() {
     onSuccess: (user) => {
       queryClient.setQueryData(queryKeys.me, user);
       patchSession(user);
-      toast.success('Saved');
+      toast.success(t.toast.saved);
     },
-    onError: (error) => toast.error('Could not save', { description: error.message }),
+    onError: (error) => toast.error(t.toast.saveFailed, { description: error.message }),
   });
 }
 
@@ -36,6 +38,7 @@ export function useRelationships() {
 }
 
 export function useRelationshipActions() {
+  const t = useT();
   const queryClient = useQueryClient();
   const invalidate = () =>
     void queryClient.invalidateQueries({ queryKey: queryKeys.relationships });
@@ -45,16 +48,16 @@ export function useRelationshipActions() {
       api('/relationships', { method: 'POST', body: { userId } }),
     onSuccess: () => {
       invalidate();
-      toast.success('Friend request sent');
+      toast.success(t.toast.friendRequestSent);
     },
-    onError: (error) => toast.error('Could not send', { description: error.message }),
+    onError: (error) => toast.error(t.toast.sendFailed, { description: error.message }),
   });
 
   const respond = useMutation({
     mutationFn: (input: { id: string; accept: boolean }) =>
       api(`/relationships/${input.id}`, { method: 'PATCH', body: { accept: input.accept } }),
     onSuccess: invalidate,
-    onError: (error) => toast.error('Could not respond', { description: error.message }),
+    onError: (error) => toast.error(t.toast.respondFailed, { description: error.message }),
   });
 
   const remove = useMutation({
@@ -73,6 +76,7 @@ export function useBlockedUsers() {
 }
 
 export function useSetBlocked() {
+  const t = useT();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -83,6 +87,6 @@ export function useSetBlocked() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.relationships });
       toast.success(input.blocked ? 'Blocked' : 'Unblocked');
     },
-    onError: (error) => toast.error('Could not update', { description: error.message }),
+    onError: (error) => toast.error(t.toast.updateFailed, { description: error.message }),
   });
 }

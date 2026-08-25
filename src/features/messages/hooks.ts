@@ -15,6 +15,7 @@ import { queryKeys } from '@/lib/query-keys';
 import { randomId } from '@/lib/utils';
 import type { AttachmentInput } from '@/features/messages/validators';
 import type { CurrentUser, MessageDTO, Paginated } from '@/types/dto';
+import { useT } from '@/i18n/provider';
 
 type MessagePages = InfiniteData<Paginated<MessageDTO>, string | null>;
 
@@ -121,6 +122,7 @@ export type SendPayload = {
 };
 
 export function useSendMessage(conversationId: string, me: CurrentUser) {
+  const t = useT();
   const queryClient = useQueryClient();
   const { upsert, patch } = useMessageCache(conversationId);
 
@@ -213,7 +215,7 @@ export function useSendMessage(conversationId: string, me: CurrentUser) {
       if (rejected) {
         dequeue(payload.clientId);
         patch(payload.clientId, (message) => ({ ...message, pending: false, failed: true }));
-        toast.error('Message not sent', { description: error.message });
+        toast.error(t.toast.messageNotSent, { description: error.message });
         return;
       }
 
@@ -228,6 +230,7 @@ export function newClientId() {
 }
 
 export function useMessageActions(conversationId: string) {
+  const t = useT();
   const queryClient = useQueryClient();
   const { upsert, remove, patch } = useMessageCache(conversationId);
 
@@ -235,14 +238,14 @@ export function useMessageActions(conversationId: string) {
     mutationFn: (input: { id: string; content: string }) =>
       api<MessageDTO>(`/messages/${input.id}`, { method: 'PATCH', body: { content: input.content } }),
     onSuccess: (message) => upsert(message),
-    onError: (error) => toast.error('Could not edit', { description: error.message }),
+    onError: (error) => toast.error(t.toast.editFailed, { description: error.message }),
   });
 
   const destroy = useMutation({
     mutationFn: (id: string) => api(`/messages/${id}`, { method: 'DELETE' }),
     onMutate: (id) => remove(id),
     onError: (error) => {
-      toast.error('Could not delete', { description: error.message });
+      toast.error(t.toast.deleteFailed, { description: error.message });
       void queryClient.invalidateQueries({ queryKey: queryKeys.messages(conversationId) });
     },
   });
@@ -279,7 +282,7 @@ export function useMessageActions(conversationId: string) {
     },
     onSuccess: (message) => upsert(message),
     onError: (error) => {
-      toast.error('Could not react', { description: error.message });
+      toast.error(t.toast.reactFailed, { description: error.message });
       void queryClient.invalidateQueries({ queryKey: queryKeys.messages(conversationId) });
     },
   });
@@ -295,7 +298,7 @@ export function useMessageActions(conversationId: string) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.pins(conversationId) });
       toast.success(input.pinned ? 'Pinned to this conversation' : 'Unpinned');
     },
-    onError: (error) => toast.error('Could not pin', { description: error.message }),
+    onError: (error) => toast.error(t.toast.pinFailed, { description: error.message }),
   });
 
   const star = useMutation({
@@ -306,7 +309,7 @@ export function useMessageActions(conversationId: string) {
       }),
     onMutate: ({ id, starred }) => patch(id, (message) => ({ ...message, starred })),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.starred }),
-    onError: (error) => toast.error('Could not save', { description: error.message }),
+    onError: (error) => toast.error(t.toast.saveFailed, { description: error.message }),
   });
 
   const forward = useMutation({
@@ -317,9 +320,9 @@ export function useMessageActions(conversationId: string) {
       }),
     onSuccess: ({ delivered }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(false) });
-      toast.success(`Forwarded to ${delivered} conversation${delivered === 1 ? '' : 's'}`);
+      toast.success(t.toast.forwarded(delivered));
     },
-    onError: (error) => toast.error('Could not forward', { description: error.message }),
+    onError: (error) => toast.error(t.toast.forwardFailed, { description: error.message }),
   });
 
   return { edit, destroy, react, pin, star, forward };

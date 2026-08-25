@@ -75,7 +75,7 @@ export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvat
   const onSubmit = handleSubmit(async (input) => {
     try {
       await api<CurrentUser>('/me/onboarding', { method: 'POST', body: input });
-      toast.success(`Welcome, ${input.displayName}`);
+      toast.success(t.toast.welcome(input.displayName));
       hardNavigate('/chat');
     } catch (error) {
       if (error instanceof ApiError && error.code === 'conflict') {
