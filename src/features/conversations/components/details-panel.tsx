@@ -32,6 +32,9 @@ import {
 import { useReports, useReviewReport } from '@/features/moderation/hooks';
 import { UserPicker } from '@/features/profile/components/user-picker';
 import { BotonDeAmistad } from '@/features/profile/components/friend-button';
+import { BotonDeApodo } from '@/features/conversations/components/nickname-button';
+import { AccentPicker } from '@/features/profile/components/accent-picker';
+import { AvatarPicker } from '@/features/profile/components/avatar-picker';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -115,6 +118,32 @@ function GroupSettings({ conversation }: { conversation: ConversationDetail }) {
 
   return (
     <div className="space-y-4">
+      {/*
+        Foto y color, como en el perfil.
+
+        Los dos campos existían en el esquema y en el validador desde el
+        principio — `avatarUrl` y `accent` en la conversación— y no había forma
+        de tocarlos desde la interfaz: un grupo salía siempre con la almohadilla
+        y el color por defecto. Se pidió «personalización de los grupos como la
+        del perfil», y era casi todo interfaz.
+
+        Se reutilizan los mismos selectores que el perfil en vez de escribir
+        otros: si un día cambia la lista de acentos, cambia en los dos sitios.
+      */}
+      <AvatarPicker
+        value={conversation.avatarUrl}
+        name={conversation.name}
+        size="lg"
+        onChange={(url) => update.mutate({ avatarUrl: url })}
+      />
+
+      <Field label={t.auth.accentColour}>
+        <AccentPicker
+          value={conversation.accent}
+          onChange={(accent) => update.mutate({ accent })}
+        />
+      </Field>
+
       <Field label={t.conversation.groupName} htmlFor="details-name">
         <Input id="details-name" value={name} onChange={(event) => setName(event.target.value)} />
       </Field>
@@ -408,6 +437,26 @@ export function DetailsPanel({
                       */}
                       {!isMe ? <BotonDeAmistad user={member.user} /> : null}
 
+                      {/*
+                        El apodo estaba construido entero y no se podía poner.
+                        Modelo, validador, permisos y pintado existían desde
+                        siempre; faltaba el botón. Se pidió como «apodos», y era
+                        interfaz sobre algo que ya funcionaba.
+
+                        Quien puede: uno mismo siempre —el servicio lo permite— y
+                        quien modera, sobre los demás. Esa es exactamente la
+                        regla de `updateMember`, no una copia suya.
+                      */}
+                      {isMe || manages ? (
+                        <BotonDeApodo
+                          nombre={member.user.displayName}
+                          apodo={member.nickname}
+                          onGuardar={(nickname) =>
+                            updateMember.mutate({ userId: member.user.id, nickname })
+                          }
+                        />
+                      ) : null}
+
                       {manages && !isMe && member.role !== 'OWNER' ? (
                         <Menu>
                           <MenuTrigger asChild>
@@ -441,7 +490,7 @@ export function DetailsPanel({
                                     // rather than firing off a menu click.
                                     if (
                                       window.confirm(
-                                        `Make ${member.user.displayName} the owner of this group? You will become an admin.`,
+                                        t.conversation.makeOwnerConfirm(member.user.displayName),
                                       )
                                     ) {
                                       transferOwnership.mutate(member.user.id);

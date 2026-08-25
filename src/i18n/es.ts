@@ -312,6 +312,11 @@ export const messages = {
   conversation: {
     members: (count: number) => (count === 1 ? '1 miembro' : `${count} miembros`),
     memberCount: (count: number) => (count === 1 ? '1 miembro' : `${count} miembros`),
+    setNickname: 'Apodo',
+    nickname: 'Apodo en esta conversación',
+    nicknameHint: (name: string) => `Sólo lo ve quien está en esta conversación. ${name} conserva su nombre en todo lo demás.`,
+    clearNickname: 'Quitar el apodo',
+    makeOwnerConfirm: (name: string) => `¿Hacer a ${name} propietario del grupo? Tú pasarás a administrador.`,
     manageMember: (name: string) => `Gestionar a ${name}`,
     reportedBy: (username: string) => `denunciado por @${username}`,
     aboutUser: (username: string) => `Sobre @${username} · `,
