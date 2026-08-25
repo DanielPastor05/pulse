@@ -22,6 +22,7 @@ export const PATCH = route<RouteContext<{ id: string }>>(async (request, context
       ...(input.archived !== undefined ? { archived: input.archived } : {}),
       ...(input.muted !== undefined ? { muted: input.muted } : {}),
       ...(input.draft !== undefined ? { draft: input.draft } : {}),
+      ...(input.background !== undefined ? { background: input.background } : {}),
     },
   });
 

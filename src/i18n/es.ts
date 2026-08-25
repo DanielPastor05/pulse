@@ -312,6 +312,17 @@ export const messages = {
   conversation: {
     members: (count: number) => (count === 1 ? '1 miembro' : `${count} miembros`),
     memberCount: (count: number) => (count === 1 ? '1 miembro' : `${count} miembros`),
+    background: 'Fondo',
+    backgroundHint: 'Sólo lo ves tú. No le cambia el hilo a nadie más.',
+    backgroundNames: {
+      ninguno: 'Ninguno',
+      puntos: 'Puntos',
+      rejilla: 'Rejilla',
+      trama: 'Trama',
+      resplandor: 'Resplandor',
+      aurora: 'Aurora',
+      ondas: 'Ondas',
+    },
     setNickname: 'Apodo',
     nickname: 'Apodo en esta conversación',
     nicknameHint: (name: string) => `Sólo lo ve quien está en esta conversación. ${name} conserva su nombre en todo lo demás.`,

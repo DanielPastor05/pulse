@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { FONDOS } from '@/lib/constants';
 import { httpUrl } from '@/lib/zod';
 
 export const slugSchema = z
@@ -34,6 +35,9 @@ export const memberPreferencesSchema = z.object({
   archived: z.boolean().optional(),
   muted: z.boolean().optional(),
   draft: z.string().max(4000).nullable().optional(),
+  // Lista cerrada: el fondo es el identificador de un dibujo que ya existe en
+  // el CSS, no algo que el cliente pueda inventarse.
+  background: z.enum(FONDOS).nullable().optional(),
 });
 
 export const updateMemberSchema = z.object({

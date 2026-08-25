@@ -35,6 +35,32 @@ export const ACCENTS = [
 export type AccentId = (typeof ACCENTS)[number]['id'];
 export const DEFAULT_ACCENT: AccentId = 'electric';
 
+/**
+ * Fondos de conversación. Sólo los identificadores: el dibujo está en
+ * `globals.css` bajo `[data-fondo]` y el nombre visible en los diccionarios,
+ * así que aquí no hay nada que traducir ni que repintar.
+ *
+ * Es una lista cerrada y no una URL a propósito. Una imagen cualquiera detrás
+ * del texto se lee mal la mitad de las veces, y admitirla abriría otra
+ * superficie de subida que vigilar. Con estos siete la conversación se
+ * distingue de un vistazo y el texto sigue leyéndose.
+ *
+ * `ninguno` no tiene regla en el CSS: es la ausencia de fondo, no un fondo
+ * blanco. Está en la lista para que se pueda volver atrás.
+ */
+export const FONDOS = [
+  'ninguno',
+  'puntos',
+  'rejilla',
+  'trama',
+  'resplandor',
+  'aurora',
+  'ondas',
+] as const;
+
+export type FondoId = (typeof FONDOS)[number];
+export const FONDO_POR_DEFECTO: FondoId = 'ninguno';
+
 export const QUICK_REACTIONS = ['👍', '❤️', '😂', '🎉', '🔥', '👀'] as const;
 
 /**

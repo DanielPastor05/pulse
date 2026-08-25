@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 
 import { api } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
+import type { FondoId } from '@/lib/constants';
 import { useT } from '@/i18n/provider';
 import type { CreateGroupInput, UpdateConversationInput } from '@/features/conversations/validators';
 import type { ConversationDetail, ConversationSummary, JoinRequestDTO, MessageDTO } from '@/types/dto';
@@ -50,7 +51,13 @@ export function useJoinRequests(conversationId: string | undefined, enabled: boo
   });
 }
 
-type Preferences = { favorite?: boolean; archived?: boolean; muted?: boolean; draft?: string | null };
+type Preferences = {
+  favorite?: boolean;
+  archived?: boolean;
+  muted?: boolean;
+  draft?: string | null;
+  background?: FondoId | null;
+};
 
 /**
  * Favorito, silenciado y archivado.

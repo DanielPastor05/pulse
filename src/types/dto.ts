@@ -164,6 +164,8 @@ export type ConversationSummary = {
   archived: boolean;
   muted: boolean;
   draft: string | null;
+  /** El fondo del hilo, de quien mira y no del grupo. `null` es sin fondo. */
+  background: string | null;
   role: MemberRole;
   /** For direct conversations: the person on the other side. */
   peer: PublicUser | null;

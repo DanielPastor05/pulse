@@ -73,6 +73,7 @@ function resumen(overrides: Partial<ConversationSummary> = {}): ConversationSumm
     archived: false,
     muted: false,
     draft: null,
+    background: null,
     role: 'OWNER',
     peer: null,
     lastMessage: null,

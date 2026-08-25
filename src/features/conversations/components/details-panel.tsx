@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { useDates } from '@/i18n/dates';
 import { can } from '@/lib/permissions';
 import {
+  useConversationPreferences,
   useJoinRequests,
   useMemberMutations,
   useUpdateConversation,
@@ -35,6 +36,7 @@ import { BotonDeAmistad } from '@/features/profile/components/friend-button';
 import { BotonDeApodo } from '@/features/conversations/components/nickname-button';
 import { AccentPicker } from '@/features/profile/components/accent-picker';
 import { AvatarPicker } from '@/features/profile/components/avatar-picker';
+import { SelectorDeFondo } from '@/features/conversations/components/background-picker';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -337,6 +339,7 @@ export function DetailsPanel({
 
   const isGroup = conversation.type === 'GROUP';
   const manages = can.manageMembers(conversation.role);
+  const preferences = useConversationPreferences(conversation.id);
 
   return (
     <div className="space-y-6 p-4">
@@ -371,6 +374,21 @@ export function DetailsPanel({
           ) : null}
         </div>
       </div>
+
+      {/*
+        El fondo del hilo.
+
+        Va aqui y no en los ajustes del grupo porque no es del grupo: es de
+        quien mira, como el silencio o el archivado. Por eso sale tambien en
+        los mensajes directos, donde no hay ajustes de grupo que abrir.
+      */}
+      <Field label={t.conversation.background}>
+        <SelectorDeFondo
+          valor={conversation.background}
+          onChange={(fondo) => preferences.mutate({ background: fondo })}
+        />
+        <p className="text-[11px] text-[var(--text-3)]">{t.conversation.backgroundHint}</p>
+      </Field>
 
       {isGroup ? (
         <>

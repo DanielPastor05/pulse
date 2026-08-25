@@ -226,6 +226,11 @@ export function ConversationView({ conversationId }: { conversationId: string })
       */}
       <div
         ref={escenarioRef}
+        // El fondo se pinta con un atributo y no con una clase: el dibujo vive
+        // entero en `globals.css`, así que el mismo `data-fondo` sirve para el
+        // hilo y para la muestra del selector, y lo que se elige es exactamente
+        // lo que se ve.
+        data-fondo={conversation.background ?? undefined}
         className="panel neon-border relative flex h-full min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-panel)] shadow-[var(--shadow-overlay)]"
       >
         <ChatHeader conversation={conversation} meId={me.id} typingCount={typingNames.length} />

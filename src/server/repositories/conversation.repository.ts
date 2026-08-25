@@ -82,7 +82,7 @@ export function toSummary(
   conversation: ConversationRow,
   membership: Pick<
     ConversationMember,
-    'role' | 'favorite' | 'archived' | 'muted' | 'draft' | 'lastReadAt'
+    'role' | 'favorite' | 'archived' | 'muted' | 'draft' | 'background' | 'lastReadAt'
   >,
   viewerId: string,
   unread: number,
@@ -106,6 +106,7 @@ export function toSummary(
     archived: membership.archived,
     muted: membership.muted,
     draft: membership.draft,
+    background: membership.background,
     role: membership.role,
     peer: peer ? toPublicUser(peer) : null,
     lastMessage: lastMessage

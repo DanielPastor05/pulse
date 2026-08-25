@@ -218,6 +218,18 @@ model ConversationMember {
   archived Boolean @default(false)
   draft    String?
 
+  /// El fondo del hilo, elegido por cada persona y no por el grupo.
+  ///
+  /// Va aquí y no en `Conversation` a propósito: es una preferencia de quien
+  /// mira, como el silencio o el archivado. Ponerlo en la conversación dejaría
+  /// que un miembro le cambiara el fondo a los demás, que es una forma rara de
+  /// molestar y ninguna de personalizarse a uno mismo.
+  ///
+  /// Guarda el identificador de un fondo del catálogo, no una URL: una imagen
+  /// arbitraria detrás del texto se lee mal la mitad de las veces, y admitirla
+  /// abriría otra superficie de subida que vigilar.
+  background String?
+
   lastReadAt        DateTime?
   lastReadMessageId String?   @db.Uuid
 

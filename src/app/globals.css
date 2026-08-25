@@ -504,3 +504,80 @@
   animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;
 }
+
+/* ---------------------------------------------------------------------------
+   Fondos de conversación
+--------------------------------------------------------------------------- */
+
+/**
+ * Dibujados con gradientes y no con imágenes, por tres razones que se notan:
+ * no hay nada que descargar, se adaptan solos a los dos temas y al color de
+ * acento porque están hechos de las mismas variables, y no hay ninguna subida
+ * de ficheros nueva que vigilar.
+ *
+ * Sólo tocan `background-image`. `panel` pone el color de fondo con la forma
+ * corta `background:`, que de paso deja `background-image: none`; como estas
+ * reglas viven fuera de toda capa y las utilidades de Tailwind dentro de una,
+ * ganan éstas sin necesidad de `!important` ni de subir la especificidad.
+ *
+ * El mismo selector sirve para el hilo y para la muestra del selector, así que
+ * lo que se elige es exactamente lo que se ve. Una sola definición.
+ *
+ * Todos son de contraste bajo a propósito: detrás de un fondo hay texto, y el
+ * primer trabajo del fondo es dejarlo leer.
+ */
+
+[data-fondo='puntos'] {
+  background-image: radial-gradient(var(--hairline) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+[data-fondo='rejilla'] {
+  background-image:
+    linear-gradient(to right, var(--hairline) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--hairline) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+[data-fondo='trama'] {
+  background-image:
+    repeating-linear-gradient(45deg, var(--hairline) 0 1px, transparent 1px 12px),
+    repeating-linear-gradient(-45deg, var(--hairline) 0 1px, transparent 1px 12px);
+}
+
+/* Los tres siguientes usan el acento, así que cada conversación con su color
+   sale distinta sin que haya que elegir nada más.
+ *
+ * `--accent-glow` va rebajado al 55%. Sin rebajar vale en claro (0,25) y se
+ * pasa en oscuro, donde la misma variable sube a 0,4 de neón puro: medido en el
+ * navegador, no supuesto. Rebajar la variable en vez de escribir dos reglas
+ * mantiene una sola definición y sigue respondiendo al acento. */
+
+[data-fondo='resplandor'] {
+  background-image:
+    radial-gradient(60% 50% at 12% 0%, var(--fondo-acento) 0%, transparent 70%),
+    radial-gradient(55% 45% at 88% 100%, var(--fondo-acento) 0%, transparent 70%);
+}
+
+[data-fondo='aurora'] {
+  background-image: linear-gradient(
+    160deg,
+    var(--fondo-acento) 0%,
+    transparent 38%,
+    transparent 62%,
+    color-mix(in srgb, var(--accent-mint) 14%, transparent) 100%
+  );
+}
+
+[data-fondo='resplandor'],
+[data-fondo='aurora'] {
+  --fondo-acento: color-mix(in srgb, var(--accent-glow) 55%, transparent);
+}
+
+[data-fondo='ondas'] {
+  background-image: repeating-radial-gradient(
+    circle at 50% 120%,
+    transparent 0 38px,
+    color-mix(in srgb, var(--accent) 12%, transparent) 38px 39px
+  );
+}
