@@ -21,8 +21,8 @@ export function PollCard({ messageId, poll }: { messageId: string; poll: PollDTO
   const vote = useMutation({
     mutationFn: (optionId: string) =>
       api<MessageDTO>(`/messages/${messageId}/poll`, { method: 'POST', body: { optionId } }),
-    // The realtime broadcast updates every client including this one, so there
-    // is nothing to write into the cache here.
+    // sin-cache: el canal en vivo actualiza a todos los clientes, incluido
+    // éste, así que no hay nada que escribir aquí.
     onError: (error) => toast.error(t.message.voteFailed, { description: error.message }),
   });
 

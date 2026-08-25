@@ -31,6 +31,7 @@ import {
   useUpdateConversation,
 } from '@/features/conversations/hooks';
 import { useReports, useReviewReport } from '@/features/moderation/hooks';
+import { useSetBlocked } from '@/features/profile/hooks';
 import { UserPicker } from '@/features/profile/components/user-picker';
 import { BotonDeAmistad } from '@/features/profile/components/friend-button';
 import { BotonDeApodo } from '@/features/conversations/components/nickname-button';
@@ -83,6 +84,8 @@ function InviteLink({ conversationId }: { conversationId: string }) {
   const t = useT();
   const [copied, setCopied] = React.useState(false);
 
+  // sin-cache: esto devuelve un enlace y lo copia al portapapeles. No hay nada
+  // en pantalla que dependa de él, así que no hay caché que corregir.
   const create = useMutation({
     mutationFn: () =>
       api<{ url: string }>(`/conversations/${conversationId}/invites`, {
@@ -329,13 +332,22 @@ export function DetailsPanel({
     conversation.id,
   );
 
-  const blockMutation = useMutation({
-    mutationFn: (blocked: boolean) =>
-      api('/blocks', { method: 'POST', body: { userId: conversation.peer?.id, blocked } }),
-    onSuccess: (_data, blocked) =>
-      toast.success(blocked ? t.conversation.personBlocked : t.conversation.personUnblocked),
-    onError: (error) => toast.error(t.conversation.updateFailed, { description: error.message }),
-  });
+  /*
+   * El bloqueo, con el hook y no con una mutación propia.
+   *
+   * Aquí había una copia escrita a mano que llamaba al mismo endpoint y **no
+   * invalidaba nada**. El servidor bloqueaba de verdad, pero `blockedByMe` vive
+   * en el detalle de la conversación y ese detalle seguía en caché, así que el
+   * chat se quedaba igual: el botón seguía diciendo «bloquear» y el redactor
+   * seguía dejando escribir. Sólo cambiaba al pasar por Ajustes → Gente y
+   * volver, porque esa vuelta remonta la pantalla.
+   *
+   * Lo que engaña de este fallo es que ya se había arreglado. El 25/08 por la
+   * mañana se le añadió la invalidación a `useSetBlocked`... que este panel no
+   * usaba. Arreglar el hook no arregla a quien no lo llama, y con dos caminos
+   * hacia el mismo endpoint sólo uno quedó cubierto.
+   */
+  const bloquear = useSetBlocked();
 
   const isGroup = conversation.type === 'GROUP';
   const manages = can.manageMembers(conversation.role);
@@ -563,8 +575,15 @@ export function DetailsPanel({
             variant="ghost"
             block
             className="text-[var(--danger)]"
-            onClick={() => blockMutation.mutate(!conversation.blockedByMe)}
-            loading={blockMutation.isPending}
+            disabled={!conversation.peer}
+            onClick={() =>
+              conversation.peer &&
+              bloquear.mutate({
+                userId: conversation.peer.id,
+                blocked: !conversation.blockedByMe,
+              })
+            }
+            loading={bloquear.isPending}
           >
             <Trash2 />
             {conversation.blockedByMe ? t.conversation.unblockPerson : t.conversation.blockPerson}

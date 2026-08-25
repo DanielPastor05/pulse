@@ -39,6 +39,9 @@ export function PollDialog({
     }
   }, [open]);
 
+  // sin-cache: crear una encuesta crea un mensaje, y los mensajes llegan por el
+  // canal en vivo como cualquier otro. Escribirlo aquí además lo pintaría dos
+  // veces.
   const create = useMutation({
     mutationFn: () =>
       api<MessageDTO>(`/conversations/${conversationId}/polls`, {

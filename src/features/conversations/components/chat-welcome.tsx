@@ -2,11 +2,12 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api } from '@/lib/api-client';
+import { queryKeys } from '@/lib/query-keys';
 
 import { useSession } from '@/components/providers/session-provider';
 import { useUiStore } from '@/stores/ui-store';
@@ -35,6 +36,7 @@ export function ChatWelcome() {
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const setCommandOpen = useUiStore((state) => state.setCommandOpen);
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   /*
    * El asistente vive aqui y no en un menu.
@@ -46,7 +48,14 @@ export function ChatWelcome() {
    */
   const abrirAsistente = useMutation({
     mutationFn: () => api<{ id: string }>('/assistant', { method: 'POST' }),
-    onSuccess: (conversacion) => router.push(`/chat/${conversacion.id}`),
+    onSuccess: (conversacion) => {
+      // La primera vez esto **crea** el hilo, y la lista lateral no se entera
+      // sola: vive en el armazón, así que navegar no la remonta y no vuelve a
+      // pedirla. Sin esto, el asistente se abre pero no aparece en la lista
+      // hasta recargar. Es el mismo descuido que dejó el bloqueo sin efecto.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(false) });
+      router.push(`/chat/${conversacion.id}`);
+    },
     onError: (error) => toast.error(t.nav.assistantFailed, { description: error.message }),
   });
   // `split` puede devolver un hueco vacío si el nombre son sólo espacios, y
