@@ -9,7 +9,6 @@ import { realtimeChannels } from '@/lib/realtime';
 import { usePresenceStore } from '@/stores/presence-store';
 import { useSession } from '@/components/providers/session-provider';
 
-const IDLE_AFTER_MS = 3 * 60_000;
 const HEARTBEAT_MS = 60_000;
 
 type PresenceMeta = { userId: string; presence: Presence };
@@ -21,45 +20,26 @@ type PresenceMeta = { userId: string; presence: Presence };
 export function PresenceProvider({ children }: { children: React.ReactNode }) {
   const me = useSession();
   const setAll = usePresenceStore((state) => state.setAll);
-  const [presence, setPresence] = React.useState<Presence>('ONLINE');
-
-  // Idle detection: no input for three minutes, or the tab is hidden.
-  React.useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    let lastReset = 0;
-
-    const markActive = (event?: Event) => {
-      // Moving and scrolling fire continuously; rearming the timer more than
-      // once a second buys nothing.
-      const continuous = event?.type === 'pointermove' || event?.type === 'scroll';
-      const now = Date.now();
-      if (continuous && now - lastReset < 1_000) return;
-      lastReset = now;
-
-      clearTimeout(timer);
-      setPresence(document.visibilityState === 'hidden' ? 'IDLE' : 'ONLINE');
-      timer = setTimeout(() => setPresence('IDLE'), IDLE_AFTER_MS);
-    };
-
-    // `pointermove` and `scroll` matter as much as clicks here: reading a
-    // conversation is the most common thing to be doing, and without them
-    // someone sitting in front of the screen goes idle after three minutes.
-    const events = [
-      'pointerdown',
-      'pointermove',
-      'keydown',
-      'scroll',
-      'visibilitychange',
-      'focus',
-    ] as const;
-    for (const event of events) window.addEventListener(event, markActive, { passive: true });
-    markActive();
-
-    return () => {
-      clearTimeout(timer);
-      for (const event of events) window.removeEventListener(event, markActive);
-    };
-  }, []);
+  /**
+   * Con la aplicación abierta se está en línea, y punto.
+   *
+   * Antes había detección de inactividad: sin ratón ni teclas durante tres
+   * minutos, o con la pestaña oculta, pasabas a «ausente». Sonaba razonable y en
+   * la práctica mentía — leer una conversación larga sin tocar nada te sacaba de
+   * en línea, y quien te miraba creía que te habías ido. Se pidió justo así:
+   * «que siempre que el usuario tenga la app abierta esté en línea a menos que
+   * lo cambie».
+   *
+   * Lo que sí manda es la elección explícita. Quien se pone en «no molestar»,
+   * «ausente» o «desconectado» desde el menú lo dice a propósito, y nada
+   * automático debería contradecirle: ese estado se respeta mientras dure la
+   * sesión.
+   *
+   * `lastSeenAt` sigue latiendo cada minuto, así que un cierre en seco se sigue
+   * notando — la ausencia se deduce de dejar de latir, que es más fiable que un
+   * temporizador de inactividad.
+   */
+  const presence: Presence = me.presence === 'ONLINE' ? 'ONLINE' : me.presence;
 
   React.useEffect(() => {
     const supabase = getSupabaseBrowserClient();

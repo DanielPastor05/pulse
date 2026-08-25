@@ -209,7 +209,7 @@ export const messages = {
     noMatches: 'Sin coincidencias',
     nothingPinned: 'Todavía no hay nada fijado',
     nothingPinnedHint:
-      'Fija los mensajes a los que merece volver — enlaces, decisiones, normas de la casa.',
+      'Pulsa un mensaje con el botón derecho (o abre su menú ⋯) y elige Fijar. Aquí acaban los enlaces, las decisiones y las normas de la casa.',
     unpinMessage: 'Dejar de fijar el mensaje',
     noFiles: 'Todavía no hay archivos',
     noPhotos: 'Todavía no hay fotos',
@@ -580,6 +580,8 @@ export const messages = {
     untitledCall: 'Llamada',
     outputDevice: (index: number) => `Salida ${index}`,
     exactlyAsWritten: 'Exactamente como está escrito, para que esto nunca pueda ser un descuido.',
+    confirmWithPassword: 'Tu contraseña',
+    confirmWithPasswordHint: 'Déjala vacía si entraste con Google o GitHub.',
     keepAccount: 'Quedarme con mi cuenta',
     deleteForGood: 'Borrar para siempre',
   },

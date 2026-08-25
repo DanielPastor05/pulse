@@ -85,8 +85,19 @@ export function StarredMessages() {
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
-                      <p className="truncate text-[13px] font-semibold">
-                        {message.author?.displayName ?? t.message.unknown}
+                      <p className="flex min-w-0 items-center gap-1.5 truncate text-[13px] font-semibold">
+                        {/*
+                          La estrella también aquí, y amarilla.
+
+                          Faltaba: en la lista de destacados no había ninguna
+                          señal de por qué esos mensajes estaban ahí. Verla en
+                          los dos sitios —el chat y esta lista— es lo que une
+                          «puse esto» con «esto es lo que puse».
+                        */}
+                        <Star className="size-3 shrink-0 fill-[var(--warning)] text-[var(--warning)]" />
+                        <span className="truncate">
+                          {message.author?.displayName ?? t.message.unknown}
+                        </span>
                       </p>
                       <time className="shrink-0 text-[11px] text-[var(--text-3)]">
                         {formatFullTimestamp(message.createdAt)}

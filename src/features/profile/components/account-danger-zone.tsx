@@ -35,6 +35,7 @@ export function AccountDangerZone() {
   const me = useSession();
   const [open, setOpen] = React.useState(false);
   const [confirmation, setConfirmation] = React.useState('');
+  const [password, setPassword] = React.useState('');
   const [working, setWorking] = React.useState(false);
   const [blockedBy, setBlockedBy] = React.useState<OwnedGroup[] | null>(null);
 
@@ -49,7 +50,7 @@ export function AccountDangerZone() {
     setBlockedBy(null);
 
     try {
-      await api('/me', { method: 'DELETE', body: { confirmation } });
+      await api('/me', { method: 'DELETE', body: { confirmation, password } });
       toast.success(t.settings.accountGone);
       // Sin sesión ya no hay nada que renderizar aquí, y una navegación real
       // vuelve a pasar por el middleware con la cookie ya invalidada.
@@ -136,6 +137,32 @@ export function AccountDangerZone() {
               autoComplete="off"
               onChange={(event) => setConfirmation(event.target.value)}
               placeholder={me.username}
+            />
+          </Field>
+
+          {/*
+            La contraseña, además del nombre.
+
+            El nombre de usuario evita el borrado accidental; la contraseña evita
+            el ajeno. Sin ella basta con una sesión abierta un minuto en un
+            portátil compartido — y el nombre que había que escribir está en la
+            propia pantalla que lo pide.
+
+            El servidor sólo la exige a las cuentas que tienen una: quien entró
+            con Google no tiene ninguna que escribir, y pedírsela le dejaría sin
+            poder borrar su cuenta.
+          */}
+          <Field
+            label={t.settings.confirmWithPassword}
+            htmlFor="delete-password"
+            hint={t.settings.confirmWithPasswordHint}
+          >
+            <Input
+              id="delete-password"
+              type="password"
+              value={password}
+              autoComplete="current-password"
+              onChange={(event) => setPassword(event.target.value)}
             />
           </Field>
 

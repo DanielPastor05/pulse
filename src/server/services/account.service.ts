@@ -1,4 +1,7 @@
+import { createClient } from '@supabase/supabase-js';
+
 import { prisma } from '@/lib/prisma';
+import { publicEnv } from '@/lib/env';
 import { STORAGE_BUCKETS } from '@/lib/constants';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { errors } from '@/server/errors';
@@ -183,9 +186,53 @@ export async function purgeStoredFiles(
  * Lo que las cascadas no alcanzan es el almacenamiento, que no sabe nada de
  * claves foráneas. De ahí el barrido previo.
  */
-export async function deleteAccount(user: SessionUser, confirmation: string) {
+/**
+ * ¿Tiene esta cuenta una contraseña que poder pedir?
+ *
+ * Quien entró con Google o GitHub no tiene ninguna, y exigírsela le dejaría sin
+ * poder borrar su cuenta — un callejón sin salida creado por una medida de
+ * seguridad, que es la peor forma de tenerla.
+ */
+async function tieneContrasena(userId: string): Promise<boolean> {
+  const { data } = await createSupabaseAdminClient().auth.admin.getUserById(userId);
+  const proveedores = data.user?.identities?.map((identidad) => identidad.provider) ?? [];
+  return proveedores.includes('email');
+}
+
+/**
+ * Comprueba la contraseña volviendo a iniciar sesión con ella.
+ *
+ * No hay forma de leer el hash desde aquí ni la hay que valga: quien lo guarda
+ * es Supabase, así que la única comprobación honesta es pedirle que la valide.
+ * Se usa un cliente anónimo y desechable para no tocar la sesión en curso.
+ */
+async function contrasenaCorrecta(email: string, password: string): Promise<boolean> {
+  const anon = createClient(publicEnv.supabaseUrl, publicEnv.supabaseAnonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { error } = await anon.auth.signInWithPassword({ email, password });
+  return !error;
+}
+
+/**
+ * Borra la cuenta, tras confirmar que quien lo pide es quien dice ser.
+ *
+ * Dos comprobaciones con propósitos distintos. El **nombre de usuario** evita el
+ * borrado accidental: hay que escribirlo, así que no ocurre por un clic. La
+ * **contraseña** evita el borrado ajeno: sin ella, una sesión abierta un minuto
+ * en un portátil compartido basta — y el nombre de usuario, que era lo único que
+ * pedía, está escrito en la misma pantalla que lo pide.
+ */
+export async function deleteAccount(user: SessionUser, confirmation: string, password?: string) {
   if (confirmation !== user.username) {
     throw errors.badRequest('Type your username exactly to confirm.');
+  }
+
+  if (user.email && (await tieneContrasena(user.id))) {
+    if (!password) throw errors.badRequest('Enter your password to confirm.');
+    if (!(await contrasenaCorrecta(user.email, password))) {
+      throw errors.badRequest('That password is not correct.');
+    }
   }
 
   const blocked = await orphanedGroups(user.id);

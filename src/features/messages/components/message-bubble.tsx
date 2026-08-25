@@ -393,7 +393,17 @@ export const MessageBubble = React.memo(function MessageBubble({
                   )}
                 >
                   {message.pinnedAt ? <Pin className="size-3" /> : null}
-                  {message.starred ? <Star className="size-3 fill-current" /> : null}
+                  {/*
+                    Amarilla, no del color del texto de al lado.
+
+                    Iba en `fill-current`, así que heredaba el gris de la línea
+                    de metadatos y se perdía entre la hora y el «editado». Una
+                    marca que uno pone a mano tiene que verse de un vistazo: es
+                    lo que la distingue de la información que la rodea.
+                  */}
+                  {message.starred ? (
+                    <Star className="size-3 fill-[var(--warning)] text-[var(--warning)]" />
+                  ) : null}
                   {message.editedAt ? <span>{t.message.edited}</span> : null}
                   {mine && !deleted ? (
                     <StatusTicks

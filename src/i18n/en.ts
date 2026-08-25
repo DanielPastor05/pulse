@@ -205,8 +205,11 @@ export const messages = {
     searchThisHint: 'Type at least two characters to look through the history.',
     noMatches: 'No matches',
     nothingPinned: 'Nothing pinned yet',
+    // Dice **cómo**, no sólo para qué. La versión anterior invitaba a fijar
+    // mensajes sin explicar por dónde se hace, así que quien llegaba al panel
+    // vacío se quedaba igual: «no tiene sentido», se reportó.
     nothingPinnedHint:
-      'Pin the messages worth coming back to — links, decisions, house rules.',
+      'Right-click a message (or open its ⋯ menu) and choose Pin. Links, decisions and house rules end up here.',
     unpinMessage: 'Unpin message',
     noFiles: 'No files yet',
     noPhotos: 'No photos yet',
@@ -586,6 +589,8 @@ export const messages = {
     untitledCall: 'Call',
     outputDevice: (index: number) => `Output ${index}`,
     exactlyAsWritten: 'Exactly as written, so this can never be an accident.',
+    confirmWithPassword: 'Your password',
+    confirmWithPasswordHint: 'Leave it empty if you signed in with Google or GitHub.',
     keepAccount: 'Keep my account',
     deleteForGood: 'Delete for good',
   },
