@@ -45,12 +45,12 @@ await Promise.all([onboard(alice), onboard(bob), onboard(mallory)]);
 const grupo = await api('/api/conversations', {
   method: 'POST',
   actor: alice,
-  body: { name: 'Programados', isPublic: false, accent: 'violet', memberIds: [bob.id] },
+  body: { type: 'GROUP', name: 'Programados', memberIds: [bob.id] },
 });
-if (grupo.status !== 201) {
+const id = grupo.json?.id ?? grupo.json?.conversation?.id;
+if (grupo.status !== 201 || !id) {
   throw new Error(`no se pudo crear el grupo -> ${grupo.status} ${JSON.stringify(grupo.json)}`);
 }
-const id = grupo.json.conversation.id;
 
 // ---------------------------------------------------------------------------
 console.log('\nprogramar');
