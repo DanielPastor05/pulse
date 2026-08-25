@@ -176,7 +176,15 @@ export async function cleanup() {
   const fallidos = [];
   for (const id of ids) {
     const { error } = await admin.auth.admin.deleteUser(id).catch((e) => ({ error: e }));
-    if (error) fallidos.push(`${id}: ${error.message ?? error}`);
+
+    // «No existe» es el estado que se buscaba, no un fallo. Lo dice una prueba
+    // que cierra una cuenta a propósito —`account-debris.mjs`— y sin esto
+    // terminaba en rojo por haber conseguido justo lo que comprobaba.
+    //
+    // No debilita el aviso: una cuenta que sigue viva no responde «not found»,
+    // responde que sí. Lo que se vigila es lo otro.
+    const yaNoEstaba = /not found/i.test(String(error?.message ?? error ?? ''));
+    if (error && !yaNoEstaba) fallidos.push(`${id}: ${error.message ?? error}`);
   }
   if (fallidos.length) {
     process.exitCode = 1;
@@ -185,10 +193,22 @@ export async function cleanup() {
   }
 
   for (const conversationId of tocadas) {
+    /*
+     * «Sin nadie» quiere decir sin ninguna **persona**.
+     *
+     * Antes se contaban las filas de pertenencia a secas, y con eso el hilo que
+     * deja una prueba del asistente nunca se borraba: la cuenta de prueba se va,
+     * pero el asistente sigue siendo miembro, así que el recuento da uno y la
+     * conversación se queda ahí para siempre. Se detectó mirando la base de
+     * producción después de dos ejecuciones: dos salas vacías con el asistente
+     * dentro. Es la misma basura que llegó a ser el 95% de la tabla, con otra
+     * forma.
+     */
     const { count } = await admin
       .from('conversation_members')
-      .select('*', { count: 'exact', head: true })
-      .eq('conversationId', conversationId);
+      .select('*, users!inner(isAssistant)', { count: 'exact', head: true })
+      .eq('conversationId', conversationId)
+      .eq('users.isAssistant', false);
 
     // `count` nulo significa que la consulta falló, no que no haya nadie. Ante
     // la duda no se borra: dejar basura es recuperable, borrar de más no.
