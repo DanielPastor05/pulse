@@ -936,12 +936,12 @@ fila.
 
 | capa | pruebas | pasan | fallan |
 | --- | ---: | ---: | ---: |
-| Unitarias | 121 | 121 | 0 |
+| Unitarias | 136 | 136 | 0 |
 | Componente | 44 | 44 | 0 |
 | Integración (Postgres real) | 46 | — | — |
 | Navegador | 10 | 10 | 0 |
 | Extremo a extremo | 341 | 341 | 0 |
-| **Total** | **562** | | |
+| **Total** | **577** | | |
 
 Las 341 de extremo a extremo, suite por suite, medidas contra el despliegue:
 

@@ -78,8 +78,20 @@ export function MessageList({
     return timestamps.length > 0 ? Math.max(...timestamps) : 0;
   }, [members, meId]);
 
+  /**
+   * Al fondo de verdad, contando el hueco de la consola.
+   *
+   * Era `bottomRef.scrollIntoView({ block: 'end' })`, que alinea el centinela
+   * con el borde inferior del contenedor y por tanto **se salta el relleno**:
+   * el último mensaje quedaba pegado al borde, debajo de la consola flotante.
+   * Reportado como que el botón «no lleva al final» y solapa.
+   *
+   * `scrollHeight` incluye el relleno, así que llegar ahí deja el hueco a la
+   * vista y el mensaje encima de la consola, que es donde se lee.
+   */
   const scrollToBottom = React.useCallback((behavior: ScrollBehavior = 'smooth') => {
-    bottomRef.current?.scrollIntoView({ behavior, block: 'end' });
+    const contenedor = scrollRef.current;
+    if (contenedor) contenedor.scrollTo({ top: contenedor.scrollHeight, behavior });
     setUnseen(0);
   }, []);
 
@@ -100,7 +112,8 @@ export function MessageList({
     previousCount.current = messages.length;
     if (!grew) return;
 
-    if (atBottom) bottomRef.current?.scrollIntoView({ block: 'end' });
+    // Mismo motivo que en `scrollToBottom`: al fondo real, no al centinela.
+    if (atBottom) container.scrollTo({ top: container.scrollHeight });
     else setUnseen((count) => count + 1);
   }, [messages.length, atBottom, lastMessageId]);
 
@@ -147,7 +160,9 @@ export function MessageList({
         onScroll={onScroll}
         className={cn(
           'scroll-area h-full overflow-y-auto overscroll-contain px-3 pt-6 sm:px-6',
-          floatingComposer ? 'pb-32' : 'pb-4',
+          // El hueco lo dicta la consola midiéndose (`--consola`), con 8rem de
+          // reserva por si el efecto todavía no ha corrido en el primer pintado.
+          floatingComposer ? 'pb-[var(--consola,8rem)]' : 'pb-4',
         )}
         role="log"
         aria-live="polite"

@@ -182,7 +182,34 @@ test('ningún aviso emergente lleva el texto escrito a mano', () => {
       if (!/\.tsx?$/.test(entrada.name) || entrada.name.includes('.test.')) continue;
 
       const fuente = readFileSync(ruta, 'utf8');
-      for (const encontrado of fuente.matchAll(/toast\.(?:success|error|info|warning)\(\s*(['"`])/g)) {
+
+      /*
+       * El literal no tiene por qué ir pegado al paréntesis.
+       *
+       * La primera versión pedía la comilla justo detrás de `toast.x(`, y por
+       * eso se le escapó `toast.success(input.blocked ? 'Blocked' : 'Unblocked')`
+       * — un ternario con las dos ramas en inglés, encontrado a mano dos horas
+       * después de dar la caza por terminada. Ahora se mira el argumento entero
+       * hasta el cierre o la primera coma de nivel superior.
+       */
+      for (const encontrado of fuente.matchAll(
+        /toast\.(?:success|error|info|warning)\(([^;]*?)\)[;,\s]/g,
+      )) {
+        const argumento = encontrado[1] ?? '';
+
+        /*
+         * Se juzgan los literales con el mismo criterio que el resto, y no con
+         * uno propio.
+         *
+         * La primera versión pedía sólo «dos letras seguidas», y con eso marcó
+         * una línea **ya corregida**: se quejaba de `'RESOLVED'`, el valor de
+         * enum con el que se compara el estado de la denuncia. Un detector que
+         * acusa a código correcto se desactiva a la semana, así que comparte la
+         * heurística que ya sabe distinguir un enum de una frase.
+         */
+        const literales = [...argumento.matchAll(/(['"`])((?:(?!\1)[^\\])*)\1/g)].map((m) => m[2]!);
+        if (!literales.some((texto) => pareceTexto(texto))) continue;
+
         const linea = fuente.slice(0, encontrado.index).split('\n').length;
         sospechosos.push(`${ruta.slice(RAIZ.length).replaceAll('\\', '/')}:${linea}`);
       }

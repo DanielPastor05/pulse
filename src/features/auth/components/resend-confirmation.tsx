@@ -50,7 +50,7 @@ export function ResendConfirmation({ email }: { email: string }) {
     }
 
     setCooldown(COOLDOWN_SECONDS);
-    toast.success(t.auth.resent, { description: `Check ${email}.` });
+    toast.success(t.auth.resent, { description: t.toast.checkInbox(email) });
   };
 
   return (

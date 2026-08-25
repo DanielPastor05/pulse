@@ -296,7 +296,7 @@ export function useMessageActions(conversationId: string) {
     onSuccess: (message, input) => {
       upsert(message);
       void queryClient.invalidateQueries({ queryKey: queryKeys.pins(conversationId) });
-      toast.success(input.pinned ? 'Pinned to this conversation' : 'Unpinned');
+      toast.success(input.pinned ? t.toast.pinned : t.toast.unpinned);
     },
     onError: (error) => toast.error(t.toast.pinFailed, { description: error.message }),
   });

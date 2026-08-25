@@ -15,6 +15,7 @@ import {
   StarOff,
 } from 'lucide-react';
 
+import { vistaPreviaDe } from '@/lib/message-preview';
 import { cn, truncate } from '@/lib/utils';
 import { useDates } from '@/i18n/dates';
 import { usePresenceOf } from '@/stores/presence-store';
@@ -52,11 +53,25 @@ function Preview({ conversation }: { conversation: ConversationSummary }) {
   if (!last) return <span className="italic text-[var(--text-3)]">{t.sidebar.noMessages}</span>;
 
   const prefix = conversation.type === 'GROUP' && last.authorName ? `${last.authorName}: ` : '';
-  const body = last.content || (last.hasAttachments ? t.composer.attachment : '');
+
+  /*
+   * Un GIF enseñaba aquí su URL entera, igual que en la cita al responder: el
+   * mensaje se guarda como markdown y este avance lo pintaba en crudo. En una
+   * fila de barra lateral no cabe una miniatura, así que se resume por su texto
+   * alternativo — «un gato saltando» dice bastante más que
+   * `![un gato saltando](https://media2.giphy.com/media/v1.abc/giphy.gif)`.
+   */
+  const vista = vistaPreviaDe(last.content);
+  const esImagen = vista.tipo === 'imagen';
+  const body = esImagen
+    ? vista.alt || (vista.sticker ? t.message.stickersTab : t.message.gifsTab)
+    : vista.texto || (last.hasAttachments ? t.composer.attachment : '');
 
   return (
     <span className="flex items-center gap-1 truncate">
-      {last.hasAttachments && !last.content ? <Paperclip className="size-3 shrink-0" /> : null}
+      {(last.hasAttachments && !last.content) || esImagen ? (
+        <Paperclip className="size-3 shrink-0" />
+      ) : null}
       <span className="truncate">
         {prefix}
         {truncate(body, 56)}

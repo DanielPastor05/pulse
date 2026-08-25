@@ -310,7 +310,7 @@ export function useCall(meId: string) {
         await captureLocal(wanted);
       } catch {
         toast.error(t.toast.mediaFailed, {
-          description: 'Check the permission in your browser and try again.',
+          description: t.toast.mediaFailedHint,
         });
         teardown();
         return;

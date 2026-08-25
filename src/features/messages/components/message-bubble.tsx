@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 
 import { QUICK_REACTIONS } from '@/lib/constants';
+import { vistaPreviaDe } from '@/lib/message-preview';
 import { cn } from '@/lib/utils';
 import { useT } from '@/i18n/provider';
 import { formatBubbleTime } from '@/lib/date';
@@ -114,7 +115,68 @@ function StatusTicks({
     );
   }
   if (message.pending) return <Check className="size-3 opacity-45" />;
-  return <CheckCheck className={cn('size-3', read ? 'opacity-100' : 'opacity-50')} />;
+
+  /*
+   * Leído y entregado se distinguían **sólo por opacidad** —100% contra 50%, el
+   * mismo color— y nadie lo notaba: se reportó como que faltaban los ticks de
+   * leído, cuando llevaban ahí desde el principio.
+   *
+   * El color es lo que convierte un detalle en una señal. Con tooltip, además,
+   * porque un icono que cambia de color sin explicarse sólo lo entiende quien
+   * ya sabe lo que significa.
+   */
+  return (
+    <Tooltip content={read ? t.message.readByThem : t.message.delivered}>
+      <CheckCheck
+        className={cn('size-3', read ? 'text-[var(--accent)]' : 'opacity-50')}
+        aria-label={read ? t.message.readByThem : t.message.delivered}
+      />
+    </Tooltip>
+  );
+}
+
+/**
+ * La cita de un mensaje al que se responde.
+ *
+ * Un GIF o un sticker se guardan como markdown, y aquí se pintaba `content` en
+ * crudo: salía `![alto](https://media2.giphy.com/…)` con la URL entera. Se
+ * reportó como «los gifs al responder respondes al enlace entero, por lo que no
+ * sale».
+ *
+ * Con miniatura, que es lo que se espera al citar una imagen — y lo que hace
+ * que la cita signifique algo de un vistazo.
+ */
+function CitaDeRespuesta({ respuesta }: { respuesta: NonNullable<MessageDTO['replyTo']> }) {
+  const t = useT();
+
+  if (respuesta.deleted) {
+    return <span className="line-clamp-2 text-[12px] text-[var(--text-2)]">{t.message.deletedShort}</span>;
+  }
+
+  const vista = vistaPreviaDe(respuesta.content);
+
+  if (vista.tipo === 'imagen') {
+    return (
+      <span className="flex items-center gap-1.5">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={vista.url}
+          alt=""
+          loading="lazy"
+          className="size-7 shrink-0 rounded object-cover"
+        />
+        <span className="truncate text-[12px] text-[var(--text-2)]">
+          {vista.alt || (vista.sticker ? t.message.stickersTab : t.message.gifsTab)}
+        </span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="line-clamp-2 text-[12px] text-[var(--text-2)]">
+      {vista.texto || t.message.attachments(respuesta.attachmentCount)}
+    </span>
+  );
 }
 
 export const MessageBubble = React.memo(function MessageBubble({
@@ -289,12 +351,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                     <span className="text-[11px] font-semibold text-[var(--accent)]">
                       {message.replyTo.authorName}
                     </span>
-                    <span className="line-clamp-2 text-[12px] text-[var(--text-2)]">
-                      {message.replyTo.deleted
-                        ? t.message.deletedShort
-                        : message.replyTo.content ||
-                          t.message.attachments(message.replyTo.attachmentCount)}
-                    </span>
+                    <CitaDeRespuesta respuesta={message.replyTo} />
                   </button>
                 ) : null}
 

@@ -85,7 +85,24 @@ export function useSetBlocked() {
     onSuccess: (_data, input) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.blocked });
       void queryClient.invalidateQueries({ queryKey: queryKeys.relationships });
-      toast.success(input.blocked ? 'Blocked' : 'Unblocked');
+
+      /*
+       * Y la conversación, que es donde se nota.
+       *
+       * `blockedByMe` y `blockedMe` viven en el detalle, y de ahí sale tanto el
+       * estado del perfil como el aviso del redactor —«aquí no puedes
+       * escribir»—. Sin invalidarlo, bloquear a alguien dejaba el chat
+       * exactamente igual hasta recargar. Reportado como «al bloquear no se
+       * actualiza el mensaje y el estado automáticamente».
+       *
+       * Se invalidan **todas** las conversaciones y no una: desde aquí no se
+       * sabe cuál es la del bloqueado, y un bloqueo es lo bastante raro como
+       * para no merecer llevar la cuenta de eso.
+       */
+      void queryClient.invalidateQueries({ queryKey: ['conversation'] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.conversations(false) });
+
+      toast.success(input.blocked ? t.toast.blocked : t.toast.unblocked);
     },
     onError: (error) => toast.error(t.toast.updateFailed, { description: error.message }),
   });

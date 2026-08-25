@@ -70,6 +70,34 @@ export function ConversationView({ conversationId }: { conversationId: string })
 
   const { typingNames, sendTyping } = useConversationChannel(conversationId, me.id);
 
+  /**
+   * La altura real de la consola, publicada como `--consola`.
+   *
+   * El hilo reserva ese hueco abajo. Con un valor fijo no había manera: la
+   * consola crece al citar una respuesta, al adjuntar y al escribir varias
+   * líneas, y en cada uno de esos casos tapaba el último mensaje.
+   *
+   * `ResizeObserver` y no un cálculo: la altura depende de fuentes, del ancho y
+   * de cuántos adjuntos hay, y medir es más corto que predecir.
+   */
+  const escenarioRef = React.useRef<HTMLDivElement>(null);
+  const consolaRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const consola = consolaRef.current;
+    const escenario = escenarioRef.current;
+    if (!consola || !escenario) return;
+
+    const publicar = () => {
+      escenario.style.setProperty('--consola', `${consola.offsetHeight}px`);
+    };
+    publicar();
+
+    const observador = new ResizeObserver(publicar);
+    observador.observe(consola);
+    return () => observador.disconnect();
+  }, []);
+
   const messages = React.useMemo(
     () => flattenMessages(messagesQuery.data),
     [messagesQuery.data],
@@ -196,7 +224,10 @@ export function ConversationView({ conversationId }: { conversationId: string })
         The main stage. `pb-28` on the message list reserves the space the
         floating console occupies, so the last message is never hidden behind it.
       */}
-      <div className="panel neon-border relative flex h-full min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-panel)] shadow-[var(--shadow-overlay)]">
+      <div
+        ref={escenarioRef}
+        className="panel neon-border relative flex h-full min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-panel)] shadow-[var(--shadow-overlay)]"
+      >
         <ChatHeader conversation={conversation} meId={me.id} typingCount={typingNames.length} />
 
         <MessageList
@@ -219,8 +250,20 @@ export function ConversationView({ conversationId }: { conversationId: string })
           emptyDescription={t.conversation.sayHelloHint}
         />
 
-        {/* Floating console, docked over the thread rather than below it. */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-4 pb-4 sm:px-6 sm:pb-5">
+        {/*
+          Floating console, docked over the thread rather than below it.
+
+          Se **mide** y publica su altura en `--consola`, que es lo que el hilo
+          usa como relleno inferior. Antes era un `pb-32` fijo, y la consola no
+          mide siempre lo mismo: con una respuesta citada, una bandeja de
+          adjuntos o un borrador de varias líneas crece y tapaba el último
+          mensaje. Reportado como «el botón de ir a lo último no lleva al final,
+          hace que el último mensaje se solape».
+        */}
+        <div
+          ref={consolaRef}
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-4 pb-4 sm:px-6 sm:pb-5"
+        >
           <div className="pointer-events-auto mx-auto w-full max-w-4xl">
             <TypingIndicator names={typingNames} />
             <Composer

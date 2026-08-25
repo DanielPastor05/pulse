@@ -22,7 +22,7 @@ export function useReportMessage() {
       }),
     onSuccess: () =>
       toast.success(t.toast.reportSent, {
-        description: 'A moderator will take a look. Thanks for flagging it.',
+        description: t.toast.reportSentHint,
       }),
     onError: (error) => toast.error(t.toast.reportFailed, { description: error.message }),
   });
@@ -52,7 +52,7 @@ export function useReviewReport(conversationId: string) {
       }),
     onSuccess: (_report, input) => {
       void queryClient.invalidateQueries({ queryKey: reportKeys.queue(conversationId) });
-      toast.success(input.status === 'RESOLVED' ? 'Marked as resolved' : 'Dismissed');
+      toast.success(input.status === 'RESOLVED' ? t.toast.reportResolved : t.toast.reportDismissed);
     },
     onError: (error) => toast.error(t.toast.reportUpdateFailed, { description: error.message }),
   });
