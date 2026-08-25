@@ -80,7 +80,7 @@ export function PinnedPanel({
             <Button
               size="icon-sm"
               variant="ghost"
-              className="opacity-0 transition-opacity group-hover:opacity-100"
+              className="opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100"
               onClick={() => onUnpin(message)}
               aria-label={t.message.unpinMessage}
             >

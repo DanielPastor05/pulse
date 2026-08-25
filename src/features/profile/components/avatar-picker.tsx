@@ -59,6 +59,9 @@ export function AvatarPicker({ value, name, onChange, size = 'xl' }: AvatarPicke
           className={cn(
             'absolute inset-0 grid place-items-center rounded-full bg-black/55 text-white',
             'opacity-0 transition-opacity duration-200 group-hover:opacity-100',
+            // Sin ratón no hay hover: en un móvil, cambiar la foto era
+            // un botón invisible encima del avatar.
+            '[@media(hover:none)]:opacity-100',
             uploading && 'opacity-100',
           )}
         >

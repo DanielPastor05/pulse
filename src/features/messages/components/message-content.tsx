@@ -39,6 +39,7 @@ function CodeBlock({ children, ...props }: React.ComponentProps<'pre'>) {
           'absolute right-2 top-2 grid size-7 place-items-center rounded-lg',
           'border border-[var(--hairline)] bg-[var(--surface)] text-[var(--text-3)]',
           'opacity-0 transition-all duration-150 group-hover/code:opacity-100',
+          '[@media(hover:none)]:opacity-100',
           'hover:text-[var(--text-1)] focus-visible:opacity-100',
         )}
         aria-label={copied ? t.message.copied : t.message.copyCode}

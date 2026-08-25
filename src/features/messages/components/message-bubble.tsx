@@ -415,7 +415,20 @@ export const MessageBubble = React.memo(function MessageBubble({
                 </span>
               </div>
 
-              {/* Hover toolbar — hidden until the row is hovered or focused. */}
+              {/*
+                Hover toolbar — hidden until the row is hovered or focused.
+
+                Y **siempre visible donde no hay ratón**. En un móvil no existe
+                el estado «hover», así que reaccionar, responder o abrir el menú
+                de un mensaje eran invisibles: seguían ahí, ocupando sitio y
+                pulsables sin verse, que es peor que no estar. Era el fondo de
+                «adaptar mejor la app a móvil».
+
+                `(hover: none)` y no un ancho de pantalla: lo que decide es el
+                puntero, no el tamaño. Un portátil con pantalla táctil y ratón
+                mantiene el comportamiento de escritorio, y una tableta grande
+                sin ratón no lo hereda por ser ancha.
+              */}
               {!deleted && !message.pending ? (
                 <div
                   className={cn(
@@ -423,6 +436,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                     'surface-overlay border border-[var(--hairline)] shadow-[var(--shadow-raised)]',
                     'opacity-0 transition-opacity duration-150',
                     'group-hover/message:opacity-100 focus-within:opacity-100',
+                    '[@media(hover:none)]:opacity-100',
                   )}
                 >
                   {QUICK_REACTIONS.slice(0, 3).map((emoji) => (
@@ -430,7 +444,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                       key={emoji}
                       type="button"
                       onClick={() => actions.onReact(message, emoji)}
-                      className="grid size-7 place-items-center rounded-full text-[14px] transition-transform hover:scale-125 active:scale-95"
+                      className="grid size-7 [@media(hover:none)]:size-10 place-items-center rounded-full text-[14px] transition-transform hover:scale-125 active:scale-95"
                       aria-label={t.message.reactWith(emoji)}
                     >
                       {emoji}

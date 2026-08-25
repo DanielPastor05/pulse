@@ -37,8 +37,21 @@ const buttonVariants = cva(
         sm: 'h-8 rounded-[var(--radius-control)] px-3 text-[12.5px] [&_svg]:size-4',
         md: 'h-9 rounded-[var(--radius-field)] px-3.5 text-[13.5px] [&_svg]:size-4',
         lg: 'h-11 rounded-[var(--radius-field)] px-5 text-[15px] [&_svg]:size-[18px]',
-        icon: 'size-9 rounded-[var(--radius-field)] [&_svg]:size-[18px]',
-        'icon-sm': 'size-8 rounded-[var(--radius-control)] [&_svg]:size-4',
+        /*
+         * Los botones de icono crecen donde se tocan con el dedo.
+         *
+         * 36 y 32 píxeles están bien para un ratón, que apunta a un píxel, y
+         * mal para un pulgar: la recomendación de toque es 44. En un móvil
+         * había que apuntar a botones de un tercio de centímetro, y eso es
+         * parte de «adaptar mejor la app a móvil».
+         *
+         * Condicionado al puntero y no al ancho: un portátil táctil con ratón
+         * conserva la densidad de escritorio, y una tableta sin ratón la gana
+         * aunque tenga pantalla grande.
+         */
+        icon: 'size-9 [@media(hover:none)]:size-11 rounded-[var(--radius-field)] [&_svg]:size-[18px]',
+        'icon-sm':
+          'size-8 [@media(hover:none)]:size-11 rounded-[var(--radius-control)] [&_svg]:size-4',
       },
       block: { true: 'w-full', false: '' },
     },

@@ -125,7 +125,7 @@ export function StarredMessages() {
                         size="sm"
                         variant="ghost"
                         onClick={() => unstar.mutate(message.id)}
-                        className="opacity-0 transition-opacity group-hover:opacity-100"
+                        className="opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100"
                       >
                         <StarOff />
                         {t.message.remove}
