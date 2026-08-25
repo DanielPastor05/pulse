@@ -1,7 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import { Plus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useMutation } from '@tanstack/react-query';
+import { Plus, Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
+
+import { api } from '@/lib/api-client';
 
 import { useSession } from '@/components/providers/session-provider';
 import { useUiStore } from '@/stores/ui-store';
@@ -29,6 +34,21 @@ export function ChatWelcome() {
   const me = useSession();
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const setCommandOpen = useUiStore((state) => state.setCommandOpen);
+  const router = useRouter();
+
+  /*
+   * El asistente vive aqui y no en un menu.
+   *
+   * Esta es la pantalla de "no se que hacer con esto", que es exactamente
+   * cuando alguien agradece tener con quien probar. Y despues del primer
+   * mensaje ya no hace falta: el hilo se queda en la lista como cualquier
+   * otro, porque el asistente es una cuenta normal con una marca encima.
+   */
+  const abrirAsistente = useMutation({
+    mutationFn: () => api<{ id: string }>('/assistant', { method: 'POST' }),
+    onSuccess: (conversacion) => router.push(`/chat/${conversacion.id}`),
+    onError: (error) => toast.error(t.nav.assistantFailed, { description: error.message }),
+  });
   // `split` puede devolver un hueco vacío si el nombre son sólo espacios, y
   // antes daba igual porque se interpolaba tal cual. Ahora entra en una función
   // que promete recibir un texto.
@@ -53,6 +73,16 @@ export function ChatWelcome() {
           <Button variant="secondary" onClick={() => setCommandOpen(true)}>
             {t.common.search}
           </Button>
+          {me.assistantAvailable ? (
+            <Button
+              variant="secondary"
+              loading={abrirAsistente.isPending}
+              onClick={() => abrirAsistente.mutate()}
+            >
+              <Sparkles />
+              {t.nav.askAssistant}
+            </Button>
+          ) : null}
         </div>
 
         <dl className="mt-10 space-y-2 border-t border-[var(--hairline)] pt-5">

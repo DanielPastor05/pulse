@@ -24,10 +24,14 @@ export type PublicUser = {
   statusText: string | null;
   presence: Presence;
   lastSeenAt: string;
+  /** No hay una persona detrás. Sirve para etiquetarlo, no para tratarlo aparte. */
+  isAssistant: boolean;
 };
 
 export type CurrentUser = PublicUser & {
   email: string;
+  /** Si este despliegue tiene credenciales de Workers AI para el asistente. */
+  assistantAvailable: boolean;
   locale: Locale;
   theme: ThemePreference;
   accent: string;

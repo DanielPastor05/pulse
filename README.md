@@ -19,7 +19,7 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 | **Concurrent sending** | 13.5 s → 1.48 s → **590 ms p50** with ten people writing at once, three runs ([how](#the-hypothesis-that-was-not-wrong-just-hidden)) |
 | **Realtime delivery** | 3.8 s p95 end to end at ten concurrent senders, 100% delivered |
 | **Where it bends** | Sending stays under 1.2 s p95 at forty concurrent senders; delivery stretches to 10.6 s ([how](#where-it-bends-and-the-number-that-lied)) |
-| **API surface** | 70 endpoints across 54 route files; 49 of those files call `requireUser`, the other five authorise themselves ([which](#the-five-endpoints-without-requireuser)) |
+| **API surface** | 71 endpoints across 55 route files; 50 of those files call `requireUser`, the other five authorise themselves ([which](#the-five-endpoints-without-requireuser)) |
 
 
 ![Pulse: a group conversation with unread counts, reactions, a quoted reply and a live poll](docs/screenshots/chat.png)
@@ -546,7 +546,7 @@ without changing anything true, so they stay in.
 
 ### The five endpoints without requireUser
 
-Forty-nine of fifty-four route files call `requireUser()`. The other five are
+Fifty of fifty-five route files call `requireUser()`. The other five are
 each a deliberate answer to "who is calling this?":
 
 | endpoint | who calls it | how it authorises |
@@ -1091,7 +1091,7 @@ npm run db:migrate       npm run db:deploy        npm run db:studio
 
 ### API
 
-70 endpoints across 54 route files, all JSON. All of them require a session
+71 endpoints across 55 route files, all JSON. All of them require a session
 except the four that [authorise themselves](#the-five-endpoints-without-requireuser).
 Errors share one shape: `{ error, code, details? }`.
 
@@ -1110,6 +1110,7 @@ Errors share one shape: `{ error, code, details? }`.
 | Calls | `GET /calls/ice`, `POST /conversations/[id]/calls`, `POST /conversations/[id]/calls/[callId]/reject` |
 | Conversation state | `POST /conversations/[id]/read`, `PATCH /conversations/[id]/preferences`, `GET /conversations/[id]/pins` |
 | Scheduled | `GET/POST /conversations/[id]/scheduled`, `DELETE /conversations/[id]/scheduled/[scheduledId]` |
+| Assistant | `POST /assistant` |
 | Operations | `GET /health`, `GET /cron/cleanup`, `GET /metrics`, `POST /vitals` — `/vitals` needs a session; the other three are the ones that do not, and the cron and metrics each check a shared secret |
 
 ---

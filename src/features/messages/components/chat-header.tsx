@@ -28,6 +28,7 @@ import { useCallApi } from '@/features/calls/call-provider';
 import { useT } from '@/i18n/provider';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/misc';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@/components/ui/menu';
 import { Tooltip } from '@/components/ui/tooltip';
 import type { ConversationDetail } from '@/types/dto';
@@ -95,6 +96,15 @@ export function ChatHeader({
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
             <span className="truncate text-[15px] font-semibold">{conversation.name}</span>
+            {/*
+              Que se vea que no hay nadie detrás.
+              No es decoración: alguien que abra este hilo desde una
+              notificación tiene que poder saber, sin preguntar, que lo que
+              está leyendo lo escribió un modelo.
+            */}
+            {conversation.peer?.isAssistant ? (
+              <Badge className="shrink-0">{t.nav.assistantBadge}</Badge>
+            ) : null}
             {conversation.favorite ? (
               <Star className="size-3.5 shrink-0 fill-[var(--warning)] text-[var(--warning)]" />
             ) : null}

@@ -257,6 +257,15 @@ export async function deleteAccount(user: SessionUser, confirmation: string, pas
     throw errors.badRequest('Could not remove your files. Nothing was deleted — try again.');
   }
 
+  // Las conversaciones donde estaba, anotadas **antes** de borrar: después ya no
+  // hay forma de saber cuáles eran suyas.
+  const suyas = (
+    await prisma.conversationMember.findMany({
+      where: { userId: user.id },
+      select: { conversationId: true },
+    })
+  ).map((fila) => fila.conversationId);
+
   const admin = createSupabaseAdminClient();
   const { error } = await admin.auth.admin.deleteUser(user.id);
 
@@ -265,5 +274,30 @@ export async function deleteAccount(user: SessionUser, confirmation: string, pas
     throw errors.badRequest('Could not delete the account. Try again in a moment.');
   }
 
-  log.info('account.deleted', { userId: user.id, removedFiles });
+  /*
+   * Y las que se quedan sin nadie se van con ella.
+   *
+   * Borrar la cuenta quita sus filas de `conversation_members`, pero no toca la
+   * conversación. Cuando se va la última persona queda una sala vacía:
+   * invisible desde la aplicación, porque todo filtra por pertenencia, y con
+   * todos sus mensajes y adjuntos todavía ahí.
+   *
+   * No es teórico. Al medirlo el 21/08/2026 la base de producción tenía 616 de
+   * 639 conversaciones huérfanas con 4549 mensajes — el 95% de la tabla era
+   * escombro, acumulado durante nueve días sin que nadie lo viera. Aquello se
+   * arregló en el arnés de pruebas, que era de donde venía casi todo; esto
+   * cierra el mismo agujero por el lado de la aplicación.
+   *
+   * «Sin nadie» quiere decir sin ninguna persona: un hilo donde sólo queda el
+   * asistente tampoco tiene a quien servir. Es un caso nuevo desde que existe
+   * esa cuenta, y sin esta condición sería la misma basura con otra forma.
+   *
+   * Sólo las que eran suyas. Barrer todas las huérfanas sería más simple y más
+   * peligroso: borrar una cuenta no debe poder tocar nada que no fuera de ella.
+   */
+  const { count: salasVacias } = await prisma.conversation.deleteMany({
+    where: { id: { in: suyas }, members: { none: { user: { isAssistant: false } } } },
+  });
+
+  log.info('account.deleted', { userId: user.id, removedFiles, salasVacias });
 }

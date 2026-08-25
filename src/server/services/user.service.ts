@@ -3,6 +3,7 @@ import type { User } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { errors } from '@/server/errors';
 import { publicUserSelect, toPublicUser } from '@/server/repositories/selectors';
+import { asistenteDisponible } from '@/server/services/assistant.service';
 import { notify } from '@/server/services/notification.service';
 import type { UpdateProfileInput } from '@/features/profile/validators';
 import type { CurrentUser, PublicUser, RelationshipDTO } from '@/types/dto';
@@ -19,6 +20,17 @@ export function toCurrentUser(user: User): CurrentUser {
     statusText: user.statusText,
     presence: user.presence,
     lastSeenAt: user.lastSeenAt.toISOString(),
+    isAssistant: user.isAssistant,
+    /*
+     * Si este despliegue tiene asistente.
+     *
+     * Viaja con la sesión y no en una variable `NEXT_PUBLIC_`: la respuesta
+     * depende de dos credenciales de servidor que ya existen, y añadir una
+     * variable pública para repetir lo que se puede saber sería una tercera
+     * cosa que mantener de acuerdo con las otras dos. Aquí no puede
+     * desincronizarse.
+     */
+    assistantAvailable: asistenteDisponible(),
     locale: user.locale,
     theme: user.theme,
     accent: user.accent,

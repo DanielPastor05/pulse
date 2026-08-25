@@ -216,7 +216,11 @@ test('las rutas que no piden sesión son las que el README enumera', () => {
     'fifty-one': 51, 'fifty-two': 52, 'fifty-three': 53, 'fifty-four': 54,
     'fifty-five': 55, 'fifty-six': 56,
   };
-  const frase = readme.match(/^([A-Z][a-z]+-[a-z]+) of ([a-z]+-[a-z]+) route files call/m);
+  // El guion es opcional: los múltiplos redondos —«fifty»— no lo llevan, y con
+  // él obligatorio esta prueba fallaba diciendo «ya no existe la frase», que es
+  // un mensaje que manda a buscar donde no es. Es la segunda vez que este mismo
+  // guardián se rompe al cambiar justo lo que vigila.
+  const frase = readme.match(/^([A-Z][a-z]+(?:-[a-z]+)?) of ([a-z]+(?:-[a-z]+)?) route files call/m);
   assert.ok(frase, 'la sección de endpoints ya no dice «N of M route files call»');
   assert.equal(NUMEROS[frase[1]!.toLowerCase()], conSesion, `«${frase[1]}» ya no son los que llaman a requireUser`);
   assert.equal(NUMEROS[frase[2]!.toLowerCase()], RUTAS.length, `«${frase[2]}» ya no son los ficheros de ruta que hay`);

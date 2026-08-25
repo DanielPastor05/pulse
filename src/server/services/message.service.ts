@@ -286,6 +286,25 @@ export async function sendMessage(
   // unas horas sólo encuentra la búsqueda léxica.
   after(() => embedMessage(created.id, content));
 
+  // Y si el hilo es con el asistente, su respuesta. Fuera de la respuesta por la
+  // misma razón que las otras dos, sólo que aquí la espera es de segundos: nadie
+  // debería ver su propio mensaje tardar en salir porque un modelo está
+  // pensando. La respuesta llega por el canal en vivo, como la de cualquiera.
+  //
+  // La función decide sola si le toca —comprueba que sea directa, que el otro
+  // extremo sea el asistente y que quien escribió no sea él mismo— para que este
+  // punto de enganche no tenga que saber nada de eso.
+  //
+  // Importado aquí dentro y no arriba: el asistente responde llamando a esta
+  // misma función, así que un `import` estático cerraría un ciclo entre los dos
+  // módulos. Funcionaría —las declaraciones de función se elevan— pero es la
+  // clase de cosa que se rompe al reordenar un fichero. Y no cuesta latencia:
+  // esto ya corre fuera de la respuesta.
+  after(async () => {
+    const { responderSiEsAsistente } = await import('@/server/services/assistant.service');
+    await responderSiEsAsistente(conversationId, author.id, created.id);
+  });
+
   return dto;
 }
 

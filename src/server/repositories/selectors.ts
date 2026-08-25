@@ -24,6 +24,7 @@ export const publicUserSelect = {
   statusText: true,
   presence: true,
   lastSeenAt: true,
+  isAssistant: true,
 } satisfies Prisma.UserSelect;
 
 export type PublicUserRow = Prisma.UserGetPayload<{ select: typeof publicUserSelect }>;
@@ -48,7 +49,15 @@ const PRESENCE_STALE_AFTER_MS = 2.5 * 60_000;
  * needed to answer the question is already in the row, and a background job
  * that has to run to keep data honest is a job that can stop running.
  */
-function livePresence(row: Pick<PublicUserRow, 'presence' | 'lastSeenAt'>): PublicUser['presence'] {
+function livePresence(
+  row: Pick<PublicUserRow, 'presence' | 'lastSeenAt' | 'isAssistant'>,
+): PublicUser['presence'] {
+  // El asistente no tiene pestaña abierta, así que nunca manda latidos y esta
+  // función lo daría por desconectado a los dos minutos y medio de crearlo.
+  // Está en línea porque no duerme, y decirlo aquí es más honesto que escribirle
+  // `lastSeenAt` cada minuto para fingir un navegador que no existe.
+  if (row.isAssistant) return 'ONLINE';
+
   if (row.presence === 'OFFLINE') return 'OFFLINE';
   const silentFor = Date.now() - row.lastSeenAt.getTime();
   return silentFor > PRESENCE_STALE_AFTER_MS ? 'OFFLINE' : row.presence;
@@ -65,6 +74,7 @@ export function toPublicUser(row: PublicUserRow): PublicUser {
     statusText: row.statusText,
     presence: livePresence(row),
     lastSeenAt: row.lastSeenAt.toISOString(),
+    isAssistant: row.isAssistant,
   };
 }
 

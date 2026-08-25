@@ -151,6 +151,7 @@ export function useSendMessage(conversationId: string, me: CurrentUser) {
           statusText: me.statusText,
           presence: me.presence,
           lastSeenAt: me.lastSeenAt,
+          isAssistant: me.isAssistant,
         },
         createdAt: new Date().toISOString(),
         editedAt: null,

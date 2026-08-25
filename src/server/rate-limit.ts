@@ -15,6 +15,13 @@ export const rateLimits = {
   search: { limit: 60, windowMs: 60_000 },
   upload: { limit: 30, windowMs: 60_000 },
   auth: { limit: 10, windowMs: 60_000 },
+  /**
+   * El asistente. Más apretado que lo demás porque cada llamada gasta cuota de
+   * Workers AI de la cuenta, no sólo un poco de base de datos: pasarse aquí lo
+   * paga el dueño del despliegue. Veinte por minuto es más de lo que nadie
+   * escribe conversando y poco para intentar vaciar la cuota.
+   */
+  assistant: { limit: 20, windowMs: 60_000 },
 } satisfies Record<string, RateLimitRule>;
 
 /**

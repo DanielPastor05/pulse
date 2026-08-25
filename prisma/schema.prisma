@@ -113,6 +113,15 @@ model User {
   bio         String?
   statusText  String?
 
+  /// El asistente es una cuenta como las demás, con esta marca encima.
+  ///
+  /// Una cuenta de verdad y no un caso especial en cada consulta: así el hilo,
+  /// la lista, las notificaciones, la búsqueda y los permisos lo tratan como a
+  /// cualquiera, sin una rama nueva en ninguno. Lo único que necesita saber el
+  /// resto del programa es que no hay una persona detrás — para ponerle una
+  /// etiqueta, y para no contestarse a sí mismo.
+  isAssistant Boolean @default(false)
+
   presence   Presence @default(OFFLINE)
   lastSeenAt DateTime @default(now())
 

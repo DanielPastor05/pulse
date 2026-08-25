@@ -48,6 +48,7 @@ const marta: PublicUser = {
   avatarUrl: null,
   bannerColor: 'magenta',
   bio: null,
+  isAssistant: false,
   statusText: null,
   presence: 'ONLINE',
   lastSeenAt: new Date('2026-08-20T10:00:00Z').toISOString(),

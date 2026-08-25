@@ -52,6 +52,7 @@ function persona(overrides: Partial<PublicUser> = {}): PublicUser {
     statusText: null,
     presence: 'ONLINE',
     lastSeenAt: new Date('2026-08-20T10:00:00Z').toISOString(),
+    isAssistant: false,
     ...overrides,
   };
 }
