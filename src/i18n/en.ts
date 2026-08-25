@@ -523,6 +523,7 @@ export const messages = {
     saved: 'Saved',
     pickImage: 'Pick an image file',
     uploadFailed: 'Upload failed',
+    viewPicture: (name: string) => `View ${name}'s picture`,
     uploadPicture: 'Upload a profile picture',
     profilePicture: 'Profile picture',
     pictureHint: 'PNG, JPG or GIF. Up to 50 MB.',

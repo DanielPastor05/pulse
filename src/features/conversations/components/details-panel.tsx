@@ -31,6 +31,7 @@ import {
 } from '@/features/conversations/hooks';
 import { useReports, useReviewReport } from '@/features/moderation/hooks';
 import { UserPicker } from '@/features/profile/components/user-picker';
+import { BotonDeAmistad } from '@/features/profile/components/friend-button';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -395,6 +396,17 @@ export function DetailsPanel({
                           )}
                         />
                       ) : null}
+
+                      {/*
+                        Añadir a amigos desde donde está la gente.
+
+                        Antes sólo se podía desde el perfil, y para llegar había
+                        que saber que el nombre era pulsable. Se reportó como
+                        «el añadir amigos es lioso, poner un botón al lado del
+                        nombre», y es literalmente eso: la lista de miembros es
+                        el sitio donde uno ve a alguien y decide agregarlo.
+                      */}
+                      {!isMe ? <BotonDeAmistad user={member.user} /> : null}
 
                       {manages && !isMe && member.role !== 'OWNER' ? (
                         <Menu>

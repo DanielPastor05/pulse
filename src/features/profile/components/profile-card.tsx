@@ -8,7 +8,7 @@ import { useDates } from '@/i18n/dates';
 import { usePresenceOf } from '@/stores/presence-store';
 import { useOpenDirectConversation } from '@/features/conversations/hooks';
 import { useRelationshipActions, useSetBlocked } from '@/features/profile/hooks';
-import { Avatar } from '@/components/ui/avatar';
+import { AvatarConVisor } from '@/features/profile/components/avatar-viewer';
 import { Button } from '@/components/ui/button';
 import type { PublicUser } from '@/types/dto';
 import { useT } from '@/i18n/provider';
@@ -42,7 +42,7 @@ export function ProfileCard({ user, isMe, relationship, blockedByMe }: Props) {
       <div className="scroll-area flex-1 overflow-y-auto pb-24 lg:pb-6">
         <div className="mx-auto max-w-lg">
           <div className="px-6 pt-8">
-            <Avatar src={user.avatarUrl} name={user.displayName} size="xl" presence={presence} />
+            <AvatarConVisor src={user.avatarUrl} name={user.displayName} size="xl" presence={presence} />
 
             <div className="mt-4 space-y-1">
               <h2 className="font-[family-name:var(--font-display)] text-[2rem] leading-tight tracking-[-0.01em]">

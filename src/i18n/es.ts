@@ -514,6 +514,7 @@ export const messages = {
     saved: 'Guardado',
     pickImage: 'Elige un archivo de imagen',
     uploadFailed: 'No se ha podido subir',
+    viewPicture: (name: string) => `Ver la foto de ${name}`,
     uploadPicture: 'Subir una foto de perfil',
     profilePicture: 'Foto de perfil',
     pictureHint: 'PNG, JPG o GIF. Hasta 50 MB.',
