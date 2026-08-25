@@ -6,4 +6,8 @@
 --
 -- Sin valor por defecto: NULL es «sin fondo», que es justo lo que tenían todas
 -- las filas hasta ahora. Así la migración no reescribe nada.
-ALTER TABLE "ConversationMember" ADD COLUMN "background" TEXT;
+-- `conversation_members` y no `ConversationMember`: en el esquema el modelo se
+-- llama así, pero la tabla lleva `@@map`. Escribí el nombre del modelo y CI lo
+-- cazó al aplicar las migraciones sobre una base limpia, que es exactamente
+-- para lo que está ese paso — el resto de comprobaciones pasaban.
+ALTER TABLE "conversation_members" ADD COLUMN "background" TEXT;
