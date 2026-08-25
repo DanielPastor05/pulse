@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-import { ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES, STORAGE_BUCKETS } from '@/lib/constants';
+import { ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES, STORAGE_BUCKETS, tipoBase } from '@/lib/constants';
 import { randomId } from '@/lib/utils';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { requireUser } from '@/server/auth';
+import { getAuthUser, getSessionUser } from '@/server/auth';
 import { errors } from '@/server/errors';
 import { json, parseBody, route } from '@/server/http';
 import { rateLimit, rateLimits } from '@/server/rate-limit';
@@ -43,21 +43,47 @@ function isAllowed(mimeType: string) {
  * without the service-role key in the environment.
  */
 export const POST = route(async (request) => {
-  const user = await requireUser();
-  await rateLimit(`upload:${user.id}`, rateLimits.upload);
+  /*
+   * `getAuthUser` y no `requireUser`, y esto era un fallo que bloqueaba el alta.
+   *
+   * `requireUser` exige la **fila de perfil**, que durante el registro todavía
+   * no existe: se crea al terminar `/api/me/onboarding`. Así que quien elegía
+   * foto en ese formulario recibía un 401 «You need to sign in to do that» —
+   * literalmente «no tienes cuenta» mientras la estaba creando. Lo reportó la
+   * primera persona que se registró.
+   *
+   * El id es el mismo en los dos casos (el perfil se crea con `id: authUser.id`),
+   * así que la carpeta y la política de Storage no cambian.
+   */
+  const authUser = await getAuthUser();
+  if (!authUser) throw errors.unauthorized();
+
+  await rateLimit(`upload:${authUser.id}`, rateLimits.upload);
 
   const input = await parseBody(request, bodySchema);
+
+  // La relajación llega hasta aquí y no más: sin perfil sólo se sube el avatar,
+  // que es lo único que hace falta para completar el alta. Un adjunto exige una
+  // cuenta terminada — y quien no la tiene tampoco está en ninguna conversación
+  // donde ponerlo.
+  if (input.bucket !== 'avatars') {
+    const perfil = await getSessionUser();
+    if (!perfil) throw errors.unauthorized();
+  }
 
   if (input.size > MAX_UPLOAD_BYTES) {
     throw errors.badRequest('That file is larger than 50 MB.');
   }
-  if (!isAllowed(input.mimeType)) {
+
+  // El tipo, sin el códec que le pega `MediaRecorder`. Ver `tipoBase`.
+  const mimeType = tipoBase(input.mimeType);
+  if (!isAllowed(mimeType)) {
     throw errors.badRequest('That file type is not supported.');
   }
 
   const bucket =
     input.bucket === 'avatars' ? STORAGE_BUCKETS.avatars : STORAGE_BUCKETS.attachments;
-  const path = `${user.id}/${Date.now()}-${randomId(6)}-${safeName(input.fileName)}`;
+  const path = `${authUser.id}/${Date.now()}-${randomId(6)}-${safeName(input.fileName)}`;
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.storage.from(bucket).createSignedUploadUrl(path);

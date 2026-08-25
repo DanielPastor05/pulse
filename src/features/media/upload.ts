@@ -1,6 +1,7 @@
 import type { AttachmentKind } from '@prisma/client';
 
 import { api } from '@/lib/api-client';
+import { tipoBase } from '@/lib/constants';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 export type SignedUpload = {
@@ -62,12 +63,23 @@ export type UploadOptions = {
  * signed URL minted by our API — the app server never handles the bytes.
  */
 export async function uploadFile(file: File, options: UploadOptions = {}): Promise<UploadedFile> {
+  /*
+   * El tipo se normaliza **una vez**, aquí, y se usa el mismo en los tres
+   * sitios: la petición de firma, el `Content-Type` de la subida y lo que se
+   * guarda en la fila del adjunto.
+   *
+   * `MediaRecorder` produce `audio/webm;codecs=opus`, y tanto la lista del
+   * servidor como la del bucket comparan por igualdad exacta. Mandar el tipo
+   * con el códec hacía que ninguna nota de voz se pudiera subir.
+   */
+  const mimeType = tipoBase(file.type) || 'application/octet-stream';
+
   const signed = await api<SignedUpload>('/uploads', {
     method: 'POST',
     body: {
       bucket: options.bucket ?? 'attachments',
       fileName: file.name,
-      mimeType: file.type || 'application/octet-stream',
+      mimeType,
       size: file.size,
     },
   });
@@ -77,9 +89,7 @@ export async function uploadFile(file: File, options: UploadOptions = {}): Promi
   const supabase = getSupabaseBrowserClient();
   const { error } = await supabase.storage
     .from(signed.bucket)
-    .uploadToSignedUrl(signed.path, signed.token, file, {
-      contentType: file.type || 'application/octet-stream',
-    });
+    .uploadToSignedUrl(signed.path, signed.token, file, { contentType: mimeType });
 
   if (error) throw new Error(error.message);
   options.onProgress?.(1);
@@ -87,12 +97,12 @@ export async function uploadFile(file: File, options: UploadOptions = {}): Promi
   const dimensions = await measureImage(file);
 
   return {
-    kind: kindFor(file.type, options.isVoiceNote),
+    kind: kindFor(mimeType, options.isVoiceNote),
     url: signed.publicUrl,
     path: signed.path,
     name: file.name,
     size: file.size,
-    mimeType: file.type || 'application/octet-stream',
+    mimeType,
     width: dimensions?.width ?? null,
     height: dimensions?.height ?? null,
     duration: options.duration ?? null,

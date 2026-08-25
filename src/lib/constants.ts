@@ -45,6 +45,22 @@ export const QUICK_REACTIONS = ['👍', '❤️', '😂', '🎉', '🔥', '👀'
  *
  * No `image/svg+xml`: the buckets are public, and an SVG can carry script.
  */
+/**
+ * El tipo sin sus parámetros: `audio/webm;codecs=opus` → `audio/webm`.
+ *
+ * `MediaRecorder` **siempre** devuelve el códec pegado al tipo, y la lista de
+ * abajo compara por igualdad exacta. Resultado: toda nota de voz se rechazaba
+ * con «That file type is not supported», que es lo que reportó la primera
+ * persona que probó a grabar una. `audio/webm` llevaba en la lista desde el
+ * principio; lo que no coincidía era la cadena.
+ *
+ * Se normaliza también en el cliente antes de subir, porque el bucket de
+ * Storage compara igual de literal.
+ */
+export function tipoBase(mimeType: string): string {
+  return mimeType.split(';')[0]!.trim().toLowerCase();
+}
+
 export const ALLOWED_MIME_TYPES = [
   'image/png',
   'image/jpeg',
