@@ -9,7 +9,7 @@
  * despiste aislado: es un endpoint que se escribió sin copiar la guarda que
  * tenían sus vecinos, y encontrarlo pide recorrerlos todos.
  *
- * Aquí se enumeran las 31 rutas que aceptan un id y se llaman con tres
+ * Aquí se enumeran las 34 rutas que aceptan un id y se llaman con tres
  * identidades:
  *
  *   - `mallory`, que no es miembro de nada — no debe ver ni tocar nada
@@ -51,6 +51,17 @@ const grupo = await api('/api/conversations', {
 });
 const grupoId = grupo.json?.id ?? grupo.json?.conversation?.id;
 check('el grupo se crea', grupo.status, 201);
+
+// Y un mensaje programado suyo, para lo mismo. Va con una hora lejana para que
+// no salga a mitad de la prueba y deje el id apuntando a nada — que se leería
+// como «la guarda funciona» cuando en realidad no se estaría probando nada.
+const programado = await api(`/api/conversations/${grupoId}/scheduled`, {
+  actor: alice,
+  method: 'POST',
+  body: { content: 'esto es de Alice', scheduledFor: new Date(Date.now() + 86_400_000).toISOString() },
+});
+const programadoId = programado.json?.scheduled?.id;
+check('el mensaje programado de prueba existe', Boolean(programadoId), true);
 
 // Un mensaje de Alice, para probar los endpoints que toman id de mensaje.
 const enviado = await api(`/api/conversations/${grupoId}/messages`, {
@@ -97,6 +108,9 @@ const DE_FUERA = [
   ['PATCH preferencias', `/api/conversations/${grupoId}/preferences`, 'PATCH', { muted: true }],
   ['POST crear encuesta', `/api/conversations/${grupoId}/polls`, 'POST', { question: '¿?', options: ['a', 'b'] }],
   ['POST iniciar llamada', `/api/conversations/${grupoId}/calls`, 'POST', { mode: 'audio', callId: crypto.randomUUID() }],
+  ['GET  lo programado', `/api/conversations/${grupoId}/scheduled`, 'GET'],
+  ['POST programar un mensaje', `/api/conversations/${grupoId}/scheduled`, 'POST', { content: 'entro por la cara, pero luego', scheduledFor: new Date(Date.now() + 3_600_000).toISOString() }],
+  ['DELETE cancelar lo de Alice', `/api/conversations/${grupoId}/scheduled/${programadoId}`, 'DELETE'],
   ['GET  el hilo', `/api/messages/${mensajeId}/thread`, 'GET'],
   ['PATCH editar el mensaje', `/api/messages/${mensajeId}`, 'PATCH', { content: 'editado por Mallory' }],
   ['DELETE borrar el mensaje', `/api/messages/${mensajeId}`, 'DELETE'],
