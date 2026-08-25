@@ -27,3 +27,6 @@ coverage/
 # Salida de Playwright: trazas y capturas de la ejecución local
 test-results/
 playwright-report/
+
+# Notas de feedback, no van al repositorio
+feedback*.txt
