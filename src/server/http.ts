@@ -8,6 +8,7 @@ import { AppError, errors } from '@/server/errors';
 import { describeError, log } from '@/server/logger';
 import { checkBudgets, recordSample } from '@/server/metrics';
 import { conAlcanceDePeticion } from '@/server/request-scope';
+import { despacharProgramados } from '@/server/services/scheduled.service';
 import { contieneTextoImposible } from '@/server/texto-imposible';
 
 export type ApiErrorBody = { error: string; code: string; details?: unknown };
@@ -229,9 +230,15 @@ export function route<Context>(handler: Handler<Context>): Handler<Context> {
     // medir no puede costarle latencia a lo que mide. Ninguna de las dos lanza,
     // así que un fallo midiendo no puede romper la petición que ya se
     // respondió.
+    // Y despachar lo que ya tocaba enviar. Va aquí, colgado del tráfico, y no
+    // en un cron: en este plan las tareas programadas corren como mucho una vez
+    // al día, así que un mensaje de las tres de la tarde saldría a saber cuándo.
+    // El coste de preguntarlo está acotado en el propio servicio, que sólo mira
+    // la base cada veinte segundos por instancia.
     after(async () => {
       await recordSample(sample);
       await checkBudgets();
+      await despacharProgramados();
     });
 
     // La misma cifra en la respuesta, para verla en el inspector sin salir del

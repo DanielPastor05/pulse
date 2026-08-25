@@ -6,6 +6,7 @@ import {
   Camera,
   CornerUpLeft,
   BarChart3,
+  CalendarClock,
   Image as ImageIcon,
   Mic,
   Paperclip,
@@ -30,6 +31,7 @@ import { useComposerStore } from '@/stores/composer-store';
 import { useT } from '@/i18n/provider';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/tooltip';
+import { DialogoDeProgramacion } from '@/features/messages/components/schedule-dialog';
 import type { AttachmentInput } from '@/features/messages/validators';
 import type { MemberDTO } from '@/types/dto';
 
@@ -205,6 +207,8 @@ export function Composer({
       return current.filter((item) => item.id !== id);
     });
   };
+
+  const [scheduleOpen, setScheduleOpen] = React.useState(false);
 
   const ready = attachments.filter((item) => item.status === 'ready');
   const uploading = attachments.some((item) => item.status === 'uploading');
@@ -454,6 +458,29 @@ export function Composer({
             </div>
 
             <div className="flex items-center gap-0.5 pb-1">
+              {/*
+                Programar. Sale junto al de enviar y no escondido en un menu:
+                es la misma accion --que esto salga-- con otro cuando, y quien
+                lo busca lo busca ahi.
+
+                Visible siempre que no se este editando, tambien sin texto: el
+                dialogo hace dos cosas, y la segunda --ver y cancelar lo que ya
+                esta esperando-- tiene que poder abrirse con la consola vacia.
+              */}
+              {!edit ? (
+                <Tooltip content={t.composer.schedule}>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    disabled={disabled}
+                    onClick={() => setScheduleOpen(true)}
+                    aria-label={t.composer.schedule}
+                  >
+                    <CalendarClock />
+                  </Button>
+                </Tooltip>
+              ) : null}
+
               <EmojiPicker
                 open={emojiOpen}
                 onOpenChange={setEmojiOpen}
@@ -491,6 +518,25 @@ export function Composer({
           </div>
         )}
       </div>
+
+      {/*
+        Programado sólo lleva texto: no se le pasan los adjuntos ni se vacía la
+        bandeja al programar. Un fichero subido que todavía no pertenece a
+        ningún mensaje tendría que sostenerse solo, con su propia limpieza y su
+        propio permiso de lectura, y lo que la gente programa son palabras.
+      */}
+      <DialogoDeProgramacion
+        conversationId={conversationId}
+        contenido={edit ? '' : value}
+        replyToId={reply?.id ?? null}
+        abierto={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+        onProgramado={() => {
+          clearDraft(conversationId);
+          setReplyTo(conversationId, null);
+          requestAnimationFrame(resize);
+        }}
+      />
 
       <input
         ref={fileInputRef}

@@ -60,6 +60,10 @@ alter table public.blocks               enable row level security;
 alter table public.join_requests        enable row level security;
 alter table public.invites              enable row level security;
 alter table public.notifications        enable row level security;
+-- Sin política, o sea que deniega todo. Es lo correcto aquí: un mensaje
+-- programado no debe poder leerse por la superficie PostgREST ni siquiera por
+-- quien lo escribió — se enseña por la API, que además comprueba pertenencia.
+alter table public.scheduled_messages   enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Políticas

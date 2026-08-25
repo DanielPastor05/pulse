@@ -29,6 +29,18 @@ export const sendMessageSchema = z
     path: ['content'],
   });
 
+/**
+ * Programar un mensaje. Sólo texto, y por eso `content` aquí sí es obligatorio:
+ * en `sendMessageSchema` puede venir vacío porque puede haber adjuntos, y aquí
+ * no los hay. Que la hora sea futura y no esté a más de un año lo comprueba el
+ * servicio, donde se sabe qué hora es.
+ */
+export const scheduleMessageSchema = z.object({
+  content: z.string().trim().min(1, 'Write something to schedule.').max(MAX_MESSAGE_LENGTH),
+  scheduledFor: z.string().datetime({ offset: true }),
+  replyToId: z.string().uuid().nullable().optional(),
+});
+
 export const editMessageSchema = z.object({
   content: z.string().trim().min(1, 'Message cannot be empty.').max(MAX_MESSAGE_LENGTH),
 });

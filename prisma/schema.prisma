@@ -154,6 +154,7 @@ model User {
   reportsFiled          Report[]             @relation("ReportsFiled")
   reportsAgainst        Report[]             @relation("ReportsAgainst")
   reportsReviewed       Report[]             @relation("ReportsReviewed")
+  scheduledMessages     ScheduledMessage[]
 
   @@index([username])
   @@index([displayName])
@@ -186,8 +187,9 @@ model Conversation {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  members          ConversationMember[]
-  messages         Message[]
+  members           ConversationMember[]
+  messages          Message[]
+  scheduledMessages ScheduledMessage[]
   joinRequests     JoinRequest[]
   moderationEvents ModerationEvent[]
   invites          Invite[]
@@ -238,6 +240,48 @@ model ConversationMember {
   @@unique([conversationId, userId])
   @@index([userId, archived])
   @@map("conversation_members")
+}
+
+/// Un mensaje escrito ahora para que salga más tarde.
+///
+/// Tabla aparte y no un `Message` con fecha futura. Un mensaje sin enviar en la
+/// tabla de mensajes se cuela en todo lo que la lee: el recuento de sin leer, la
+/// vista previa de la lista, la búsqueda, el hilo, los índices vectoriales. Cada
+/// una de esas consultas tendría que aprender a excluirlo, y la que se olvidara
+/// enseñaría el mensaje antes de tiempo. Aquí no hay nada que excluir.
+///
+/// Sólo texto. Un adjunto programado obligaría a sostener un fichero subido que
+/// todavía no pertenece a ningún mensaje, con su propia limpieza y su propio
+/// permiso de lectura. Lo que la gente programa son palabras.
+model ScheduledMessage {
+  id String @id @default(uuid()) @db.Uuid
+
+  conversationId String       @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  authorId String @db.Uuid
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  content   String
+  replyToId String? @db.Uuid
+
+  scheduledFor DateTime
+
+  /// El reclamo. Se marca antes de enviar, para que dos peticiones simultáneas
+  /// no cojan la misma fila; se vuelve a permitir a los cinco minutos por si
+  /// quien la cogió murió a medias. Ese reintento no puede duplicar el mensaje
+  /// porque el envío va con `clientId`, y ahí ya hay una restricción única.
+  claimedAt DateTime?
+
+  /// Lo que salió: o el mensaje enviado, o el motivo de que no.
+  sentMessageId String? @db.Uuid
+  failedReason  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([scheduledFor])
+  @@index([authorId, conversationId])
+  @@map("scheduled_messages")
 }
 
 // ---------------------------------------------------------------------------

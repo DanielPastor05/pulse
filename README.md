@@ -9,7 +9,7 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 
 | | |
 | --- | --- |
-| **Automated checks** | 579 — 138 unit, 44 component, 46 integration against a real Postgres, 10 browser smoke tests, 341 end-to-end against the deployed instance |
+| **Automated checks** | 587 — 146 unit, 44 component, 46 integration against a real Postgres, 10 browser smoke tests, 341 end-to-end against the deployed instance |
 | **Latency budgets** | p95 per endpoint over a 15-minute window, alerting to Sentry when a budget is missed ([how](#emitting-signal-is-not-watching-it)) |
 | **Coverage** | 36.1% of statements and 74.1% of branches across `src/server` and `src/lib` ([what that gap means](#thirty-six-percent-and-why-branches-are-double-that)) |
 | **Row Level Security** | Enabled on all 26 tables; 15 policies grant access on the 14 that need it, the other 12 deny by default — enforced independently of the API |
@@ -19,7 +19,7 @@ Next.js 15 (App Router), React 19, TypeScript, Prisma, Supabase, Tailwind v4.
 | **Concurrent sending** | 13.5 s → 1.48 s → **590 ms p50** with ten people writing at once, three runs ([how](#the-hypothesis-that-was-not-wrong-just-hidden)) |
 | **Realtime delivery** | 3.8 s p95 end to end at ten concurrent senders, 100% delivered |
 | **Where it bends** | Sending stays under 1.2 s p95 at forty concurrent senders; delivery stretches to 10.6 s ([how](#where-it-bends-and-the-number-that-lied)) |
-| **API surface** | 67 endpoints across 52 route files; 47 of those files call `requireUser`, the other five authorise themselves ([which](#the-five-endpoints-without-requireuser)) |
+| **API surface** | 70 endpoints across 54 route files; 49 of those files call `requireUser`, the other five authorise themselves ([which](#the-five-endpoints-without-requireuser)) |
 
 
 ![Pulse: a group conversation with unread counts, reactions, a quoted reply and a live poll](docs/screenshots/chat.png)
@@ -546,7 +546,7 @@ without changing anything true, so they stay in.
 
 ### The five endpoints without requireUser
 
-Forty-seven of fifty-two route files call `requireUser()`. The other five are
+Forty-nine of fifty-four route files call `requireUser()`. The other five are
 each a deliberate answer to "who is calling this?":
 
 | endpoint | who calls it | how it authorises |
@@ -928,7 +928,7 @@ no second round trip to render a new message.
 577 checks, in five layers.
 
 ```bash
-npm test                  # 138 unit tests — pure logic, no I/O
+npm test                  # 146 unit tests — pure logic, no I/O
 npm run test:component    # 44 component tests in a DOM
 npm run test:integration  # 46 tests against a real Postgres, four of them a perf gate
 npm run test:smoke        # 10 browser checks against the production build
@@ -1091,7 +1091,7 @@ npm run db:migrate       npm run db:deploy        npm run db:studio
 
 ### API
 
-67 endpoints across 52 route files, all JSON. All of them require a session
+70 endpoints across 54 route files, all JSON. All of them require a session
 except the four that [authorise themselves](#the-five-endpoints-without-requireuser).
 Errors share one shape: `{ error, code, details? }`.
 
@@ -1109,6 +1109,7 @@ Errors share one shape: `{ error, code, details? }`.
 | Notifications | `GET /notifications`, `PATCH /notifications/[id]`, `POST/DELETE /push/subscriptions` |
 | Calls | `GET /calls/ice`, `POST /conversations/[id]/calls`, `POST /conversations/[id]/calls/[callId]/reject` |
 | Conversation state | `POST /conversations/[id]/read`, `PATCH /conversations/[id]/preferences`, `GET /conversations/[id]/pins` |
+| Scheduled | `GET/POST /conversations/[id]/scheduled`, `DELETE /conversations/[id]/scheduled/[scheduledId]` |
 | Operations | `GET /health`, `GET /cron/cleanup`, `GET /metrics`, `POST /vitals` — `/vitals` needs a session; the other three are the ones that do not, and the cron and metrics each check a shared secret |
 
 ---

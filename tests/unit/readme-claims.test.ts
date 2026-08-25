@@ -212,8 +212,9 @@ test('las rutas que no piden sesión son las que el README enumera', () => {
 
   // Y el título de esa sección cuenta lo mismo, en letra.
   const NUMEROS: Record<string, number> = {
-    'forty-seven': 47, 'forty-eight': 48, 'forty-nine': 49,
-    'fifty-one': 51, 'fifty-two': 52, 'fifty-three': 53,
+    'forty-seven': 47, 'forty-eight': 48, 'forty-nine': 49, 'fifty': 50,
+    'fifty-one': 51, 'fifty-two': 52, 'fifty-three': 53, 'fifty-four': 54,
+    'fifty-five': 55, 'fifty-six': 56,
   };
   const frase = readme.match(/^([A-Z][a-z]+-[a-z]+) of ([a-z]+-[a-z]+) route files call/m);
   assert.ok(frase, 'la sección de endpoints ya no dice «N of M route files call»');

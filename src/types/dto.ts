@@ -178,6 +178,19 @@ export type ConversationSummary = {
   } | null;
 };
 
+/**
+ * Un mensaje escrito para más tarde. No lleva autor porque sólo se ven los
+ * propios: pedir los de otro no devuelve una lista vacía, devuelve la tuya.
+ */
+export type ScheduledMessageDTO = {
+  id: string;
+  conversationId: string;
+  content: string;
+  replyToId: string | null;
+  scheduledFor: string;
+  createdAt: string;
+};
+
 export type ConversationDetail = ConversationSummary & {
   requiresApproval: boolean;
   ownerId: string | null;

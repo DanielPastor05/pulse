@@ -6,6 +6,7 @@ export const queryKeys = {
   conversation: (id: string) => ['conversation', id] as const,
   messages: (conversationId: string) => ['messages', conversationId] as const,
   pins: (conversationId: string) => ['pins', conversationId] as const,
+  scheduled: (conversationId: string) => ['scheduled', conversationId] as const,
   joinRequests: (conversationId: string) => ['join-requests', conversationId] as const,
 
   starred: ['starred'] as const,
