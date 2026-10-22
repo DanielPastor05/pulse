@@ -1,0 +1,5 @@
+clase,precio_coche,ingreso_hora_previo,horas_tramo_gratis,horas_acumuladas_gratis,horas_acumuladas_doble_ganancias
+C,70000,32000,1.6,1.6,0.9
+B,230000,58000,4.6,6.3,3.4
+A,1000000,100000,13.2,19.5,10.2
+S,4000000,170000,32.1,51.6,26.7

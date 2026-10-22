@@ -1,0 +1,5 @@
+escenario,D1,D7,D30,D90_extrapolado,dias_activos_365
+pesimista,0.06,0.01,0.003,0.0012,1.557
+base,0.12,0.03,0.01,0.0044,2.78
+optimista,0.18,0.06,0.025,0.0129,5.686
+excepcional,0.24,0.1,0.045,0.0246,9.647

@@ -1,0 +1,11 @@
+palanca,valor,ccu_mes6,ccu_mes12,ingresos_12m_eur,gasto_marketing_12m_eur
+marketing_eur_mes,0,41.5,34.1,4371,0.0
+marketing_eur_mes,50,43.8,36.8,4610,600.0
+marketing_eur_mes,100,46.2,39.5,4850,1200.0
+marketing_eur_mes,250,53.1,47.6,5569,3000.0
+marketing_eur_mes,500,64.7,61.0,6766,6000.0
+marketing_eur_mes,1000,88.0,87.8,9162,12000.0
+dias_entre_actualizaciones,14,48.6,41.2,5085,
+dias_entre_actualizaciones,21,46.2,39.5,4850,
+dias_entre_actualizaciones,42,43.6,37.1,4562,
+dias_entre_actualizaciones,sin actualizaciones,36.2,27.9,3859,
