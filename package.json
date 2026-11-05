@@ -6,7 +6,7 @@
   "engines": {
     "node": ">=20.11"
   },
-  "//overrides": "next 15 has no advisory of its own — npm flags it only for pulling in a vulnerable sharp and postcss. Pinning those two directly closes the CVEs without a major framework bump the night before a launch. Drop this block once Next ships a release that already depends on patched versions.",
+  "//overrides": "next 15 still allows sharp versions with published advisories (GHSA-2464-fhr4-w9xw needs sharp >= 0.35.5), and postcss and deepmerge-ts likewise. Pinning them here closes those without a major framework bump. Drop this block once Next requires patched versions on its own.",
   "overrides": {
     "sharp": "^0.35.5",
     "postcss": "^8.5.26",
