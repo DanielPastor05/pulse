@@ -75,4 +75,7 @@ export const reviewJoinRequestSchema = z.object({
 });
 
 export type CreateGroupInput = z.infer<typeof createGroupSchema>;
+// Lo que el formulario sostiene antes de validar: los campos con `.default()`
+// todavía pueden faltar. `CreateGroupInput` es lo que sale de la validación.
+export type CreateGroupFormValues = z.input<typeof createGroupSchema>;
 export type UpdateConversationInput = z.infer<typeof updateConversationSchema>;
