@@ -10,7 +10,11 @@ import { toast } from 'sonner';
 import { api, ApiError } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { hardNavigate } from '@/lib/navigate';
-import { onboardingSchema, type OnboardingInput } from '@/features/profile/validators';
+import {
+  onboardingSchema,
+  type OnboardingFormValues,
+  type OnboardingInput,
+} from '@/features/profile/validators';
 import { AccentPicker } from '@/features/profile/components/accent-picker';
 import { AvatarPicker } from '@/features/profile/components/avatar-picker';
 import { Button } from '@/components/ui/button';
@@ -41,7 +45,7 @@ export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvat
   const [step, setStep] = React.useState(0);
   const [direction, setDirection] = React.useState(1);
 
-  const form = useForm<OnboardingInput>({
+  const form = useForm<OnboardingFormValues, unknown, OnboardingInput>({
     resolver: zodResolver(onboardingSchema),
     mode: 'onChange',
     defaultValues: {
@@ -178,7 +182,7 @@ export function OnboardingFlow({ suggestedUsername, suggestedName, suggestedAvat
 
                   <Field label={t.auth.accentColour}>
                     <AccentPicker
-                      value={values.accent}
+                      value={values.accent ?? 'violet'}
                       onChange={(accent) => setValue('accent', accent, { shouldDirty: true })}
                     />
                   </Field>

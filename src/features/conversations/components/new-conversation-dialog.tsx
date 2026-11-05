@@ -6,7 +6,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Globe, Hash, Lock, MessageSquarePlus, ShieldCheck, UserRoundPlus } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { createGroupSchema, type CreateGroupInput } from '@/features/conversations/validators';
+import {
+  createGroupSchema,
+  type CreateGroupFormValues,
+  type CreateGroupInput,
+} from '@/features/conversations/validators';
 import { useCreateGroup, useOpenDirectConversation } from '@/features/conversations/hooks';
 import { AccentPicker } from '@/features/profile/components/accent-picker';
 import { AvatarPicker } from '@/features/profile/components/avatar-picker';
@@ -40,7 +44,7 @@ export function NewConversationDialog({ open, onOpenChange, defaultTab = 'direct
   const openDirect = useOpenDirectConversation();
   const createGroup = useCreateGroup();
 
-  const form = useForm<CreateGroupInput>({
+  const form = useForm<CreateGroupFormValues, unknown, CreateGroupInput>({
     resolver: zodResolver(createGroupSchema),
     defaultValues: {
       name: '',
@@ -160,7 +164,7 @@ export function NewConversationDialog({ open, onOpenChange, defaultTab = 'direct
 
               <Field label={t.settings.accent}>
                 <AccentPicker
-                  value={values.accent}
+                  value={values.accent ?? 'violet'}
                   onChange={(accent) => setValue('accent', accent)}
                 />
               </Field>

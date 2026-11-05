@@ -53,4 +53,7 @@ export const updateProfileSchema = z.object({
 });
 
 export type OnboardingInput = z.infer<typeof onboardingSchema>;
+// Lo que el formulario sostiene antes de validar: los campos con `.default()`
+// todavía pueden faltar. `OnboardingInput` es lo que sale de la validación.
+export type OnboardingFormValues = z.input<typeof onboardingSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
